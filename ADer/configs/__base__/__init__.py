@@ -1,7 +1,7 @@
 import glob
 import importlib
-from configs.__base__.cfg_common import cfg_common
-from configs.__base__.cfg_dataset_default import cfg_dataset_default
+from ADer.configs.__base__.cfg_common import cfg_common
+from ADer.configs.__base__.cfg_dataset_default import cfg_dataset_default
 
 
 files = glob.glob('configs/__base__/[!_]*.py')

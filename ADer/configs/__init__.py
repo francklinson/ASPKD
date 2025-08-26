@@ -1,7 +1,7 @@
 import importlib
 from argparse import Namespace
 from ast import literal_eval
-from util.net import get_timepc
+from ADer.util.net import get_timepc
 
 
 def get_cfg(opt_terminal):

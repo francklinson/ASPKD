@@ -1,6 +1,4 @@
-from torchvision import transforms
-import numpy as np
-from data import TRANSFORMS
+from ADer.data import TRANSFORMS
 
 
 def get_transforms(cfg, train, cfg_transforms):

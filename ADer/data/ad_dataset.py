@@ -4,7 +4,7 @@ import json
 import random
 import pickle
 from torchvision import transforms
-from util.data import get_img_loader
+from ADer.util.data import get_img_loader
 import torch.utils.data as data
 import numpy as np
 from PIL import Image
@@ -18,7 +18,7 @@ import warnings
 warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
 
 # from . import DATA
-from data import DATA
+from ADer.data import DATA
 from ADer.data.noise import Simplex_CLASS
 
 # data

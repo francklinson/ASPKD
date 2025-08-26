@@ -5,9 +5,9 @@ from einops import rearrange
 from tqdm import tqdm
 from sklearn.cluster import KMeans
 import torch.nn.functional as F
-from model import MODEL
-from model import get_model
-from data import get_loader
+from ADer.model import MODEL
+from ADer.model import get_model
+from ADer.data import get_loader
 
 class CoordConv2d(conv.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,

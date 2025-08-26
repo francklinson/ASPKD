@@ -1,8 +1,8 @@
 import argparse
-from configs import get_cfg
-from util.net import init_training
-from util.util import run_pre, init_checkpoint
-from trainer import get_trainer
+from ADer.configs import get_cfg
+from ADer.util.net import init_training
+from ADer.util.util import run_pre, init_checkpoint
+from ADer.trainer import get_trainer
 import warnings
 
 warnings.filterwarnings("ignore")
