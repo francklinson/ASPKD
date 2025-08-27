@@ -5,14 +5,14 @@ import time
 
 import tabulate
 import torch
-from util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
-from util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
-from util.net import get_loss_scaler, get_autocast, distribute_bn
-from optim.scheduler import get_scheduler
-from model import get_model
-from optim import get_optim
-from loss import get_loss_terms
-from util.metric import get_evaluator
+from ADer.util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
+from ADer.util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
+from ADer.util.net import get_loss_scaler, get_autocast, distribute_bn
+from ADer.optim.scheduler import get_scheduler
+from ADer.model import get_model
+from ADer.optim import get_optim
+from ADer.loss import get_loss_terms
+from ADer.util.metric import get_evaluator
 
 import numpy as np
 
@@ -26,8 +26,8 @@ from timm.utils import dispatch_clip_grad
 
 from ._base_trainer import BaseTrainer
 from . import TRAINER
-from model.rdpp import Revisit_RDLoss
-from util.vis import vis_rgb_gt_amp
+from ADer.model.rdpp import Revisit_RDLoss
+from ADer.util.vis import vis_rgb_gt_amp
 
 @TRAINER.register_module
 class RDPTrainer(BaseTrainer):

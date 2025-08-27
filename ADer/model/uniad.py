@@ -21,8 +21,8 @@ import torch.nn.functional as F
 from einops import rearrange
 from torch import Tensor, nn
 
-from model import get_model
-from model import MODEL
+from ADer.model import get_model
+from ADer.model import MODEL
 
 
 # ========== MFCN ==========

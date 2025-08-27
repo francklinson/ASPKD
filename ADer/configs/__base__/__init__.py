@@ -4,7 +4,7 @@ from ADer.configs.__base__.cfg_common import cfg_common
 from ADer.configs.__base__.cfg_dataset_default import cfg_dataset_default
 
 
-files = glob.glob('configs/__base__/[!_]*.py')
+files = glob.glob('ADer/configs/__base__/[!_]*.py')
 for file in files:
     model_lib = importlib.import_module(file.split('.')[0].replace('/', '.'))
     for obj_name in dir(model_lib):

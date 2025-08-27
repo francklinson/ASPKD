@@ -6,8 +6,8 @@ except ImportError:
 	from torch.utils.model_zoo import load_url as load_state_dict_from_url
 from timm.models.resnet import Bottleneck
 
-from model import get_model
-from model import MODEL
+from ADer.model import get_model
+from ADer.model import MODEL
 import geomloss
 
 

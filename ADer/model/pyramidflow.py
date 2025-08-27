@@ -2,15 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
-
 import numpy as np
 from scipy import linalg as la
-
 from torch.cuda.amp import custom_fwd, custom_bwd
 from typing import Tuple
 from abc import abstractmethod
-from model import MODEL
-from model import get_model
+from ADer.model import MODEL
+from ADer.model import get_model
 from einops import rearrange
 
 def kornia_filter2d(input, kernel):

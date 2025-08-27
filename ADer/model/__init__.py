@@ -8,7 +8,7 @@ from timm.models._helpers import load_checkpoint
 from timm.models.layers import set_layer_config
 from timm.models._hub import load_model_config_from_hf
 from timm.models._factory import parse_model_name
-from util.registry import Registry
+from ADer.util.registry import Registry
 MODEL = Registry('Model')
 
 def get_model(cfg_model):
@@ -82,7 +82,7 @@ def get_model(cfg_model):
 					sub_model.load_state_dict(sub_state_dict, strict=strict) if sub_model else None
 	return model
 
-files = glob.glob('model/[!_]*.py')
+files = glob.glob('ADer/model/[!_]*.py')
 for file in files:
-	print(file)
+	# print(file)
 	model_lib = importlib.import_module(file.split('.')[0].replace('/', '.'))

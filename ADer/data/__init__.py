@@ -3,13 +3,13 @@ import importlib
 import torch
 from torch.utils.data.distributed import DistributedSampler
 
-from util.registry import Registry
+from ADer.util.registry import Registry
 from timm.data.distributed_sampler import RepeatAugSampler
 
 TRANSFORMS = Registry('Transforms')
 DATA = Registry('Data')
 
-files = glob.glob('data/[!_]*.py')
+files = glob.glob('ADer/data/[!_]*.py')
 for file in files:
     model_lib = importlib.import_module(file.split('.')[0].replace('/', '.'))
 

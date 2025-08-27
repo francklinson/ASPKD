@@ -4,7 +4,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
 
-from configs.__base__ import *
+from ADer.configs.__base__ import *
 
 
 

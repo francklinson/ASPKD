@@ -1,7 +1,8 @@
 from argparse import Namespace
 from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
-from configs.__base__ import *
+from ADer.configs.__base__ import *
+from ADer.configs.__base__ import cfg_model_destseg
 
 
 class cfg(cfg_common, cfg_dataset_default, cfg_model_destseg):

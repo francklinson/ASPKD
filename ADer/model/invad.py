@@ -19,11 +19,11 @@ from torch.nn import functional as F
 from torch.autograd import Function
 from argparse import Namespace
 
-from model.stylegan2_op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d
+from ADer.model.stylegan2_op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d
 from torchvision.models.resnet import BasicBlock, Bottleneck
-from model.basic_modules import get_norm, get_act, ConvNormAct
-from model import get_model
-from model import MODEL
+from ADer.model.basic_modules import get_norm, get_act, ConvNormAct
+from ADer.model import get_model
+from ADer.model import MODEL
 
 
 def _repeat_tuple(t, n):

@@ -4,8 +4,8 @@ import torch.nn.functional as F
 import torch.distributed as dist
 import copy
 import math
-from model import get_model
-from model import MODEL
+from ADer.model import get_model
+from ADer.model import MODEL
 import torch
 import timm
 

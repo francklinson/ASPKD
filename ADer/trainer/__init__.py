@@ -1,10 +1,10 @@
 import glob
 import importlib
 
-from util.registry import Registry
+from ADer.util.registry import Registry
 TRAINER = Registry('Trainer')
 
-files = glob.glob('trainer/[!_]*.py')
+files = glob.glob('ADer/trainer/[!_]*.py')
 for file in files:
 	model_lib = importlib.import_module(file.split('.')[0].replace('/', '.'))
 

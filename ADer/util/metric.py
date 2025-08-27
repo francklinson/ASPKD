@@ -10,8 +10,8 @@ import numpy as np
 from numba import jit
 import torch
 from torch.nn import functional as F
-from util.util import get_timepc, log_msg
-from util.registry import Registry
+from ADer.util.util import get_timepc, log_msg
+from ADer.util.registry import Registry
 from adeval import EvalAccumulatorCuda
 
 EVALUATOR = Registry('Evaluator')
@@ -144,7 +144,7 @@ class Evaluator(object):
                 metric_results[metric] = auroc_sp
                 print('ground truth labels:', gt_labels)
                 print('predict pr_sp_max:', pr_sp_max)
-                draw_roc(gt_labels,pr_sp_max)
+                # draw_roc(gt_labels,pr_sp_max)
 
             if metric.startswith('bAUROC_sp_mean'):
                 """
@@ -154,7 +154,7 @@ class Evaluator(object):
                 metric_results[metric] = auroc_sp
                 print('ground truth labels:', gt_labels)
                 print('predict pr_sp_mean', pr_sp_mean)
-                draw_roc(gt_labels,pr_sp_mean)
+                # draw_roc(gt_labels,pr_sp_mean)
 
 
             if metric.startswith('mAUROC_sp_max'):

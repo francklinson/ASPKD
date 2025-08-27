@@ -3,8 +3,8 @@ import torch.nn as nn
 from torch import Tensor
 import torch.nn.functional as F
 from typing import Callable, Optional
-from model import MODEL
-from model import get_model
+from ADer.model import MODEL
+from ADer.model import get_model
 
 
 

@@ -1,15 +1,15 @@
 import os
 import datetime
 import torch
-from util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
-from util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
-from util.net import get_loss_scaler, get_autocast, distribute_bn
-from optim.scheduler import get_scheduler
-from data import get_loader
-from model import get_model
-from optim import get_optim
-from loss import get_loss_terms
-from util.metric import get_evaluator
+from ADer.util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
+from ADer.util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
+from ADer.util.net import get_loss_scaler, get_autocast, distribute_bn
+from ADer.optim.scheduler import get_scheduler
+from ADer.data import get_loader
+from ADer.model import get_model
+from ADer.optim import get_optim
+from ADer.loss import get_loss_terms
+from ADer.util.metric import get_evaluator
 from timm.data import Mixup
 
 from torch.nn.parallel import DistributedDataParallel as NativeDDP

@@ -12,9 +12,9 @@ from timm.models.helpers import build_model_with_cfg
 from timm.models._manipulate import named_apply, checkpoint_seq, adapt_input_conv
 from functools import partial
 from timm.models.layers import trunc_normal_
-from model._moco import VisionTransformerMoCo
-from model import get_model
-from model import MODEL
+from ADer.model._moco import VisionTransformerMoCo
+from ADer.model import get_model
+from ADer.model import MODEL
 
 # ========== Fusion ==========
 class Fusion(nn.Module):

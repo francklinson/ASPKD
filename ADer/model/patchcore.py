@@ -8,8 +8,9 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
-from model import MODEL
-
+from ADer.model import MODEL
+from ADer.model import get_model
+from ADer.model import MODEL
 import faiss
 import abc
 from typing import Union
@@ -18,15 +19,13 @@ import copy
 import torchvision
 import scipy.ndimage as ndimage
 from einops import rearrange
-from model import get_model
-from model import MODEL
 
 LOGGER = logging.getLogger(__name__)
 
 
 class IdentitySampler:
     def run(
-        self, features: Union[torch.Tensor, np.ndarray]
+            self, features: Union[torch.Tensor, np.ndarray]
     ) -> Union[torch.Tensor, np.ndarray]:
         return features
 
@@ -39,7 +38,7 @@ class BaseSampler(abc.ABC):
 
     @abc.abstractmethod
     def run(
-        self, features: Union[torch.Tensor, np.ndarray]
+            self, features: Union[torch.Tensor, np.ndarray]
     ) -> Union[torch.Tensor, np.ndarray]:
         pass
 
@@ -56,9 +55,9 @@ class BaseSampler(abc.ABC):
 
 class GreedyCoresetSampler(BaseSampler):
     def __init__(
-        self,
-        percentage: float,
-        dimension_to_project_features_to=128,
+            self,
+            percentage: float,
+            dimension_to_project_features_to=128,
     ):
         """Greedy Coreset sampling base class."""
         super().__init__(percentage)
@@ -76,7 +75,7 @@ class GreedyCoresetSampler(BaseSampler):
         return mapper(features)
 
     def run(
-        self, features: Union[torch.Tensor, np.ndarray]
+            self, features: Union[torch.Tensor, np.ndarray]
     ) -> Union[torch.Tensor, np.ndarray]:
         """Subsamples features using Greedy Coreset.
 
@@ -95,7 +94,7 @@ class GreedyCoresetSampler(BaseSampler):
 
     @staticmethod
     def _compute_batchwise_differences(
-        matrix_a: torch.Tensor, matrix_b: torch.Tensor
+            matrix_a: torch.Tensor, matrix_b: torch.Tensor
     ) -> torch.Tensor:
         """Computes batchwise Euclidean distances using PyTorch."""
         a_times_a = matrix_a.unsqueeze(1).bmm(matrix_a.unsqueeze(2)).reshape(-1, 1)
@@ -121,8 +120,8 @@ class GreedyCoresetSampler(BaseSampler):
             coreset_indices.append(select_idx)
 
             coreset_select_distance = distance_matrix[
-                :, select_idx : select_idx + 1  # noqa E203
-            ]
+                                      :, select_idx: select_idx + 1  # noqa E203
+                                      ]
             coreset_anchor_distances = torch.cat(
                 [coreset_anchor_distances.unsqueeze(-1), coreset_select_distance], dim=1
             )
@@ -133,10 +132,10 @@ class GreedyCoresetSampler(BaseSampler):
 
 class ApproximateGreedyCoresetSampler(GreedyCoresetSampler):
     def __init__(
-        self,
-        percentage: float,
-        number_of_starting_points: int = 10,
-        dimension_to_project_features_to: int = 128,
+            self,
+            percentage: float,
+            number_of_starting_points: int = 10,
+            dimension_to_project_features_to: int = 128,
     ):
         """Approximate Greedy Coreset sampling base class."""
         self.number_of_starting_points = number_of_starting_points
@@ -161,19 +160,19 @@ class ApproximateGreedyCoresetSampler(GreedyCoresetSampler):
 
         approximate_distance_matrix = self._compute_batchwise_differences(
             features, features[start_points]  # (163856,128) (10,128)
-        ) # (163856,10)
+        )  # (163856,10)
         approximate_coreset_anchor_distances = torch.mean(
             approximate_distance_matrix, axis=-1
-        ).reshape(-1, 1)   # (163856,1)
+        ).reshape(-1, 1)  # (163856,1)
         coreset_indices = []
-        num_coreset_samples = int(len(features) * self.percentage) # (16385)
+        num_coreset_samples = int(len(features) * self.percentage)  # (16385)
 
         with torch.no_grad():
             for _ in tqdm.tqdm(range(num_coreset_samples), desc="Subsampling..."):
                 select_idx = torch.argmax(approximate_coreset_anchor_distances).item()
                 coreset_indices.append(select_idx)
                 coreset_select_distance = self._compute_batchwise_differences(
-                    features, features[select_idx : select_idx + 1]  # noqa: E203
+                    features, features[select_idx: select_idx + 1]  # noqa: E203
                 )
                 approximate_coreset_anchor_distances = torch.cat(
                     [approximate_coreset_anchor_distances, coreset_select_distance],
@@ -191,7 +190,7 @@ class RandomSampler(BaseSampler):
         super().__init__(percentage)
 
     def run(
-        self, features: Union[torch.Tensor, np.ndarray]
+            self, features: Union[torch.Tensor, np.ndarray]
     ) -> Union[torch.Tensor, np.ndarray]:
         """Randomly samples input feature collection.
 
@@ -259,10 +258,10 @@ class FaissNN(object):
         pass
 
     def run(
-        self,
-        n_nearest_neighbours,
-        query_features: np.ndarray,
-        index_features: np.ndarray = None,
+            self,
+            n_nearest_neighbours,
+            query_features: np.ndarray,
+            index_features: np.ndarray = None,
     ) -> Union[np.ndarray, np.ndarray, np.ndarray]:
         """
         Returns distances and indices of nearest neighbour search.
@@ -384,7 +383,6 @@ class RescaleSegmentor:
         self.smoothing = 4
 
     def convert_to_segmentation(self, patch_scores):
-
         with torch.no_grad():
             if isinstance(patch_scores, np.ndarray):
                 patch_scores = torch.from_numpy(patch_scores)
@@ -524,7 +522,7 @@ class NearestNeighbourScorer(object):
         self.nn_method.fit(self.detection_features)
 
     def predict(
-        self, query_features: List[np.ndarray]
+            self, query_features: List[np.ndarray]
     ) -> Union[np.ndarray, np.ndarray, np.ndarray]:
         """Predicts anomaly score.
 
@@ -564,10 +562,10 @@ class NearestNeighbourScorer(object):
             return pickle.load(load_file)
 
     def save(
-        self,
-        save_folder: str,
-        save_features_separately: bool = False,
-        prepend: str = "",
+            self,
+            save_folder: str,
+            save_features_separately: bool = False,
+            prepend: str = "",
     ) -> None:
         self.nn_method.save(self._index_file(save_folder, prepend))
         if save_features_separately:
@@ -589,16 +587,16 @@ class NearestNeighbourScorer(object):
 
 class PatchCore(torch.nn.Module):
     def __init__(self,
-        backbone,
-        layers_to_extract_from,
-        input_shape,
-        pretrain_embed_dimension=1024,
-        target_embed_dimension=1024,
-        patchsize=3,
-        patchstride=1,
-        anomaly_score_num_nn=1,
-        featuresampler=ApproximateGreedyCoresetSampler(percentage=0.1),
-        nn_method=FaissNN(False, 4),):
+                 backbone,
+                 layers_to_extract_from,
+                 input_shape,
+                 pretrain_embed_dimension=1024,
+                 target_embed_dimension=1024,
+                 patchsize=3,
+                 patchstride=1,
+                 anomaly_score_num_nn=1,
+                 featuresampler=ApproximateGreedyCoresetSampler(percentage=0.1),
+                 nn_method=FaissNN(False, 4), ):
         """PatchCore anomaly detection class."""
         super(PatchCore, self).__init__()
 
@@ -634,7 +632,7 @@ class PatchCore(torch.nn.Module):
             n_nearest_neighbours=anomaly_score_num_nn, nn_method=nn_method
         )
 
-        self.anomaly_segmentor =RescaleSegmentor(
+        self.anomaly_segmentor = RescaleSegmentor(
             target_size=input_shape[-2:]
         )
 
@@ -708,7 +706,6 @@ class PatchCore(torch.nn.Module):
             return _detach(features), patch_shapes
         return _detach(features)
 
-
     def fit(self, input_data):
         """Computes and sets the support features for SPADE."""
         _ = self.forward_modules.eval()
@@ -721,7 +718,7 @@ class PatchCore(torch.nn.Module):
         features = []
 
         with tqdm.tqdm(
-            input_data, desc="Computing support features...", position=1, leave=False
+                input_data, desc="Computing support features...", position=1, leave=False
         ) as data_iterator:
             for image in data_iterator:
                 if isinstance(image, dict):
@@ -731,9 +728,9 @@ class PatchCore(torch.nn.Module):
                 features.append(_image_to_features(image))
 
         features = np.concatenate(features, axis=0)
-        features = self.featuresampler.run(features) #<patchcore.sampler.ApproximateGreedyCoresetSampler object at 0x7f2a67ffab50>
+        features = self.featuresampler.run(
+            features)  # <patchcore.sampler.ApproximateGreedyCoresetSampler object at 0x7f2a67ffab50>
         self.anomaly_scorer.fit(detection_features=[features])
-
 
     def predict(self, images):
         """Infer score and mask for a batch of images."""
@@ -788,10 +785,10 @@ class PatchCore(torch.nn.Module):
             pickle.dump(patchcore_params, save_file, pickle.HIGHEST_PROTOCOL)
 
     def load_from_path(
-        self,
-        load_path: str,
-        nn_method: FaissNN(False, 4),
-        prepend: str = "",
+            self,
+            load_path: str,
+            nn_method: FaissNN(False, 4),
+            prepend: str = "",
     ) -> None:
         LOGGER.info("Loading and initializing PatchCore.")
         with open(self._params_file(load_path, prepend), "rb") as load_file:
@@ -824,12 +821,12 @@ class PatchMaker:
         unfolder = torch.nn.Unfold(
             kernel_size=self.patchsize, stride=self.stride, padding=padding, dilation=1
         )
-        unfolded_features = unfolder(features) #(bs, 3*3*512, 28*28)=(2, 4608, 784)
+        unfolded_features = unfolder(features)  # (bs, 3*3*512, 28*28)=(2, 4608, 784)
         number_of_total_patches = []
         for s in features.shape[-2:]:
             n_patches = (
-                s + 2 * padding - 1 * (self.patchsize - 1) - 1
-            ) / self.stride + 1
+                                s + 2 * padding - 1 * (self.patchsize - 1) - 1
+                        ) / self.stride + 1
             number_of_total_patches.append(int(n_patches))
         unfolded_features = unfolded_features.reshape(
             *features.shape[:2], self.patchsize, self.patchsize, -1
@@ -855,12 +852,12 @@ class PatchMaker:
         return x
 
 
-
 class PATCHCORE(torch.nn.Module):
     def __init__(self, model_backbone, layers_to_extract_from, input_size):
         super(PATCHCORE, self).__init__()
         self.model_backbone = get_model(model_backbone)
-        self.net_patchcore = PatchCore(self.model_backbone,layers_to_extract_from=layers_to_extract_from, input_shape=input_size)
+        self.net_patchcore = PatchCore(self.model_backbone, layers_to_extract_from=layers_to_extract_from,
+                                       input_shape=input_size)
         self.frozen_layers = ['forward_modules']
 
     def freeze_layer(self, module):
@@ -880,7 +877,6 @@ class PATCHCORE(torch.nn.Module):
     def forward(self, dataloader):
         result = self.net_patchcore.fit(dataloader)
         return result
-
 
 
 @MODEL.register_module

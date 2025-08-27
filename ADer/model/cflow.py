@@ -7,8 +7,8 @@ import FrEIA.modules as Fm
 import timm
 import numpy as np
 
-from model import MODEL
-from model import get_model
+from ADer.model import MODEL
+from ADer.model import get_model
 import sys
 sys.path.append('./model')
 # from .cflow_resnet import resnet18, resnet34, resnet50, wide_resnet50_2 

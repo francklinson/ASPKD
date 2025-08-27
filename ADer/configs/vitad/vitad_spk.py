@@ -3,7 +3,8 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
 
-from configs.__base__ import *
+from ADer.configs.__base__ import *
+from ADer.configs.__base__ import cfg_common, cfg_dataset_default, cfg_model_vitad
 
 
 class cfg(cfg_common, cfg_dataset_default, cfg_model_vitad):
@@ -66,9 +67,8 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_vitad):
 		self.model = Namespace()
 		self.model.name = 'vitad'
 		self.model.kwargs = dict(pretrained=True,
-								 # checkpoint_path='runs/ViTADTrainer_configs_vitad_vitad_spk_20250804-221849/net.pth',
-								 checkpoint_path='runs/ViTADTrainer_configs_vitad_vitad_spk_20250804-221849/ckpt.pth',
 								 # checkpoint_path='',
+								 checkpoint_path='runs/ViTADTrainer_ADer_configs_vitad_vitad_spk_20250827-214550/ckpt.pth',
 								 strict=True, model_t=self.model_t,
 								 model_f=self.model_f, model_s=self.model_s)
 

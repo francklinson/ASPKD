@@ -5,7 +5,7 @@ import torchvision.transforms as T
 import torchvision.transforms.functional as F_tv
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from . import LOSS
-from model import get_model
+from ADer.model import get_model
 
 __all__ = ['CE', 'LabelSmoothingCE', 'SoftTargetCE', 'CLSKDLoss']
 

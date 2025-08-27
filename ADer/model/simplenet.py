@@ -16,8 +16,8 @@ import scipy.ndimage as ndimage
 
 # import metrics
 # from utils import plot_segmentation_images
-from model import get_model
-from model import MODEL
+from ADer.model import get_model
+from ADer.model import MODEL
 
 LOGGER = logging.getLogger(__name__)
 
