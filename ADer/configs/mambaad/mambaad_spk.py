@@ -70,7 +70,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_mambaad):
         self.model = Namespace()
         self.model.name = 'mambaad'
         self.model.kwargs = dict(pretrained=True,
-                                 checkpoint_path='',
+                                 checkpoint_path='runs/MAMBAADTrainer_ADer_configs_mambaad_mambaad_spk_20250827-223353/ckpt.pth',
                                  strict=True, model_t=self.model_t,
                                  model_s=self.model_s)
 

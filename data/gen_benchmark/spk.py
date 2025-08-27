@@ -8,8 +8,9 @@ class MVTecSolver(object):
         self.root = root
         self.meta_path = f'{root}/meta.json'
         self.phases = ['train', 'test']
+        # 增加新的类别记得到这里注册
         self.CLSNAMES = [
-            'IP', 'N32', 'TRY'
+            'IP', 'N32', 'TRY', 'INF',
         ]
 
     def run(self):

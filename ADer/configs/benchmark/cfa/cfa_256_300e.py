@@ -6,6 +6,7 @@ from PIL import Image
 Image.ANTIALIAS = Image.LANCZOS
 
 from ADer.configs.__base__ import *
+from ADer.configs.__base__ import cfg_model_cfa
 
 
 class cfg(cfg_common, cfg_dataset_default, cfg_model_cfa):

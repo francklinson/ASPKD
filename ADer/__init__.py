@@ -63,6 +63,27 @@ class ADerTaskAssigner:
         i_trainer = get_trainer(cfg)
         i_trainer.run()
 
+    def inference(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-c', '--cfg_path', default=self.cfg_path)
+        parser.add_argument('-m', '--mode', default='inference', choices=['train', 'test','inference'])
+        parser.add_argument('--sleep', type=int, default=-1)
+        parser.add_argument('--memory', type=int, default=-1)
+        parser.add_argument('--dist_url', default='env://', type=str, help='url used to set up distributed training')
+        parser.add_argument('--logger_rank', default=0, type=int, help='GPU id to use.')
+        parser.add_argument('opts', help='path.key=value', default=None, nargs=argparse.REMAINDER, )
+        cfg_terminal = parser.parse_args()
+        cfg = get_cfg(cfg_terminal)
+        # 添加可视化配置
+        cfg.vis = True
+        cfg.vis_dir = 'vis'
+        run_pre(cfg)
+        init_training(cfg)
+        init_checkpoint(cfg)
+        i_trainer = get_trainer(cfg)
+        i_trainer.run()
+
+
 
 class MambaAD(ADerTaskAssigner):
     def __init__(self, method='MambaAD'):

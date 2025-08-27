@@ -228,6 +228,15 @@ class BaseTrainer():
     def test(self):
         pass
 
+    def inference(self):
+        """
+        子类实现inference
+        Returns:
+        """
+        pass
+
+
+
     def save_checkpoint(self):
         if self.master:
             checkpoint_info = {'net': trans_state_dict(self.net.state_dict(), dist=False),
@@ -251,6 +260,8 @@ class BaseTrainer():
             self.train()
         elif self.cfg.mode in ['test']:
             self.test()
+        elif self.cfg.mode in ['inference']:
+            self.inference()
         else:
             raise NotImplementedError
 
