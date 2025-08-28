@@ -229,7 +229,6 @@ class MAMBAADTrainer(BaseTrainer):
         """
         对输入样本进行inference
         Returns:
-
         """
         if self.master:
             if os.path.exists(self.tmp_dir):
@@ -261,10 +260,10 @@ class MAMBAADTrainer(BaseTrainer):
                     cls_name_collector.append(test_data['cls_name'][idx])
                     anomaly_collector.append(test_data['anomaly'][idx])
                     img_path_collector.append(test_data['img_path'][idx])
+                    print("Inferencing: ",img_path_collector[-1])
             if not any_inf:
                 continue
             # 把new_test_data['img']、new_test_data['img_mask']、new_test_data['anomaly']都转成tensor数据
-
             new_test_data = {'img': torch.stack(img_collector, dim=0),
                              'img_mask': torch.stack(img_mask_collector, dim=0),
                              'cls_name': cls_name_collector,

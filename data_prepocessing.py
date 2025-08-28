@@ -276,5 +276,5 @@ if __name__ == '__main__':
     # generate_anomaly_data()
     # pad_audio_to_10s()
     # generate_dataset()
-    # plot_ghost_ground_truth()
-    generate_ghost_ground_truth()
+    plot_ghost_ground_truth()
+    # generate_ghost_ground_truth()
