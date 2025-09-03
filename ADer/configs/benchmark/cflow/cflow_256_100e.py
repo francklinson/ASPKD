@@ -76,7 +76,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cflow):
 
 		in_chas = [256, 512, 1024, 2048]
 		name = 'timm_wide_resnet50_2'
-		checkpoint_path = 'runs/CFLOWTrainer_configs_benchmark_cflow_cflow_256_100e_20250803-210237/ckpt.pth'
+		checkpoint_path = 'runs/CFLOWTrainer_ADer_configs_benchmark_cflow_cflow_256_100e_20250903-232649/ckpt.pth'
 		out_indices = [i + 1 for i in range(len(in_chas))]  # [1, 2, 3, 4]
 		self.model_backbone.name = name
 		self.model_backbone.device = 'cuda'

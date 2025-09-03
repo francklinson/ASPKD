@@ -69,7 +69,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_invad):
         self.model_encoder = Namespace()
         self.model_encoder.name = name
         self.model_encoder.kwargs = dict(pretrained=True,
-                                         checkpoint_path='',
+                                         checkpoint_path='runs/InvADTrainer_ADer_configs_invad_invad_spk_20250903-231120/ckpt.pth',
                                          strict=False,
                                          features_only=True, out_indices=out_indices)
 
@@ -90,7 +90,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_invad):
         self.model = Namespace()
         self.model.name = 'invad'
         self.model.kwargs = dict(pretrained=False,
-                                 checkpoint_path='runs/InvADTrainer_ADer_configs_invad_invad_spk_20250827-215533/ckpt.pth',
+                                 checkpoint_path='',
                                  strict=True,
                                  model_encoder=self.model_encoder,
                                  model_fuser=self.model_fuser,

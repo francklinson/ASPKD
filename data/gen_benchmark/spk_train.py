@@ -10,7 +10,7 @@ class MVTecSolver(object):
         self.phases = ['train', 'test']
         # 增加新的类别记得到这里注册
         self.CLSNAMES = [
-            'IP', 'N32', 'TRY', 'INF',
+            'IP', 'N32', 'TRY',
         ]
 
     def run(self):

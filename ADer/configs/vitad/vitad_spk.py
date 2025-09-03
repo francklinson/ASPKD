@@ -68,7 +68,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_vitad):
 		self.model.name = 'vitad'
 		self.model.kwargs = dict(pretrained=True,
 								 # checkpoint_path='',
-								 checkpoint_path='runs/ViTADTrainer_ADer_configs_vitad_vitad_spk_20250827-214550/ckpt.pth',
+								 checkpoint_path='runs/ViTADTrainer_ADer_configs_vitad_vitad_spk_20250903-230618/ckpt.pth',
 								 strict=True, model_t=self.model_t,
 								 model_f=self.model_f, model_s=self.model_s)
 

@@ -20,10 +20,10 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_pyramidflow):
 		self.seed = 42
 		self.size = 1024
 		self.test_size = 256
-		self.epoch_full = 100
+		self.epoch_full = 2
 		self.warmup_epochs = 0
 		self.test_start_epoch = self.epoch_full
-		self.test_per_epoch = self.epoch_full // 10
+		self.test_per_epoch = 10
 		self.batch_train = 2  # official 2
 		self.batch_test_per = 2
 		self.lr = 2e-4 * self.batch_train / 2
@@ -39,7 +39,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_pyramidflow):
 
 		# ==> data
 		self.data.type = 'DefaultAD'
-		self.data.root = 'data/mvtec'
+		self.data.root = 'data/spk'
 		self.data.meta = 'meta.json'
 		self.data.cls_names = []
 
@@ -63,13 +63,15 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_pyramidflow):
 		]
 
 		# ==> modal
-		checkpoint_path = 'model/pretrain/resnet18-f37072fd.pth'
+		checkpoint_path = 'pre_trained/vq_model_pretrained_128_4096.pckl'
 		self.model_backbone = Namespace()
 		self.model_backbone.name = 'tv_resnet18'
 		self.model_backbone.kwargs = dict(pretrained=True, checkpoint_path=checkpoint_path, strict=False)
 		self.model = Namespace()
 		self.model.name = 'pyramidflow'
-		self.model.kwargs = dict(pretrained=False, checkpoint_path='', strict=True,
+		self.model.kwargs = dict(pretrained=False,
+								 checkpoint_path='',
+								 strict=True,
 								 model_backbone=self.model_backbone, batchsize=self.batch_train)
 
 		# ==> evaluator

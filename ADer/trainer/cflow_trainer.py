@@ -445,3 +445,134 @@ class CFLOWTrainer(BaseTrainer):
             msg = tabulate.tabulate(msg, headers='keys', tablefmt="pipe", floatfmt='.3f', numalign="center",
                                     stralign="center", )
             log_msg(self.logger, f'\n{msg}')
+    def inference(self):
+        if self.master:
+            if os.path.exists(self.tmp_dir):
+                shutil.rmtree(self.tmp_dir)
+            os.makedirs(self.tmp_dir, exist_ok=True)
+        self.reset(isTrain=False)
+        img_paths, imgs, imgs_masks, anomaly_maps, cls_names, anomalys = [], [], [], [], [], []
+        # test_dist = [list() for _ in self.net.pool_layers]
+        test_dist = [[] for _ in self.net.pool_layers]
+        batch_idx = 0
+        test_loss = 0.0
+        test_count = 0
+        test_length = self.cfg.data.test_size
+        test_loader = iter(self.test_loader)
+
+        while batch_idx < test_length:
+            # if batch_idx == 10:
+            # 	break
+            height = list()
+            width = list()
+
+            t1 = get_timepc()
+            batch_idx += 1
+            test_data = next(test_loader)
+
+            """这里做筛选，只留下cls_name字段为INF的数据"""
+            img_collector = []
+            img_mask_collector = []
+            anomaly_collector = []
+            cls_name_collector = []
+            img_path_collector = []
+            any_inf = False
+            for idx in range(len(test_data['cls_name'])):
+                if test_data['cls_name'][idx] == 'INF':
+                    any_inf = True
+                    img_collector.append(test_data['img'][idx])
+                    img_mask_collector.append(test_data['img_mask'][idx])
+                    cls_name_collector.append(test_data['cls_name'][idx])
+                    anomaly_collector.append(test_data['anomaly'][idx])
+                    img_path_collector.append(test_data['img_path'][idx])
+                    print("Inferencing: ",img_path_collector[-1])
+            if not any_inf:
+                continue
+            # 把new_test_data['img']、new_test_data['img_mask']、new_test_data['anomaly']都转成tensor数据
+            new_test_data = {'img': torch.stack(img_collector, dim=0),
+                             'img_mask': torch.stack(img_mask_collector, dim=0),
+                             'cls_name': cls_name_collector,
+                             'anomaly': torch.stack(anomaly_collector, dim=0),
+                             'img_path': img_path_collector}
+
+            self.set_input(new_test_data)
+            self.forward()
+
+            for l, layer in enumerate(self.net.pool_layers):
+                FIB, c_r, e_r, dec_idx, _, E, C, H, W = self.net.Decoder_forward(l, layer)
+                height.append(H)
+                width.append(W)
+                # print('******************************Testing FIBint:{}*************************'.format(int(E%self.net.N > 0)))
+
+                # print('**********************************height :{} , width:{}**********************************'.format(height, width))
+                for f in range(FIB):
+                    log_prob, loss_term = self.net.FIB_forward(f, FIB, c_r, e_r, dec_idx, self.net.N, E, C,
+                                                               self.net.model_backbone.dec_arch)
+                    test_loss += t2np(loss_term.sum())
+                    # test_count += len(loss_term)
+                    # starttime=time.time()
+                    # test_dist[l] = test_dist[l] + log_prob.detach().cpu().tolist()
+                    # if test_dist[l] is None:
+                    # 	print(f"Error: test_dist[{l}] is None at iteration {batch_idx}")
+                    test_dist[l].extend(log_prob.detach().cpu().tolist())
+                    # print(len(test_dist[l]))
+                    # print(log_prob.shape)
+                    # test_dist[l] = test_dist[l].append(log_prob.detach().cpu().tolist())
+                    # endtime=time.time()
+                    # print(endtime-starttime)
+            update_log_term(self.log_terms.get('pixel'),
+                            reduce_tensor(loss_term.mean(), self.world_size).clone().detach().item(), 1, self.master)
+
+            self.imgs_mask[self.imgs_mask > 0.5], self.imgs_mask[self.imgs_mask <= 0.5] = 1, 0
+
+            imgs_masks.append(self.imgs_mask.cpu().numpy().astype(int))
+            if self.cfg.vis:
+                imgs.append(self.imgs.cpu())
+                img_paths.append(self.img_path)
+            cls_names.append(np.array(self.cls_name))
+            anomalys.append(self.anomaly.cpu().numpy().astype(int))
+
+            t2 = get_timepc()
+
+            update_log_term(self.log_terms.get('batch_t'), t2 - t1, 1, self.master)
+            print(f'\r{batch_idx}/{test_length}', end='') if self.master else None
+            # ---------- log ----------
+            if self.master:
+                if batch_idx % self.cfg.logging.test_log_per == 0 or batch_idx == test_length:
+                    msg = able(self.progress.get_msg(batch_idx, test_length, 0, 0, prefix=f'Test'), self.master, None)
+                    log_msg(self.logger, msg)
+
+        mean_test_loss = test_loss / test_count
+        print('Epoch: {:d} \t test_loss: {:.4f}'.format(self.epoch, mean_test_loss))
+        #
+
+        # get anomaly maps
+        test_map = [list() for p in self.net.pool_layers]
+        for l, p in enumerate(self.net.pool_layers):
+            test_norm = torch.tensor(test_dist[l], dtype=torch.double)  # EHWx1
+            test_norm -= torch.max(test_norm)  # normalize likelihoods to (-Inf:0] by subtracting a constant
+            test_prob = torch.exp(test_norm)  # convert to probs in range [0:1]
+            test_mask = test_prob.reshape(-1, height[l], width[l])
+            test_mask = test_prob.reshape(-1, height[l], width[l])
+            # upsample
+            test_map[l] = F.interpolate(test_mask.unsqueeze(1),
+                                        size=self.cfg.size, mode='bilinear', align_corners=True).squeeze().numpy()
+        # score aggregation
+        score_map = np.zeros_like(test_map[0])
+        for l, p in enumerate(self.net.pool_layers):
+            score_map += test_map[l]
+        score_mask = score_map
+        # invert probs to anomaly scores
+        anomaly_map = score_mask.max() - score_mask
+        anomaly_maps.append(anomaly_map)
+        if self.cfg.vis:
+            if self.cfg.vis_dir is not None:
+                root_out = self.cfg.vis_dir
+            else:
+                root_out = self.writer.logdir
+            masks = np.concatenate(imgs_masks,axis=0)
+            imgs_cat = torch.cat(imgs, dim=0)
+            flat_img_path = list(chain.from_iterable(img_paths))
+            vis_rgb_gt_amp(flat_img_path, imgs_cat, masks, anomaly_map,
+                           self.cfg.model.name, root_out, self.cfg.data.root.split('/')[1])
+

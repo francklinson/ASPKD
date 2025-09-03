@@ -20,10 +20,10 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_simplenet):
 		self.size = 256  # for fair comparison
 		self.image_size = 256
 		self.input_size = (3, self.image_size, self.image_size)
-		self.epoch_full = 100
+		self.epoch_full = 2
 		self.warmup_epochs = 0
 		self.test_start_epoch = self.epoch_full
-		self.test_per_epoch = self.epoch_full // 10
+		self.test_per_epoch = 10
 		self.batch_train = 32  # official 8
 		self.batch_test_per = 32
 		self.lr = 0.001 * self.batch_train / 32
@@ -39,7 +39,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_simplenet):
 
 		# ==> data
 		self.data.type = 'DefaultAD'
-		self.data.root = 'data/mvtec'
+		self.data.root = 'data/spk'
 		self.data.meta = 'meta.json'
 		self.data.cls_names = []
 
@@ -63,16 +63,18 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_simplenet):
 		]
 
 		# ==> modal
-		checkpoint_path = 'model/pretrain/wide_resnet50_2-95faca4d.pth'
+		checkpoint_path = 'pre_trained/wide_resnet50_2-95faca4d.pth'
 		self.model_backbone = Namespace()
 		self.model_backbone.name = 'tv_wide_resnet50_2'
 		self.model_backbone.kwargs = dict(pretrained=True,
-										  checkpoint_path='', strict=False)
+										  checkpoint_path=checkpoint_path, strict=False)
 
 		self.layers_to_extract_from = ('layer2', 'layer3')
 		self.model = Namespace()
 		self.model.name = 'simplenet'
-		self.model.kwargs = dict(pretrained=False, checkpoint_path='', strict=True, model_backbone=self.model_backbone, layers_to_extract_from=self.layers_to_extract_from, input_size=self.input_size)
+		self.model.kwargs = dict(pretrained=False,
+								 checkpoint_path='',
+								 strict=True, model_backbone=self.model_backbone, layers_to_extract_from=self.layers_to_extract_from, input_size=self.input_size)
 
 		# ==> evaluator
 		self.evaluator.kwargs = dict(metrics=self.metrics, pooling_ks=None, max_step_aupro=100, use_adeval=self.use_adeval)

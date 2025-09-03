@@ -72,7 +72,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_uniad):
 		self.model = Namespace()
 		self.model.name = 'uniad'
 		self.model.kwargs = dict(pretrained=False,
-								 checkpoint_path = "runs/UniADTrainer_ADer_configs_uniad_uniad_spk_20250827-220723/ckpt.pth",
+								 checkpoint_path = "runs/UniADTrainer_ADer_configs_uniad_uniad_spk_20250903-232002/ckpt.pth",
 								 strict=True, model_backbone=self.model_backbone,
 								 model_decoder=self.model_decoder)
 

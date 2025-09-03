@@ -170,3 +170,81 @@ class PyramidFlowTrainer(BaseTrainer):
 						msg[f'{metric} (Max)'].append(f'{max_metric:.3f} ({max_metric_idx:<3d} epoch)')
 			msg = tabulate.tabulate(msg, headers='keys', tablefmt="pipe", floatfmt='.3f', numalign="center", stralign="center", )
 			log_msg(self.logger, f'\n{msg}')
+	def inference(self):
+		if self.master:
+			if os.path.exists(self.tmp_dir):
+				shutil.rmtree(self.tmp_dir)
+			os.makedirs(self.tmp_dir, exist_ok=True)
+		self.reset(isTrain=False)
+		imgs_masks, anomaly_maps, cls_names, anomalys = [], [], [], []
+		batch_idx = 0
+		test_length = self.cfg.data.test_size
+		test_loader = iter(self.test_loader)
+		# self.train_loader.sampler.set_epoch(int(self.epoch)) if self.cfg.dist else None
+		# train_length = self.cfg.data.train_size
+		# train_loader = iter(self.train_loader)
+		val_loader = iter(self.val_loader)
+		val_length = len(val_loader)
+		feat_sum = [0 for _ in range(4)]
+		for train_dict in val_loader:
+			self.set_input(train_dict)
+			with torch.no_grad():
+				pyramid2 = self.net.net_pyramidflow.pred_tempelate(self.imgs)
+			feat_sum = [p0 + p for p0, p in zip(feat_sum, pyramid2)]
+		feat_mean = [p / val_length for p in feat_sum]
+		while batch_idx < test_length:
+			# if batch_idx == 10:
+			# 	break
+			t1 = get_timepc()
+			batch_idx += 1
+			test_data = next(test_loader)
+
+			"""这里做筛选，只留下cls_name字段为INF的数据"""
+			img_collector = []
+			img_mask_collector = []
+			anomaly_collector = []
+			cls_name_collector = []
+			img_path_collector = []
+			any_inf = False
+			for idx in range(len(test_data['cls_name'])):
+				if test_data['cls_name'][idx] == 'INF':
+					any_inf = True
+					img_collector.append(test_data['img'][idx])
+					img_mask_collector.append(test_data['img_mask'][idx])
+					cls_name_collector.append(test_data['cls_name'][idx])
+					anomaly_collector.append(test_data['anomaly'][idx])
+					img_path_collector.append(test_data['img_path'][idx])
+					print("Inferencing: ", img_path_collector[-1])
+			if not any_inf:
+				continue
+			# 把new_test_data['img']、new_test_data['img_mask']、new_test_data['anomaly']都转成tensor数据
+			new_test_data = {'img': torch.stack(img_collector, dim=0),
+							 'img_mask': torch.stack(img_mask_collector, dim=0),
+							 'cls_name': cls_name_collector,
+							 'anomaly': torch.stack(anomaly_collector, dim=0),
+							 'img_path': img_path_collector}
+
+			self.set_input(new_test_data)
+
+			self.preds = self.net.net_pyramidflow.predict(self.imgs,feat_mean)
+			# self.forward()
+			# self.net.predict()
+			# loss_cos = self.loss_terms['fft'](self.diff_pixels)
+			# update_log_term(self.log_terms.get('fft'), reduce_tensor(loss_cos, self.world_size).clone().detach().item(), 1, self.master)
+			# get anomaly maps
+			# anomaly_map, _ = self.evaluator.cal_anomaly_map(self.feats_t, self.feats_s, [self.imgs.shape[2], self.imgs.shape[3]], uni_am=False, amap_mode='add', gaussian_sigma=4)
+			anomaly_map = self.preds.squeeze(dim=1).cpu().detach().numpy()
+			self.imgs_mask[self.imgs_mask > 0.5], self.imgs_mask[self.imgs_mask <= 0.5] = 1, 0
+			if self.cfg.vis:
+				if self.cfg.vis_dir is not None:
+					root_out = self.cfg.vis_dir
+				else:
+					root_out = self.writer.logdir
+				vis_rgb_gt_amp(self.img_path, self.imgs, self.imgs_mask.cpu().numpy().astype(int), anomaly_map, self.cfg.model.name, root_out, self.cfg.data.root.split('/')[1])
+			imgs_masks.append(self.imgs_mask.cpu().numpy().astype(int))
+			anomaly_maps.append(anomaly_map)
+			cls_names.append(np.array(self.cls_name))
+			anomalys.append(self.anomaly.cpu().numpy().astype(int))
+			t2 = get_timepc()
+			update_log_term(self.log_terms.get('batch_t'), t2 - t1, 1, self.master)
+			print(f'\r{batch_idx}/{test_length}', end='') if self.master else None

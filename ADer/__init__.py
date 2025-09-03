@@ -45,7 +45,6 @@ def plot_spectrogram(audio_path, output_path):
 
 class ADerTaskAssigner:
     def __init__(self, method):
-        assert method in ['MambaAD', 'InVad', 'ViTAD', 'DiAD', 'UniAD']
         self.method = method
         if self.method == 'MambaAD':
             self.cfg_path = 'ADer/configs/mambaad/mambaad_spk.py'
@@ -58,6 +57,12 @@ class ADerTaskAssigner:
             self.cfg_path = 'ADer/configs/diad/diad_spk.py'
         elif self.method == 'UniAD':
             self.cfg_path = 'ADer/configs/uniad/uniad_spk.py'
+        elif self.method == 'CFlow':
+            self.cfg_path = 'ADer/configs/benchmark/cflow/cflow_256_100e.py'
+        elif self.method == 'PyramidFlow':
+            self.cfg_path = 'ADer/configs/benchmark/pyramidflow/pyramidflow_256_100e.py'
+        elif self.method == 'SimpleNet':
+            self.cfg_path = 'ADer/configs/benchmark/simplenet/simplenet_256_100e.py'
         else:
             raise NotImplementedError
 
@@ -92,6 +97,7 @@ class ADerTaskAssigner:
         parser.add_argument('--dist_url', default='env://', type=str, help='url used to set up distributed training')
         parser.add_argument('--logger_rank', default=0, type=int, help='GPU id to use.')
         parser.add_argument('opts', help='path.key=value', default=None, nargs=argparse.REMAINDER, )
+        self.update_data_meta_json("data/gen_benchmark/spk_train.py")
         cfg_terminal = parser.parse_args()
         cfg = get_cfg(cfg_terminal)
         run_pre(cfg)
@@ -112,14 +118,7 @@ class ADerTaskAssigner:
         # 处理输入音频数据，默认存放在inference_dir目录下
         # 先清理一下原来的数据，删除'data/spk/INF/test/bad'目录下的wav文件
         print("Clear cache...")
-        for root, dirs, files in os.walk('data/spk/INF/test/bad'):
-            for file in files:
-                if file.endswith('.png'):
-                    os.remove(os.path.join(root, file))
-        for root, dirs, files in os.walk('data/spk/INF/ground_truth/bad'):
-            for file in files:
-                if file.endswith('.png'):
-                    os.remove(os.path.join(root, file))
+        self.clear_inference_cache()
         # wav转png
         for root, dirs, files in os.walk(inference_dir):
             for file in files:
@@ -131,20 +130,45 @@ class ADerTaskAssigner:
                     # 生成ghost数据
                     shutil.copy('ghost.png',
                                 os.path.join('data/spk/INF/ground_truth/bad', file.split('.')[0] + '_mask.png'))
-        # 更新meta.json文件
-        # 调用 python data/gen_benchmark/spk.py
-        print("Generating meta.json...")
-        os.system('python data/gen_benchmark/spk.py')
+
+        self.update_data_meta_json("data/gen_benchmark/spk_inference.py")
         cfg_terminal = parser.parse_args()
         cfg = get_cfg(cfg_terminal)
         # 添加可视化配置
         cfg.vis = True
         cfg.vis_dir = 'vis'
+        # 该目标数据对象
+        cfg.data.meta = 'inference.json'
         run_pre(cfg)
         init_training(cfg)
         init_checkpoint(cfg)
+        # 获取trainer
         i_trainer = get_trainer(cfg)
         i_trainer.run()
+
+    @staticmethod
+    def clear_inference_cache():
+        """
+        清理缓存
+        """
+        for root, dirs, files in os.walk('data/spk/INF/test/bad'):
+            for file in files:
+                if file.endswith('.png'):
+                    os.remove(os.path.join(root, file))
+        for root, dirs, files in os.walk('data/spk/ground_truth/bad'):
+            for file in files:
+                if file.endswith('.png'):
+                    os.remove(os.path.join(root, file))
+
+    @staticmethod
+    def update_data_meta_json(generate_json_py_file):
+        """
+        更新meta.json文件
+        调用 python data/gen_benchmark/spk_train.py
+        Returns:
+        """
+        print(f"Generating meta.json using {generate_json_py_file}")
+        os.system(f'python3 {generate_json_py_file}')
 
 
 
@@ -170,4 +194,16 @@ class DiAD(ADerTaskAssigner):
 
 class UniAD(ADerTaskAssigner):
     def __init__(self, method='UniAD'):
+        super().__init__(method)
+
+class CFlow(ADerTaskAssigner):
+    def __init__(self, method='CFlow'):
+        super().__init__(method)
+
+class PyramidFLow(ADerTaskAssigner):
+    def __init__(self, method='PyramidFlow'):
+        super().__init__(method)
+
+class SimpleNet(ADerTaskAssigner):
+    def __init__(self, method='SimpleNet'):
         super().__init__(method)
