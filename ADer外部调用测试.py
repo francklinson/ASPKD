@@ -2,5 +2,5 @@
 
 from ADer import MambaAD, ViTAD, InVad, DiAD, UniAD, CFlow,PyramidFLow,SimpleNet
 # simplenet还没泡通
-m = SimpleNet()
-m.inference()
+m = UniAD()
+m.test()

@@ -5,6 +5,17 @@ import shutil
 import datetime
 import tabulate
 import torch
+import numpy as np
+try:
+	from apex import amp
+	from apex.parallel import DistributedDataParallel as ApexDDP
+	from apex.parallel import convert_syncbn_model as ApexSyncBN
+except:
+	from timm.layers.norm_act import convert_sync_batchnorm as ApexSyncBN
+from timm.utils import dispatch_clip_grad
+from ._base_trainer import BaseTrainer
+from . import TRAINER
+from ADer.util.vis import vis_rgb_gt_amp
 from ADer.util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
 from ADer.util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
 from ADer.util.net import get_loss_scaler, get_autocast, distribute_bn
@@ -13,21 +24,6 @@ from ADer.model import get_model
 from ADer.optim import get_optim
 from ADer.loss import get_loss_terms
 from ADer.util.metric import get_evaluator
-
-import numpy as np
-
-try:
-	from apex import amp
-	from apex.parallel import DistributedDataParallel as ApexDDP
-	from apex.parallel import convert_syncbn_model as ApexSyncBN
-except:
-	from timm.layers.norm_act import convert_sync_batchnorm as ApexSyncBN
-from timm.utils import dispatch_clip_grad
-
-from ._base_trainer import BaseTrainer
-from . import TRAINER
-from ADer.util.vis import vis_rgb_gt_amp
-
 
 @TRAINER.register_module
 class UniADTrainer(BaseTrainer):

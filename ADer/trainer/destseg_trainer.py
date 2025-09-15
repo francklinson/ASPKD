@@ -2,18 +2,8 @@ import os
 import glob
 import shutil
 import time
-
 import tabulate
 import torch
-from ADer.util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
-from ADer.util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
-from ADer.util.net import get_loss_scaler, get_autocast, distribute_bn
-from ADer.optim.scheduler import get_scheduler
-from ADer.model import get_model
-from ADer.optim import get_optim
-from ADer.loss import get_loss_terms
-from ADer.util.metric import get_evaluator
-
 import numpy as np
 
 try:
@@ -23,21 +13,30 @@ try:
 except:
     from timm.layers.norm_act import convert_sync_batchnorm as ApexSyncBN
 from timm.utils import dispatch_clip_grad
-
 from ._base_trainer import BaseTrainer
 from . import TRAINER
 import torch.nn.functional as F
+
 from ADer.util.vis import vis_rgb_gt_amp
+from ADer.util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
+from ADer.util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
+from ADer.util.net import get_loss_scaler, get_autocast, distribute_bn
+from ADer.optim.scheduler import get_scheduler
+from ADer.model import get_model
+from ADer.optim import get_optim
+from ADer.loss import get_loss_terms
+from ADer.util.metric import get_evaluator
+
 
 @TRAINER.register_module
 class DeSTSegTrainer(BaseTrainer):
     def __init__(self, cfg):
         super(DeSTSegTrainer, self).__init__(cfg)
         self.optim.de_st = get_optim(cfg.optim.de_st.kwargs, self.net.destseg.student_net,
-                                       lr=cfg.lr*40)
+                                     lr=cfg.lr * 40)
         self.optim.seg_optimizer = torch.optim.SGD(
-            [{"params": self.net.destseg.segmentation_net.res.parameters(), "lr": cfg.lr*10},
-                {"params": self.net.destseg.segmentation_net.head.parameters(), "lr": cfg.lr},],
+            [{"params": self.net.destseg.segmentation_net.res.parameters(), "lr": cfg.lr * 10},
+             {"params": self.net.destseg.segmentation_net.head.parameters(), "lr": cfg.lr}, ],
             lr=0.001,
             momentum=0.9,
             weight_decay=1e-4,
@@ -58,7 +57,9 @@ class DeSTSegTrainer(BaseTrainer):
         self.img_path = inputs['img_path']
 
     def forward(self):
-        self.output_segmentation, self.output_de_st, self.output_de_st_list, self.new_mask = self.net(self.imgs, self.ori_imgs, self.imgs_mask)
+        self.output_segmentation, self.output_de_st, self.output_de_st_list, self.new_mask = self.net(self.imgs,
+                                                                                                      self.ori_imgs,
+                                                                                                      self.imgs_mask)
 
     def backward_term(self, loss_term, optim, params):
         optim.zero_grad()
@@ -91,12 +92,12 @@ class DeSTSegTrainer(BaseTrainer):
             loss = loss_cos
         else:
             optims = self.optim.seg_optimizer
-            params = list(self.net.destseg.segmentation_net.res.parameters()) + list(self.net.destseg.segmentation_net.head.parameters())
+            params = list(self.net.destseg.segmentation_net.res.parameters()) + list(
+                self.net.destseg.segmentation_net.head.parameters())
             loss = loss_l1 + loss_focal
         self.backward_term(loss, optims, params)
         update_log_term(self.log_terms.get('total'), reduce_tensor(loss, self.world_size).clone().detach().item(), 1,
                         self.master)
-
 
     @torch.no_grad()
     def test(self):
@@ -124,7 +125,7 @@ class DeSTSegTrainer(BaseTrainer):
                 mode="bilinear",
                 align_corners=False,
             )
-            anomaly_map = output_segmentation[: ,0 ,: ,:].detach().cpu().numpy()
+            anomaly_map = output_segmentation[:, 0, :, :].detach().cpu().numpy()
             # get anomaly scores
             output_segmentation_sample, _ = torch.sort(
                 self.output_segmentation.view(self.output_segmentation.size(0), -1),

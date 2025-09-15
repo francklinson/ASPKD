@@ -125,7 +125,7 @@ def log_cfg(cfg):
         cfg_str += '\n'
     cfg_str = cfg_str.strip()
     cfg.cfg_dict, cfg.cfg_str = cfg_dict, cfg_str
-    log_msg(cfg.logger, f'==> ********** cfg ********** \n{cfg.cfg_str}')
+    # log_msg(cfg.logger, f'==> ********** cfg ********** \n{cfg.cfg_str}')
 
 
 def get_logger(cfg, mode='a+'):
@@ -140,23 +140,8 @@ def get_logger(cfg, mode='a+'):
 
 
 def start_show(logger):
-    logger.info('********************************************************************************')
-    logger.info('==>   ======= ==    ==       ==     ============               ==            <==')
-    logger.info('==>        == ==  ==           ==        ==           ====================   <==')
-    logger.info('==>   ======= ===            ==  ==      ==           ==     ======     ==   <==')
-    logger.info('==>   ==   ===========         ==        ==                    ==            <==')
-    logger.info('==>   ======= ==                 ==      ==                    ==            <==')
-    logger.info('==>     == == ==  ==           ==        ==                 == ==            <==')
-    logger.info('==>        == ==    ==       ==     ============               ==            <==')
-    logger.info('********************************************************************************')
-
-    logger.info('********************************************************************************')
-    logger.info('==>  =       =  =========  ========  =     =      =      =       =   ======  <==')
-    logger.info('==>   =     =       =           ==   =     =     = =     = =     =  =    ==  <==')
-    logger.info('==>    =   =        =         ==     =======    =====    =   =   =  =    ==  <==')
-    logger.info('==>     = =         =       ==       =     =   =     =   =     = =  =        <==')
-    logger.info('==>      =          =      ========  =     =  =       =  =       =   ======  <==')
-    logger.info('********************************************************************************')
+    if logger is not None:
+        logger.info('==> Start Show')
 
 
 def able(ret, mark=False, default=None):

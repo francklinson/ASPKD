@@ -5,15 +5,6 @@ import shutil
 import datetime
 import tabulate
 import torch
-from ADer.util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
-from ADer.util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
-from ADer.util.net import get_loss_scaler, get_autocast, distribute_bn
-from ADer.optim.scheduler import get_scheduler
-from ADer.model import get_model
-from ADer.optim import get_optim
-from ADer.loss import get_loss_terms
-from ADer.util.metric import get_evaluator
-
 import numpy as np
 
 try:
@@ -27,6 +18,15 @@ from timm.utils import dispatch_clip_grad
 from ._base_trainer import BaseTrainer
 from . import TRAINER
 from ADer.util.vis import vis_rgb_gt_amp
+from ADer.util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
+from ADer.util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
+from ADer.util.net import get_loss_scaler, get_autocast, distribute_bn
+from ADer.optim.scheduler import get_scheduler
+from ADer.model import get_model
+from ADer.optim import get_optim
+from ADer.loss import get_loss_terms
+from ADer.util.metric import get_evaluator
+
 
 @TRAINER.register_module
 class RealNetTrainer(BaseTrainer):
@@ -37,15 +37,16 @@ class RealNetTrainer(BaseTrainer):
         # self.net.net_afs.init_idxs(self.net, self.train_loader, distributed=False)
         # self.net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.net)
         self.net.net_afs.init_idxs(self.net, self.train_loader, distributed=False)
-    
+
     def reset(self, isTrain=True):
         self.net.train(mode=isTrain)
-        self.log_terms, self.progress = get_log_terms(able(self.cfg.logging.log_terms_train, isTrain, self.cfg.logging.log_terms_test), default_prefix=('Train' if isTrain else 'Test'))
-        
+        self.log_terms, self.progress = get_log_terms(
+            able(self.cfg.logging.log_terms_train, isTrain, self.cfg.logging.log_terms_test),
+            default_prefix=('Train' if isTrain else 'Test'))
+
     def scheduler_step(self, step):
         self.scheduler.step(step)
         update_log_term(self.log_terms.get('lr'), self.optim.param_groups[0]["lr"], 1, self.master)
-
 
     def set_input(self, inputs):
         self.imgs = inputs['img'].cuda()
@@ -58,14 +59,15 @@ class RealNetTrainer(BaseTrainer):
         self.anomaly = inputs['anomaly']
         self.img_path = inputs['img_path']
         self.bs = self.imgs.shape[0]
-    
+
     def forward(self):
         self.logit_mask, self.pred, self.recon_f, self.gt_f = self.net(self.imgs, self.gt_imgs)
 
     def backward_term(self, loss_term, optim):
         optim.zero_grad()
         if self.loss_scaler:
-            self.loss_scaler(loss_term, optim, clip_grad=self.cfg.loss.clip_grad, parameters=self.net.parameters(), create_graph=self.cfg.loss.create_graph)
+            self.loss_scaler(loss_term, optim, clip_grad=self.cfg.loss.clip_grad, parameters=self.net.parameters(),
+                             create_graph=self.cfg.loss.create_graph)
         else:
             loss_term.backward(retain_graph=self.cfg.loss.retain_graph)
             if self.cfg.loss.clip_grad is not None:
@@ -82,10 +84,11 @@ class RealNetTrainer(BaseTrainer):
             total_loss = loss_mse + loss_seg
 
         self.backward_term(total_loss, self.optim)
-        update_log_term(self.log_terms.get('pixel'), reduce_tensor(loss_mse, self.world_size).clone().detach().item(), 1, self.master)
-        update_log_term(self.log_terms.get('seg'), reduce_tensor(loss_seg, self.world_size).clone().detach().item(), 1, self.master)
+        update_log_term(self.log_terms.get('pixel'), reduce_tensor(loss_mse, self.world_size).clone().detach().item(),
+                        1, self.master)
+        update_log_term(self.log_terms.get('seg'), reduce_tensor(loss_seg, self.world_size).clone().detach().item(), 1,
+                        self.master)
 
-    
     def _finish(self):
         log_msg(self.logger, 'finish training')
         self.writer.close() if self.master else None
@@ -126,7 +129,8 @@ class RealNetTrainer(BaseTrainer):
             # ---------- log ----------
             if self.master:
                 if self.iter % self.cfg.logging.train_log_per == 0:
-                    msg = able(self.progress.get_msg(self.iter, self.iter_full, self.iter / train_length, self.iter_full / train_length), self.master, None)
+                    msg = able(self.progress.get_msg(self.iter, self.iter_full, self.iter / train_length,
+                                                     self.iter_full / train_length), self.master, None)
                     log_msg(self.logger, msg)
                     if self.writer:
                         for k, v in self.log_terms.items():
@@ -146,14 +150,15 @@ class RealNetTrainer(BaseTrainer):
                     self.test_ghost()
                 self.cfg.total_time = get_timepc() - self.cfg.task_start_time
                 total_time_str = str(datetime.timedelta(seconds=int(self.cfg.total_time)))
-                eta_time_str = str(datetime.timedelta(seconds=int(self.cfg.total_time / self.epoch * (self.epoch_full - self.epoch))))
-                log_msg(self.logger, f'==> Total time: {total_time_str}\t Eta: {eta_time_str} \tLogged in \'{self.cfg.logdir}\'')
+                eta_time_str = str(
+                    datetime.timedelta(seconds=int(self.cfg.total_time / self.epoch * (self.epoch_full - self.epoch))))
+                log_msg(self.logger,
+                        f'==> Total time: {total_time_str}\t Eta: {eta_time_str} \tLogged in \'{self.cfg.logdir}\'')
                 self.reset(isTrain=True)
                 self.save_checkpoint()
                 self.train_loader.sampler.set_epoch(int(self.epoch)) if self.cfg.dist else None
                 train_loader = iter(self.train_loader)
         self._finish()
-
 
     @torch.no_grad()
     def test_ghost(self):
@@ -174,7 +179,7 @@ class RealNetTrainer(BaseTrainer):
         batch_idx = 0
         test_length = self.cfg.data.test_size
         test_loader = iter(self.test_loader)
-        
+
         while batch_idx < test_length:
             # if batch_idx == 10:
             # 	break
@@ -185,8 +190,10 @@ class RealNetTrainer(BaseTrainer):
             self.forward()
             loss_mse = self.loss_terms['pixel'](self.recon_f, self.gt_f)
             loss_seg = self.loss_terms['seg'](self.imgs_mask, self.logit_mask)
-            update_log_term(self.log_terms.get('pixel'), reduce_tensor(loss_mse, self.world_size).clone().detach().item(), 1, self.master)
-            update_log_term(self.log_terms.get('seg'), reduce_tensor(loss_seg, self.world_size).clone().detach().item(), 1, self.master)
+            update_log_term(self.log_terms.get('pixel'),
+                            reduce_tensor(loss_mse, self.world_size).clone().detach().item(), 1, self.master)
+            update_log_term(self.log_terms.get('seg'), reduce_tensor(loss_seg, self.world_size).clone().detach().item(),
+                            1, self.master)
 
             # get anomaly maps
             # anomaly_map, _ = self.evaluator.cal_anomaly_map(self.feats_t, self.feats_s, self.imgs.shape[-1], amap_mode='add', gaussian_sigma=4)
@@ -197,7 +204,8 @@ class RealNetTrainer(BaseTrainer):
                     root_out = self.cfg.vis_dir
                 else:
                     root_out = self.writer.logdir
-                vis_rgb_gt_amp(self.img_path, self.imgs, self.imgs_mask.cpu().numpy().astype(int), self.pred.squeeze(1).cpu().numpy(),
+                vis_rgb_gt_amp(self.img_path, self.imgs, self.imgs_mask.cpu().numpy().astype(int),
+                               self.pred.squeeze(1).cpu().numpy(),
                                self.cfg.model.name, root_out, self.cfg.data.root.split('/')[1])
             imgs_masks.append(self.imgs_mask.cpu().numpy().astype(int))
             anomaly_maps.append(anomaly_map)
@@ -211,7 +219,7 @@ class RealNetTrainer(BaseTrainer):
                 if batch_idx % self.cfg.logging.test_log_per == 0 or batch_idx == test_length:
                     msg = able(self.progress.get_msg(batch_idx, test_length, 0, 0, prefix=f'Test'), self.master, None)
                     log_msg(self.logger, msg)
-        
+
         # import pdb;pdb.set_trace()
         # merge results
         if self.cfg.dist:
@@ -264,5 +272,6 @@ class RealNetTrainer(BaseTrainer):
                         max_metric_idx = self.metric_recorder[f'{metric}_Avg'].index(max_metric) + 1
                         msg[metric].append(metric_result_avg)
                         msg[f'{metric} (Max)'].append(f'{max_metric:.3f} ({max_metric_idx:<3d} epoch)')
-            msg = tabulate.tabulate(msg, headers='keys', tablefmt="pipe", floatfmt='.3f', numalign="center", stralign="center", )
+            msg = tabulate.tabulate(msg, headers='keys', tablefmt="pipe", floatfmt='.3f', numalign="center",
+                                    stralign="center", )
             log_msg(self.logger, f'\n{msg}')
