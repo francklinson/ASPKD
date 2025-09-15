@@ -39,6 +39,7 @@ if __name__ == '__main__':
         process_list = []
         for i, name in enumerate(names):
             command = f'CUDA_VISIBLE_DEVICES={i % nproc_per_node} '
+            # 强行定义了cls_names
             command += f'python3 run.py -c {cfg.config} -m train data.cls_names={name} trainer.checkpoint=runs/{cfg.prefix}/{suffix}/{name}'
             p = Process(target=runcmd, args=(command,))
             p.start()
