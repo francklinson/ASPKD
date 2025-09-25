@@ -1,8 +1,9 @@
-from Anomalib.data import MVTecAD
+from Anomalib.data import MVTecAD, Folder
 from Anomalib.models import Patchcore, Csflow, Cfa, Cflow, VlmAd, WinClip, Dfkde, Dfm, Draem, Dsr, EfficientAd, \
-    Fastflow, Fre, Ganomaly, Padim, ReverseDistillation, Stfpm, Supersimplenet, Uflow
+    Fastflow, Fre, Ganomaly, Padim, ReverseDistillation, Stfpm, Supersimplenet, Uflow, Dinomaly
 from Anomalib.engine import Engine
 from Anomalib.data import PredictDataset
+from Anomalib.visualization import visualize_image_item
 from pathlib import Path
 
 """
@@ -31,8 +32,20 @@ Image Models:
 
 # Initialize components
 datamodule = MVTecAD(root="data/spk", category="IP", )
-model = WinClip()
-engine = Engine(max_epochs=2)
+
+# datamodule = Folder(
+#     name="spk",
+#     normal_dir="data/spk/TRY/train/good",
+#     normal_test_dir="data/spk/TRY/test/good",
+#     abnormal_dir="data/spk/TRY/test/bad",
+#     train_batch_size=32,
+#     eval_batch_size=32,
+# )
+datamodule.setup()
+
+print(datamodule.task)
+model = Fastflow()
+engine = Engine(max_epochs=200)
 
 
 def train():
@@ -45,7 +58,7 @@ def model_test():
     predictions = engine.predict(
         datamodule=datamodule,
         model=model,
-        ckpt_path="results/Patchcore/MVTecAD/IP/latest/weights/lightning/model.ckpt",
+        ckpt_path="results/Supersimplenet/MVTecAD/N32/v0/weights/lightning/model.ckpt",
     )
     if predictions is not None:
         for prediction in predictions:

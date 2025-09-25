@@ -194,6 +194,39 @@ def generate_ghost_ground_truth():
                             os.path.join(test_dir, 'ground_truth', 'bad', file.split('.')[0] + '_mask.png'))
 
 
+def plot_mfcc(audio_path, output_image_path, n_mfcc=40):
+    """
+    读取音频文件，提取MFCC特征并绘制图像保存
+
+    参数:
+        audio_path: 输入音频文件路径
+        output_image_path: 输出图像保存路径
+        n_mfcc: MFCC特征的维度，默认为13
+    """
+    # 加载音频文件，sr=None表示保留原始采样率
+    y, sr = librosa.load(audio_path, sr=None)
+
+    # 提取MFCC特征，n_fft和hop_length为STFT参数
+    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc, n_fft=2048, hop_length=256)
+
+    # 创建图像并设置大小
+    plt.figure(figsize=(10, 4))
+
+    # 绘制MFCC热力图，使用librosa的可视化函数
+    librosa.display.specshow(mfcc, x_axis='time', sr=sr, hop_length=256)
+
+    # 添加颜色条和标签
+    plt.colorbar(format='%+2.0f dB')
+    plt.title('MFCC')
+    plt.xlabel('t (s)')
+    plt.ylabel('MFCC')
+
+    # 调整布局并保存图像
+    plt.tight_layout()
+    plt.savefig(output_image_path, dpi=300)
+    plt.close()
+
+
 def generate_dataset():
     DATA_SRC_INFO = {"n32": (["原始数据/标记后/auto_test/48k",
                               "原始数据/标记后/manual_record/250626/201P/split/48k",
@@ -276,5 +309,6 @@ if __name__ == '__main__':
     # generate_anomaly_data()
     # pad_audio_to_10s()
     # generate_dataset()
-    plot_ghost_ground_truth()
+    # plot_ghost_ground_truth()
     # generate_ghost_ground_truth()
+    plot_mfcc("原始数据/标记后/N32MPT/48k/good/speaker_rec_audio_eInSpeakerOnly_20250724173543_Pass.wav", '123.png')
