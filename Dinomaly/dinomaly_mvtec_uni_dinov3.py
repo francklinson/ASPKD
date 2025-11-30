@@ -19,8 +19,7 @@ from dinov3.hub.backbones import load_dinov3_model
 from models.uad import ViTill
 from models.vision_transformer import Block as VitBlock, bMlp, LinearAttention2
 from optimizers import StableAdamW
-from utils import evaluation_batch, global_cosine_hm_percent, \
-    WarmCosineScheduler
+from utils import evaluation_batch, global_cosine_hm_percent, WarmCosineScheduler
 from utils import visualize
 
 warnings.filterwarnings("ignore")
