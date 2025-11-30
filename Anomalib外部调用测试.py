@@ -31,7 +31,7 @@ Image Models:
 """
 
 # Initialize components
-datamodule = MVTecAD(root="data/spk", category="IP", )
+datamodule = MVTecAD(root="data/mvtec", category="grid", )
 
 # datamodule = Folder(
 #     name="spk",
@@ -41,10 +41,10 @@ datamodule = MVTecAD(root="data/spk", category="IP", )
 #     train_batch_size=32,
 #     eval_batch_size=32,
 # )
-datamodule.setup()
+# datamodule.setup()
+# print(datamodule.task)
 
-print(datamodule.task)
-model = Fastflow()
+model = WinClip()
 engine = Engine(max_epochs=200)
 
 
@@ -58,7 +58,7 @@ def model_test():
     predictions = engine.predict(
         datamodule=datamodule,
         model=model,
-        ckpt_path="results/Supersimplenet/MVTecAD/N32/v0/weights/lightning/model.ckpt",
+        ckpt_path="results/Fastflow/MVTecAD/grid/latest/weights/lightning/model.ckpt",
     )
     if predictions is not None:
         for prediction in predictions:
