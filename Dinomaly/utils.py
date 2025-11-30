@@ -42,7 +42,6 @@ def modify_grad(x, inds, factor=0.):
 
 
 def modify_grad_v2(x, factor):
-
     """
     对输入张量x的值进行修改，乘以一个因子factor
 
@@ -112,7 +111,7 @@ def global_cosine_hm(a, b, alpha=1., factor=0.):
             point_dist = 1 - cos_loss(a_, b_).unsqueeze(1)
             # 计算距离的平均值
         mean_dist = point_dist.mean()
-            # 计算距离的标准差
+        # 计算距离的标准差
         std_dist = point_dist.reshape(-1).std()
 
         # 累加全局余弦相似度损失
@@ -431,7 +430,6 @@ def cal_anomaly_maps(fs_list, ft_list, out_size=224):
 
 
 def map_normalization(fs_list, ft_list, start=0.5, end=0.95):
-
     """
     对特征图进行归一化处理，计算每个特征图的起始和结束量化值
 
@@ -445,7 +443,7 @@ def map_normalization(fs_list, ft_list, start=0.5, end=0.95):
         list: 包含两个列表的列表，分别是每个特征图的起始值列表和结束值列表
     """
     start_list = []  # 存储每个特征图的起始量化值
-    end_list = []    # 存储每个特征图的结束量化值
+    end_list = []  # 存储每个特征图的结束量化值
     with torch.no_grad():  # 禁用梯度计算，节省内存
         for i in range(len(ft_list)):  # 遍历特征图列表
             fs = fs_list[i]  # 获取源域特征图
@@ -700,7 +698,6 @@ def evaluation_batch(model, dataloader, device, _class_=None, max_ratio=0, resiz
 
     starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
-    anomaly_map_list = []
     with torch.no_grad():
         for img, gt, label, img_path in dataloader:
             img = img.to(device)
@@ -715,7 +712,6 @@ def evaluation_batch(model, dataloader, device, _class_=None, max_ratio=0, resiz
             anomaly_map, _ = cal_anomaly_maps(en, de, img.shape[-1])
 
             # anomaly_map = anomaly_map - anomaly_map.mean(dim=[1, 2, 3]).view(-1, 1, 1, 1)
-            anomaly_map_list.append(anomaly_map)
             if resize_mask is not None:
                 anomaly_map = F.interpolate(anomaly_map, size=resize_mask, mode='bilinear', align_corners=False)
                 gt = F.interpolate(gt, size=resize_mask, mode='nearest')
@@ -755,7 +751,7 @@ def evaluation_batch(model, dataloader, device, _class_=None, max_ratio=0, resiz
         f1_sp = f1_score_max(gt_list_sp, pr_list_sp)
         f1_px = f1_score_max(gt_list_px, pr_list_px)
 
-    return [auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, anomaly_map_list]
+    return [auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px]
 
 
 def evaluation_batch_loco(model, dataloader, device, _class_=None, max_ratio=0):
@@ -913,59 +909,6 @@ def evaluation_uniad(model, dataloader, device, _class_=None, reg_calib=False, m
     return auroc_px, auroc_sp, ap_px, ap_sp, [gt_list_px, pr_list_px, gt_list_sp, pr_list_sp]
 
 
-def visualize(model, dataloader, device, _class_='None', save_name='save'):
-    """
-    可视化模型预测结果并保存图像
-
-    参数:
-        model: 要评估的模型
-        dataloader: 数据加载器
-        device: 计算设备 (CPU/GPU)
-        _class_: 数据类别，默认为'None'
-        save_name: 保存结果的目录名，默认为'save'
-    """
-    model.eval()  # 将模型设置为评估模式
-    save_dir = os.path.join('./visualize', save_name)  # 设置保存目录
-    if not os.path.exists(save_dir):  # 如果目录不存在则创建
-        os.makedirs(save_dir)
-    gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(device)  # 获取高斯核并移动到指定设备
-
-    with torch.no_grad():  # 禁用梯度计算
-        for img, gt, label, img_path in dataloader:  # 遍历数据加载器
-            img = img.to(device)  # 将图像移动到指定设备
-            output = model(img)  # 获取模型输出
-            en, de = output[0], output[1]  # 分离编码器和解码器的输出
-            anomaly_map, _ = cal_anomaly_maps(en, de, img.shape[-1])  # 计算异常图
-            anomaly_map = gaussian_kernel(anomaly_map)  # 应用高斯核平滑异常图
-
-            # 批量处理图像，每次处理8张
-            for i in range(0, anomaly_map.shape[0], 8):
-                # 归一化异常图并转换为热力图
-                heatmap = min_max_norm(anomaly_map[i, 0].cpu().numpy())
-                heatmap = cvt2heatmap(heatmap * 255)
-
-                # 处理原始图像
-                im = img[i].permute(1, 2, 0).cpu().numpy()  # 调整维度并转到CPU
-                im = im * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])  # 反标准化
-                im = (im * 255).astype('uint8')  # 转换为8位整数
-                im = im[:, :, ::-1]  # BGR转RGB
-                # 将热力图叠加到原始图像上
-                hm_on_img = show_cam_on_image(im, heatmap)
-                # 处理真实掩码
-                mask = (gt[i][0].numpy() * 255).astype('uint8')
-                # 创建类别保存目录
-                save_dir_class = os.path.join(save_dir, str(_class_))
-                if not os.path.exists(save_dir_class):
-                    os.mkdir(save_dir_class)
-                # 生成文件名
-                name = img_path[i].split('/')[-2] + '_' + img_path[i].split('/')[-1].replace('.png', '')
-                # 保存原始图像、热力图和真实掩码
-                cv2.imwrite(save_dir_class + '/' + name + '_img.png', im)
-                cv2.imwrite(save_dir_class + '/' + name + '_cam.png', hm_on_img)
-                cv2.imwrite(save_dir_class + '/' + name + '_gt.png', mask)
-    return
-
-
 def save_feature(model, dataloader, device, _class_='None', save_name='save'):
     """
     保存模型提取的特征
@@ -1032,6 +975,59 @@ def save_feature(model, dataloader, device, _class_='None', save_name='save'):
             with open(save_dir_class + '/' + name + '.pkl', 'wb') as f:
                 pickle.dump(saved_dict, f)
 
+    return
+
+
+def visualize(model, dataloader, device, _class_='None', save_name='save'):
+    """
+    可视化模型预测结果并保存图像
+
+    参数:
+        model: 要评估的模型
+        dataloader: 数据加载器
+        device: 计算设备 (CPU/GPU)
+        _class_: 数据类别，默认为'None'
+        save_name: 保存结果的目录名，默认为'save'
+    """
+    model.eval()  # 将模型设置为评估模式
+    save_dir = os.path.join('./visualize', save_name)  # 设置保存目录
+    if not os.path.exists(save_dir):  # 如果目录不存在则创建
+        os.makedirs(save_dir)
+    gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(device)  # 获取高斯核并移动到指定设备
+
+    with torch.no_grad():  # 禁用梯度计算
+        for img, gt, label, img_path in dataloader:  # 遍历数据加载器
+            img = img.to(device)  # 将图像移动到指定设备
+            output = model(img)  # 获取模型输出
+            en, de = output[0], output[1]  # 分离编码器和解码器的输出
+            anomaly_map, _ = cal_anomaly_maps(en, de, img.shape[-1])  # 计算异常图
+            anomaly_map = gaussian_kernel(anomaly_map)  # 应用高斯核平滑异常图
+
+            # 批量处理图像，每次处理8张
+            for i in range(0, anomaly_map.shape[0], 8):
+                # 归一化异常图并转换为热力图
+                heatmap = min_max_norm(anomaly_map[i, 0].cpu().numpy())
+                heatmap = cvt2heatmap(heatmap * 255)
+
+                # 处理原始图像
+                im = img[i].permute(1, 2, 0).cpu().numpy()  # 调整维度并转到CPU
+                im = im * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])  # 反标准化
+                im = (im * 255).astype('uint8')  # 转换为8位整数
+                im = im[:, :, ::-1]  # BGR转RGB
+                # 将热力图叠加到原始图像上
+                hm_on_img = show_cam_on_image(im, heatmap)
+                # 处理真实掩码
+                mask = (gt[i][0].numpy() * 255).astype('uint8')
+                # 创建类别保存目录
+                save_dir_class = os.path.join(save_dir, str(_class_))
+                if not os.path.exists(save_dir_class):
+                    os.mkdir(save_dir_class)
+                # 生成文件名
+                name = img_path[i].split('/')[-2] + '_' + img_path[i].split('/')[-1].replace('.png', '')
+                # 保存原始图像、热力图和真实掩码
+                cv2.imwrite(save_dir_class + '/' + name + '_img.png', im)
+                cv2.imwrite(save_dir_class + '/' + name + '_cam.png', hm_on_img)
+                cv2.imwrite(save_dir_class + '/' + name + '_gt.png', mask)
     return
 
 
@@ -1167,7 +1163,6 @@ def compute_pro(masks: ndarray, amaps: ndarray, num_th: int = 200) -> None:
 
 
 def get_gaussian_kernel(kernel_size=3, sigma=2, channels=1):
-
     # Create a x, y coordinate grid of shape (kernel_size, kernel_size, 2)
     x_coord = torch.arange(kernel_size)
     x_grid = x_coord.repeat(kernel_size).view(kernel_size, kernel_size)
