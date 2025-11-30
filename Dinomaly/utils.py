@@ -751,7 +751,7 @@ def evaluation_batch(model, dataloader, device, _class_=None, max_ratio=0, resiz
         f1_sp = f1_score_max(gt_list_sp, pr_list_sp)
         f1_px = f1_score_max(gt_list_px, pr_list_px)
 
-    return [auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px]
+    return [auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, gt_list_sp, pr_list_sp]
 
 
 def evaluation_batch_loco(model, dataloader, device, _class_=None, max_ratio=0):
@@ -1198,6 +1198,25 @@ def get_gaussian_kernel(kernel_size=3, sigma=2, channels=1):
     return gaussian_filter
 
 
+def replace_layers(model, old, new):
+    """
+    递归遍历模型中的所有层，将指定类型的旧层替换为新层
+    参数:
+        model: 要处理的神经网络模型
+        old: 需要被替换的旧层类型
+        new: 用于替换的新层类型
+    """
+    for n, module in model.named_children():
+        # 检查当前模块是否包含子模块
+        if len(list(module.children())) > 0:
+            ## compound module, go inside it
+            replace_layers(module, old, new)
+
+        if isinstance(module, old):
+            ## simple module
+            setattr(model, n, new)
+
+
 class FeatureJitter(torch.nn.Module):
     def __init__(self, scale=1., p=0.25) -> None:
 
@@ -1250,25 +1269,6 @@ class FeatureJitter(torch.nn.Module):
         if self.training:  # 只在训练模式下应用特征抖动
             x = self.add_jitter(x)
         return x
-
-
-def replace_layers(model, old, new):
-    """
-    递归遍历模型中的所有层，将指定类型的旧层替换为新层
-    参数:
-        model: 要处理的神经网络模型
-        old: 需要被替换的旧层类型
-        new: 用于替换的新层类型
-    """
-    for n, module in model.named_children():
-        # 检查当前模块是否包含子模块
-        if len(list(module.children())) > 0:
-            ## compound module, go inside it
-            replace_layers(module, old, new)
-
-        if isinstance(module, old):
-            ## simple module
-            setattr(model, n, new)
 
 
 class WarmCosineScheduler(_LRScheduler):

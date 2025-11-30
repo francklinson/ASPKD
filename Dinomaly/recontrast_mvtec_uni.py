@@ -103,7 +103,7 @@ def train(item_list):
     setup_seed(1)
 
     # 定义训练总迭代次数、批次大小、图像尺寸和裁剪尺寸
-    total_iters = 5000  # 总训练迭代次数
+    total_iters = 50  # 总训练迭代次数
     batch_size = 16     # 每个批次的大小
     image_size = 256    # 输入图像的尺寸
     crop_size = 256     # 图像裁剪的尺寸

@@ -1,16 +1,21 @@
+from functools import partial
+
 import numpy as np
 import torch
 import torch.nn as nn
 from PIL import Image
+from torchvision.datasets import ImageFolder,DatasetFolder
+from torch.utils.data import TensorDataset,Dataset
+from torch.nn import functional as F
 
 from dataset import get_data_transforms
 from dinov3.hub.backbones import load_dinov3_model
 from models.uad import ViTill
-from utils import visualize
+from models.vision_transformer import Block as VitBlock, bMlp, LinearAttention2
+from utils import visualize, get_gaussian_kernel, cal_anomaly_maps
 
-
-class AnomalyDetector:
-    def __init__(self, model_path, model_size='base', device='cuda'):
+class DinomalyInference:
+    def __init__(self, model_path, model_size='base', device='cuda:0'):
         """
         初始化异常检测器
         Args:
@@ -22,9 +27,10 @@ class AnomalyDetector:
         self.model_size = model_size
         self.model = self._load_model(model_path)
         self.model.eval()
+        self.batch_size = 8
 
         # 获取数据预处理方法
-        self.transform = get_data_transforms(image_size=512, crop_size=448)[0]
+        self.transform = get_data_transforms(size=512, isize=448)[0]
 
     def _load_model(self, model_path):
         """
@@ -34,32 +40,41 @@ class AnomalyDetector:
         Returns:
             加载好的模型
         """
-        if self.model_size == 'base':
+        if self.model_size == "base":
             target_layers = [2, 3, 4, 5, 6, 7, 8, 9]
             fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
             fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
             encoder_name = 'dinov3_vitb16'
+            encoder_weight = 'weights/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth'
             embed_dim, num_heads = 768, 12
-        else:  # large
+
+        elif self.model_size == "large":
             target_layers = [4, 6, 8, 10, 12, 14, 16, 18]
             fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
             fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
             encoder_name = 'dinov3_vitl16'
+            encoder_weight = 'weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth'
             embed_dim, num_heads = 1024, 16
 
         # 加载预训练编码器
-        encoder = load_dinov3_model(encoder_name, layers_to_extract_from=target_layers)
+        encoder = load_dinov3_model(encoder_name, layers_to_extract_from=target_layers,
+                                    pretrained_weight_path=encoder_weight)
 
         # 初始化瓶颈层和解码器
-        bottleneck = nn.ModuleList([nn.Linear(embed_dim, embed_dim * 4)])
-        decoder = nn.ModuleList([
-            nn.TransformerEncoderLayer(
-                d_model=embed_dim,
-                nhead=num_heads,
-                dim_feedforward=embed_dim * 4,
-                batch_first=True
-            ) for _ in range(8)
-        ])
+        bottleneck = []
+        decoder = []
+
+        # 添加瓶颈层模块
+        bottleneck.append(bMlp(embed_dim, embed_dim * 4, embed_dim, drop=0.2))
+        bottleneck = nn.ModuleList(bottleneck)
+
+        # 添加解码器模块
+        for i in range(8):
+            blk = VitBlock(dim=embed_dim, num_heads=num_heads, mlp_ratio=4.,
+                           qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-8),
+                           attn=LinearAttention2)
+            decoder.append(blk)
+        decoder = nn.ModuleList(decoder)
 
         # 创建完整模型
         model = ViTill(
@@ -71,7 +86,6 @@ class AnomalyDetector:
             fuse_layer_encoder=fuse_layer_encoder,
             fuse_layer_decoder=fuse_layer_decoder
         )
-
         # 加载权重
         model.load_state_dict(torch.load(model_path, map_location=self.device))
         model = model.to(self.device)
@@ -89,40 +103,55 @@ class AnomalyDetector:
             image = Image.fromarray(image)
         return self.transform(image).unsqueeze(0).to(self.device)
 
-    def detect(self, image):
+    def predict_anomaly_score(self, image_path, image_size=512, crop_size=448,max_ratio=0.01,resize_mask=256):
         """
-        检测图像中的异常
-        Args:
-            image: 输入图像(PIL Image或numpy array)
-        Returns:
-            异常分数图和异常区域图
+        预测图像的异常分数
+        参数:
+            image_path (str): 输入图像的路径
+            image_size (int): 输入图像的目标大小，默认为512
+            crop_size (int): 裁剪大小，默认为448
+            max_ratio (float): 用于计算异常分数的最大比例，默认为0.01
+            resize_mask (int): 调整异常图大小的目标尺寸，默认为256
+        返回:
+            torch.Tensor: 图像的异常分数
         """
-        with torch.no_grad():
-            # 预处理图像
-            img_tensor = self.preprocess_image(image)
+        # 获取数据变换
+        data_transform, _ = get_data_transforms(image_size, crop_size)
 
-            # 模型推理
-            en, de = self.model(img_tensor)
+        # 加载并预处理图像
+        image = Image.open(image_path).convert('RGB')  # 打开图像并转换为RGB格式
+        image = data_transform(image).unsqueeze(0).to(self.device)  # 应用数据变换并添加批次维度，然后移动到设备
 
-            # 计算异常分数
-            anomaly_map = torch.mean((en - de) ** 2, dim=1, keepdim=True)
-            anomaly_score = torch.max(anomaly_map)
+        # 获取高斯核
+        gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(self.device)  # 创建高斯核并移动到设备
 
-            # 将结果转换为numpy数组
-            anomaly_map = anomaly_map.squeeze().cpu().numpy()
-            anomaly_score = anomaly_score.item()
+        # 预测
+        with torch.no_grad():  # 关闭梯度计算以节省内存
+            image = image.to(self.device)  # 确保图像在正确的设备上
+            # starter.record()
+            output = self.model(image)  # 通过模型获取输出
+            # ender.record()
+            # torch.cuda.synchronize()
+            # curr_time = starter.elapsed_time(ender)
+            en, de = output[0], output[1]  # 分离编码器和解码器的输出
 
-            return anomaly_map, anomaly_score
+            # 计算anomaly_maps
+            anomaly_map, _ = cal_anomaly_maps(en, de, image.shape[-1])  # 计算异常图
 
-    def visualize_results(self, image, anomaly_map, save_path=None):
-        """
-        可视化检测结果
-        Args:
-            image: 原始图像
-            anomaly_map: 异常分数图
-            save_path: 保存路径(可选)
-        """
-        visualize(self.model, image, self.device, anomaly_map, save_path)
+            # anomaly_map = anomaly_map - anomaly_map.mean(dim=[1, 2, 3]).view(-1, 1, 1, 1)
+            if resize_mask is not None:  # 如果需要调整异常图大小
+                anomaly_map = F.interpolate(anomaly_map, size=resize_mask, mode='bilinear', align_corners=False)  # 使用双线性插值调整大小
+
+            anomaly_map = gaussian_kernel(anomaly_map)  # 应用高斯核平滑异常图
+
+            if max_ratio == 0:  # 如果max_ratio为0，使用最大值作为异常分数
+                sp_score = torch.max(anomaly_map.flatten(1), dim=1)[0]
+            else:  # 否则，使用前max_ratio比例的最大值的平均值作为异常分数
+                anomaly_map = anomaly_map.flatten(1)
+                sp_score = torch.sort(anomaly_map, dim=1, descending=True)[0][:, :int(anomaly_map.shape[1] * max_ratio)]
+                sp_score = sp_score.mean(dim=1)
+
+        return sp_score  # 返回计算得到的异常分数
 
     def batch_detect(self, image_list):
         """
@@ -132,33 +161,29 @@ class AnomalyDetector:
         Returns:
             异常分数图列表和异常分数列表
         """
-        anomaly_maps = []
-        anomaly_scores = []
 
-        with torch.no_grad():
-            for image in image_list:
-                anomaly_map, anomaly_score = self.detect(image)
-                anomaly_maps.append(anomaly_map)
-                anomaly_scores.append(anomaly_score)
-
-        return anomaly_maps, anomaly_scores
+    def visualize_results(self, image, anomaly_map, save_path=None):
+        """
+        可视化检测结果
+        Args:
+            image: 原始图像
+            anomaly_map: 异常分数图
+            save_path: 保存路径(可选)
+        """
 
 
 if __name__ == '__main__':
     # 初始化检测器
-    detector = AnomalyDetector(
-        model_path='path/to/model.pth',
-        model_size='base',
-        device='cuda'
+    detector = DinomalyInference(
+        model_path='saved_results/vitill_mvtec_uni_dinov3/Dinomaly_base_epoch_100_Sun Nov 30 15:03:54 2025.pth',
+        model_size='base'
     )
 
     # 单张图像检测
-    image = Image.open('test.jpg')
-    anomaly_map, anomaly_score = detector.detect(image)
-
-    # 可视化结果
-    detector.visualize_results(image, anomaly_map, save_path='result.jpg')
+    image = '000.png'
+    anomaly_score = detector.predict_anomaly_score(image)
+    print(anomaly_score)
 
     # 批量检测
-    image_list = [Image.open(f) for f in ['test1.jpg', 'test2.jpg']]
-    anomaly_maps, anomaly_scores = detector.batch_detect(image_list)
+    # image_list = [Image.open(f) for f in ['test1.jpg', 'test2.jpg']]
+    # anomaly_maps, anomaly_scores = detector.batch_detect(image_list)
