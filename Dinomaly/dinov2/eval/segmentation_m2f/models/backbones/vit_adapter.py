@@ -1,8 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
 import math
 
 import torch
@@ -11,9 +6,9 @@ import torch.nn.functional as F
 from mmseg.models.builder import BACKBONES
 from torch.nn.init import normal_
 
-from ...ops.modules import MSDeformAttn
 from .adapter_modules import InteractionBlock, InteractionBlockWithCls, SpatialPriorModule, deform_inputs
 from .vit import TIMMVisionTransformer
+from ...ops.modules import MSDeformAttn
 
 
 @BACKBONES.register_module()

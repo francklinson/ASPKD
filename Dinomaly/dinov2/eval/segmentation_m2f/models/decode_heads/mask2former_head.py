@@ -1,8 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
 import copy
 
 import torch
@@ -15,9 +10,9 @@ from mmcv.runner import ModuleList, force_fp32
 from mmseg.models.builder import HEADS, build_loss
 from mmseg.models.decode_heads.decode_head import BaseDecodeHead
 
-from ...core import build_sampler, multi_apply, reduce_mean
 from ..builder import build_assigner
 from ..utils import get_uncertain_point_coords_with_randomness
+from ...core import build_sampler, multi_apply, reduce_mean
 
 
 @HEADS.register_module()

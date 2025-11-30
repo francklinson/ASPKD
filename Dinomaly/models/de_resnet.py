@@ -1,7 +1,6 @@
-import torch
-from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 
 try:
     from torch.hub import load_state_dict_from_url

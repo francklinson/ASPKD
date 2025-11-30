@@ -1,8 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
 import logging
 import os
 import sys
@@ -10,7 +5,6 @@ import sys
 from dinov2.eval.linear import get_args_parser as get_linear_args_parser
 from dinov2.logging import setup_logging
 from dinov2.run.submit import get_args_parser, submit_jobs
-
 
 logger = logging.getLogger("dinov2")
 

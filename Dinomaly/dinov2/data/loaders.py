@@ -1,8 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
 import logging
 from enum import Enum
 from typing import Any, Callable, List, Optional, TypeVar
@@ -12,7 +7,6 @@ from torch.utils.data import Sampler
 
 from .datasets import ImageNet, ImageNet22k
 from .samplers import EpochSampler, InfiniteSampler, ShardedInfiniteSampler
-
 
 logger = logging.getLogger("dinov2")
 

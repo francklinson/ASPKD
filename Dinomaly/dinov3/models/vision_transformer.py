@@ -1,8 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This software may be used and distributed in accordance with
-# the terms of the DINOv3 License Agreement.
-
 import logging
 from functools import partial
 from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
@@ -14,41 +9,60 @@ from torch import Tensor, nn
 from dinov3.layers import LayerScale, Mlp, PatchEmbed, RMSNorm, RopePositionEmbedding, SelfAttentionBlock, SwiGLUFFN
 from dinov3.utils import named_apply
 
+# 创建日志记录器
 logger = logging.getLogger("dinov3")
 
+# 定义不同类型的FFN层（前馈网络）
 ffn_layer_dict = {
-    "mlp": Mlp,
-    "swiglu": SwiGLUFFN,
-    "swiglu32": partial(SwiGLUFFN, align_to=32),
-    "swiglu64": partial(SwiGLUFFN, align_to=64),
-    "swiglu128": partial(SwiGLUFFN, align_to=128),
+    "mlp": Mlp,  # 标准MLP层
+    "swiglu": SwiGLUFFN,  # SwiGLU激活函数的FFN层
+    "swiglu32": partial(SwiGLUFFN, align_to=32),  # 对齐到32的SwiGLU FFN层
+    "swiglu64": partial(SwiGLUFFN, align_to=64),  # 对齐到64的SwiGLU FFN层
+    "swiglu128": partial(SwiGLUFFN, align_to=128),  # 对齐到128的SwiGLU FFN层
 }
 
+# 定义不同类型的归一化层
 norm_layer_dict = {
-    "layernorm": partial(nn.LayerNorm, eps=1e-6),
-    "layernormbf16": partial(nn.LayerNorm, eps=1e-5),
-    "rmsnorm": RMSNorm,
+    "layernorm": partial(nn.LayerNorm, eps=1e-6),  # 标准LayerNorm
+    "layernormbf16": partial(nn.LayerNorm, eps=1e-5),  # 适用于bf16的LayerNorm
+    "rmsnorm": RMSNorm,  # RMS归一化层
 }
 
+# 定义不同的数据类型
 dtype_dict = {
-    "fp32": torch.float32,
-    "fp16": torch.float16,
-    "bf16": torch.bfloat16,
+    "fp32": torch.float32,  # 32位浮点数
+    "fp16": torch.float16,  # 16位浮点数
+    "bf16": torch.bfloat16,  # 脑浮点数16位
 }
 
 
 def init_weights_vit(module: nn.Module, name: str = ""):
+    """
+    初始化Vision Transformer模型中各层权重的函数
+    Args:
+        module (nn.Module): 需要初始化权重的神经网络模块
+        name (str): 模块名称，目前未在函数中使用
+    该函数根据不同的模块类型执行不同的初始化策略:
+    1. 对于线性层(Linear)，使用截断正态分布初始化权重，偏置置零
+    2. 对于各种归一化层(LayerNorm, LayerScale, PatchEmbed, RMSNorm)，调用其自身的reset_parameters方法进行初始化
+    """
     if isinstance(module, nn.Linear):
+        # 使用标准差为0.02的截断正态分布初始化线性层的权重
         torch.nn.init.trunc_normal_(module.weight, std=0.02)
+        # 如果存在偏置项，则将其初始化为零
         if module.bias is not None:
             nn.init.zeros_(module.bias)
     if isinstance(module, nn.LayerNorm):
+        # 重置LayerNorm层的参数
         module.reset_parameters()
     if isinstance(module, LayerScale):
+        # 重置LayerScale层的参数
         module.reset_parameters()
     if isinstance(module, PatchEmbed):
+        # 重置PatchEmbed层的参数
         module.reset_parameters()
     if isinstance(module, RMSNorm):
+        # 重置RMSNorm层的参数
         module.reset_parameters()
 
 
@@ -56,44 +70,45 @@ class DinoVisionTransformer(nn.Module):
     def __init__(
         self,
         *,
-        img_size: int = 224,
-        patch_size: int = 16,
-        in_chans: int = 3,
-        pos_embed_rope_base: float = 100.0,
-        pos_embed_rope_min_period: float | None = None,
-        pos_embed_rope_max_period: float | None = None,
-        pos_embed_rope_normalize_coords: Literal["min", "max", "separate"] = "separate",
-        pos_embed_rope_shift_coords: float | None = None,
-        pos_embed_rope_jitter_coords: float | None = None,
-        pos_embed_rope_rescale_coords: float | None = None,
-        pos_embed_rope_dtype: str = "bf16",
-        embed_dim: int = 768,
-        depth: int = 12,
-        num_heads: int = 12,
-        ffn_ratio: float = 4.0,
-        qkv_bias: bool = True,
-        drop_path_rate: float = 0.0,
-        layerscale_init: float | None = None,
-        norm_layer: str = "layernorm",
-        ffn_layer: str = "mlp",
-        ffn_bias: bool = True,
-        proj_bias: bool = True,
-        n_storage_tokens: int = 0,
-        mask_k_bias: bool = False,
-        untie_cls_and_patch_norms: bool = False,
-        untie_global_and_local_cls_norm: bool = False,
-        device: Any | None = None,
-        **kwargs,
+        img_size: int = 224,  # 输入图像的尺寸
+        patch_size: int = 16,  # 图像块的尺寸
+        in_chans: int = 3,  # 输入图像的通道数
+        pos_embed_rope_base: float = 100.0,  # 旋转位置编码的基础值
+        pos_embed_rope_min_period: float | None = None,  # 旋转位置编码的最小周期
+        pos_embed_rope_max_period: float | None = None,  # 旋转位置编码的最大周期
+        pos_embed_rope_normalize_coords: Literal["min", "max", "separate"] = "separate",  # 坐标归一化方法
+        pos_embed_rope_shift_coords: float | None = None,  # 坐标偏移量
+        pos_embed_rope_jitter_coords: float | None = None,  # 坐标抖动量
+        pos_embed_rope_rescale_coords: float | None = None,  # 坐标重缩放量
+        pos_embed_rope_dtype: str = "bf16",  # 旋转位置编码的数据类型
+        embed_dim: int = 768,  # 嵌入维度
+        depth: int = 12,  # Transformer层数
+        num_heads: int = 12,  # 注意力头数
+        ffn_ratio: float = 4.0,  # FFN层的扩展比例
+        qkv_bias: bool = True,  # QKV是否使用偏置
+        drop_path_rate: float = 0.0,  # 随机路径丢弃率
+        layerscale_init: float | None = None,  # 层缩放初始化值
+        norm_layer: str = "layernorm",  # 归一化层类型
+        ffn_layer: str = "mlp",  # FFN层类型
+        ffn_bias: bool = True,  # FFN层是否使用偏置
+        proj_bias: bool = True,  # 投影层是否使用偏置
+        n_storage_tokens: int = 0,  # 存储令牌数量
+        mask_k_bias: bool = False,  # 掩码K偏置
+        untie_cls_and_patch_norms: bool = False,  # 是否解绑CLS和补丁的归一化
+        untie_global_and_local_cls_norm: bool = False,  # 是否解绑全局和局部CLS的归一化
+        device: Any | None = None,  # 设备
+        **kwargs,  # 其他关键字参数
     ):
         super().__init__()
 
-        norm_layer_cls = norm_layer_dict[norm_layer]
+        norm_layer_cls = norm_layer_dict[norm_layer]  # 获取归一化层类
 
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         self.n_blocks = depth
         self.num_heads = num_heads
         self.patch_size = patch_size
 
+        # 初始化图像块嵌入层
         self.patch_embed = PatchEmbed(
             img_size=img_size,
             patch_size=patch_size,
@@ -102,10 +117,12 @@ class DinoVisionTransformer(nn.Module):
             flatten_embedding=False,
         )
 
+        # 初始化CLS令牌
         self.cls_token = nn.Parameter(torch.empty(1, 1, embed_dim, device=device))
         self.n_storage_tokens = n_storage_tokens
         if self.n_storage_tokens > 0:
             self.storage_tokens = nn.Parameter(torch.empty(1, n_storage_tokens, embed_dim, device=device))
+        # 记录旋转位置编码的配置信息
         logger.info(f"using base={pos_embed_rope_base} for rope new")
         logger.info(f"using min_period={pos_embed_rope_min_period} for rope new")
         logger.info(f"using max_period={pos_embed_rope_max_period} for rope new")
@@ -115,6 +132,7 @@ class DinoVisionTransformer(nn.Module):
         logger.info(f"using jitter_coords={pos_embed_rope_jitter_coords} for rope new")
         logger.info(f"using dtype={pos_embed_rope_dtype} for rope new")
 
+        # 初始化旋转位置编码
         self.rope_embed = RopePositionEmbedding(
             embed_dim=embed_dim,
             num_heads=num_heads,
@@ -129,9 +147,11 @@ class DinoVisionTransformer(nn.Module):
             device=device,
         )
 
+        # 记录使用的FFN层类型
         logger.info(f"using {ffn_layer} layer as FFN")
         ffn_layer_cls = ffn_layer_dict[ffn_layer]
         ffn_ratio_sequence = [ffn_ratio] * depth
+        # 创建Transformer块列表
         blocks_list = [
             SelfAttentionBlock(
                 dim=embed_dim,

@@ -1,14 +1,9 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
 import os
-from typing import Callable, Optional
 import warnings
+from typing import Callable, Optional
 
-from torch import Tensor, nn
 import torch.nn.functional as F
+from torch import Tensor, nn
 
 
 class SwiGLUFFN(nn.Module):

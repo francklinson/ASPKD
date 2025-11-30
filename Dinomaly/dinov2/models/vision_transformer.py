@@ -1,16 +1,7 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
-# References:
-#   https://github.com/facebookresearch/dino/blob/main/vision_transformer.py
-#   https://github.com/rwightman/pytorch-image-models/tree/master/timm/models/vision_transformer.py
-
-from functools import partial
-import math
 import logging
-from typing import Sequence, Tuple, Union, Callable
+import math
+from functools import partial
+from typing import Callable
 
 import torch
 import torch.nn as nn

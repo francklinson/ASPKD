@@ -1,16 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-# 
-#     http://www.apache.org/licenses/LICENSE-2.0
-# 
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 """
 Borrowed the code for Misc functions from DINO (https://github.com/facebookresearch/dino/blob/main/utils.py).
 
@@ -18,22 +5,22 @@ Mostly copy-paste from torchvision references or other public repos like DETR:
 https://github.com/facebookresearch/detr/blob/master/util/misc.py
 """
 import argparse
+import datetime
+import math
 import os
+import random
+import subprocess
 import sys
 import time
-import math
-import random
-import datetime
-import subprocess
+import warnings
 from collections import defaultdict, deque
 
 import numpy as np
 import torch
-from torch import nn
 import torch.distributed as dist
 from PIL import ImageFilter, ImageOps
+from torch import nn
 
-import warnings
 
 class GaussianBlur(object):
     """

@@ -1,22 +1,16 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
+import os
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
 from gzip import GzipFile
 from io import BytesIO
 from mmap import ACCESS_READ, mmap
-import os
 from typing import Any, Callable, List, Optional, Set, Tuple
-import warnings
 
 import numpy as np
 
 from .extended import ExtendedVisionDataset
-
 
 _Labels = int
 
@@ -68,6 +62,11 @@ def _make_mmap_tarball(tarballs_root: str, mmap_cache_size: int):
 
 
 class ImageNet22k(ExtendedVisionDataset):
+    """
+    ImageNet22k数据集类，继承自ExtendedVisionDataset。
+    这是一个大型图像数据集，包含22,000多个类别的图像。
+    """
+    # 存储被gzip压缩的图像索引的集合
     _GZIPPED_INDICES: Set[int] = {
         841_545,
         1_304_131,
@@ -96,37 +95,59 @@ class ImageNet22k(ExtendedVisionDataset):
         12_936_875,
         13_289_782,
     }
+    # 标签类型定义
     Labels = _Labels
 
     def __init__(
-        self,
-        *,
-        root: str,
-        extra: str,
-        transforms: Optional[Callable] = None,
-        transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None,
-        mmap_cache_size: int = _DEFAULT_MMAP_CACHE_SIZE,
+            self,
+            *,
+            root: str,
+            extra: str,
+            transforms: Optional[Callable] = None,
+            transform: Optional[Callable] = None,
+            target_transform: Optional[Callable] = None,
+            mmap_cache_size: int = _DEFAULT_MMAP_CACHE_SIZE,
     ) -> None:
+        """
+        初始化ImageNet22k数据集
+        参数:
+            root: 数据集根目录路径
+            extra: 额外数据存储路径
+            transforms: 应用于图像的转换组合
+            transform: 应用于图像的单个转换
+            target_transform: 应用于目标的转换
+            mmap_cache_size: 内存映射缓存大小
+        """
         super().__init__(root, transforms, transform, target_transform)
         self._extra_root = extra
 
+        # 加载条目和类别ID
         entries_path = self._get_entries_path(root)
         self._entries = self._load_extra(entries_path)
 
         class_ids_path = self._get_class_ids_path(root)
         self._class_ids = self._load_extra(class_ids_path)
 
+        # 初始化gzip索引和内存映射tarball
         self._gzipped_indices = ImageNet22k._GZIPPED_INDICES
         self._mmap_tarball = _make_mmap_tarball(self._tarballs_root, mmap_cache_size)
 
     def _get_entries_path(self, root: Optional[str] = None) -> str:
+        """获取条目文件的路径"""
         return "entries.npy"
 
     def _get_class_ids_path(self, root: Optional[str] = None) -> str:
+        """获取类别ID文件的路径"""
         return "class-ids.npy"
 
     def _find_class_ids(self, path: str) -> List[str]:
+        """
+        在指定路径中查找所有类别ID
+        参数:
+            path: 要搜索的路径
+        返回:
+            排序后的类别ID列表
+        """
         class_ids = []
 
         with os.scandir(path) as entries:
@@ -139,6 +160,13 @@ class ImageNet22k(ExtendedVisionDataset):
         return sorted(class_ids)
 
     def _load_entries_class_ids(self, root: Optional[str] = None) -> Tuple[List[_Entry], List[str]]:
+        """
+        加载条目和类别ID
+        参数:
+            root: 数据集根目录路径
+        返回:
+            包含条目列表和类别ID列表的元组
+        """
         root = self.get_root(root)
         entries: List[_Entry] = []
         class_ids = self._find_class_ids(root)
@@ -183,11 +211,24 @@ class ImageNet22k(ExtendedVisionDataset):
         return entries, class_ids
 
     def _load_extra(self, extra_path: str) -> np.ndarray:
+        """
+        加载额外数据
+        参数:
+            extra_path: 额外数据文件路径
+        返回:
+            加载的numpy数组
+        """
         extra_root = self._extra_root
         extra_full_path = os.path.join(extra_root, extra_path)
         return np.load(extra_full_path, mmap_mode="r")
 
     def _save_extra(self, extra_array: np.ndarray, extra_path: str) -> None:
+        """
+        保存额外数据
+        参数:
+            extra_array: 要保存的numpy数组
+            extra_path: 保存路径
+        """
         extra_root = self._extra_root
         extra_full_path = os.path.join(extra_root, extra_path)
         os.makedirs(extra_root, exist_ok=True)
@@ -195,12 +236,27 @@ class ImageNet22k(ExtendedVisionDataset):
 
     @property
     def _tarballs_root(self) -> str:
+        """获取tarball文件的根目录"""
         return self.root
 
     def find_class_id(self, class_index: int) -> str:
+        """
+        根据类别索引查找类别ID
+        参数:
+            class_index: 类别索引
+        返回:
+            类别ID字符串
+        """
         return str(self._class_ids[class_index])
 
     def get_image_data(self, index: int) -> bytes:
+        """
+        获取指定索引的图像数据
+        参数:
+            index: 图像索引
+        返回:
+            图像数据字节
+        """
         entry = self._entries[index]
         class_id = entry["class_id"]
         class_mmap = self._mmap_tarball(class_id)
@@ -220,26 +276,65 @@ class ImageNet22k(ExtendedVisionDataset):
         return data
 
     def get_target(self, index: int) -> Any:
+        """
+        获取指定索引的目标值
+        参数:
+            index: 索引
+        返回:
+            目标值
+        """
         return int(self._entries[index]["class_index"])
 
     def get_targets(self) -> np.ndarray:
+        """
+        获取所有目标值
+        返回:
+            包含所有目标值的numpy数组
+        """
         return self._entries["class_index"]
 
     def get_class_id(self, index: int) -> str:
+        """
+        获取指定索引的类别ID
+        参数:
+            index: 索引
+        返回:
+            类别ID字符串
+        """
         return str(self._entries[index]["class_id"])
 
     def get_class_ids(self) -> np.ndarray:
+        """
+        获取所有类别ID
+        返回:
+            包含所有类别ID的numpy数组
+        """
         return self._entries["class_id"]
 
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        """
+        获取指定索引的数据项
+        参数:
+            index: 索引
+        返回:
+            包含图像和目标的元组
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             return super().__getitem__(index)
 
     def __len__(self) -> int:
+        """
+        获取数据集大小
+        返回:
+            数据集中的样本数量
+        """
         return len(self._entries)
 
     def _dump_entries(self, *args, **kwargs) -> None:
+        """
+        将条目数据转储到文件中
+        """
         entries, class_ids = self._load_entries_class_ids(*args, **kwargs)
 
         max_class_id_length, max_filename_length, max_class_index = -1, -1, -1
@@ -278,6 +373,9 @@ class ImageNet22k(ExtendedVisionDataset):
         self._save_extra(entries_array, entries_path)
 
     def _dump_class_ids(self, *args, **kwargs) -> None:
+        """
+        将类别ID数据转储到文件中
+        """
         entries_path = self._get_entries_path(*args, **kwargs)
         entries_array = self._load_extra(entries_path)
 
@@ -295,8 +393,16 @@ class ImageNet22k(ExtendedVisionDataset):
         self._save_extra(class_ids_array, class_ids_path)
 
     def _dump_extra(self, *args, **kwargs) -> None:
+        """
+        转储所有额外数据
+        """
         self._dump_entries(*args, *kwargs)
         self._dump_class_ids(*args, *kwargs)
 
     def dump_extra(self, root: Optional[str] = None) -> None:
+        """
+        转储额外数据到指定根目录
+        参数:
+            root: 目标根目录路径
+        """
         return self._dump_extra(root)

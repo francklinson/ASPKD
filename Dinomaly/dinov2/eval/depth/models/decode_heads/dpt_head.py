@@ -1,8 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
 import math
 
 import torch
@@ -10,9 +5,9 @@ import torch.nn as nn
 from mmcv.cnn import ConvModule, Linear, build_activation_layer
 from mmcv.runner import BaseModule
 
-from ...ops import resize
-from ..builder import HEADS
 from .decode_head import DepthBaseDecodeHead
+from ..builder import HEADS
+from ...ops import resize
 
 
 class Interpolate(nn.Module):

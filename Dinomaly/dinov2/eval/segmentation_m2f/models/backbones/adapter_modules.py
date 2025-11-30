@@ -1,16 +1,11 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
 from functools import partial
 
 import torch
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 
-from ...ops.modules import MSDeformAttn
 from .drop_path import DropPath
+from ...ops.modules import MSDeformAttn
 
 
 def get_reference_points(spatial_shapes, device):

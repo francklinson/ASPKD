@@ -1,14 +1,9 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
 import argparse
-from functools import partial
 import json
 import logging
 import os
 import sys
+from functools import partial
 from typing import List, Optional
 
 import torch
@@ -21,7 +16,6 @@ from dinov2.eval.metrics import AccuracyAveraging, build_topk_accuracy_metric
 from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import ModelWithNormalize, evaluate, extract_features
-
 
 logger = logging.getLogger("dinov2")
 

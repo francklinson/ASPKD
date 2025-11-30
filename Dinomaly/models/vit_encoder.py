@@ -1,13 +1,14 @@
-import torch
-import timm
-from torch.hub import HASH_REGEX, download_url_to_file, urlparse
-from dinov1 import vision_transformer
-from dinov2.models import vision_transformer as vision_transformer_dinov2
-from beit.vision_transformer import beitv2_base_patch16_448, beitv2_base_patch16_224
-import numpy as np
-from scipy import interpolate
 import logging
 import os
+
+import numpy as np
+import torch
+from scipy import interpolate
+from torch.hub import HASH_REGEX, download_url_to_file, urlparse
+
+from beit.vision_transformer import beitv2_base_patch16_224
+from dinov1 import vision_transformer
+from dinov2.models import vision_transformer as vision_transformer_dinov2
 
 _logger = logging.getLogger(__name__)
 

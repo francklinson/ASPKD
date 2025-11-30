@@ -1,10 +1,8 @@
-import numpy as np
+import math
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
-from sklearn.cluster import KMeans
-import math
 
 
 class ViTill(nn.Module):
@@ -21,6 +19,19 @@ class ViTill(nn.Module):
             encoder_require_grad_layer=None,  # 需要计算梯度的编码器层列表
     ) -> None:
         super(ViTill, self).__init__()
+        """
+        ViTill模型的初始化函数
+        参数:
+            encoder: 编码器网络
+            bottleneck: 瓶颈层
+            decoder: 解码器网络
+            target_layers: 目标层列表
+            fuse_layer_encoder: 编码器特征融合层列表
+            fuse_layer_decoder: 解码器特征融合层列表
+            mask_neighbor_size: 掩码邻域大小
+            remove_class_token: 是否移除类别标记
+            encoder_require_grad_layer: 需要计算梯度的编码器层列表
+        """
         # 初始化默认参数
         if encoder_require_grad_layer is None:
             encoder_require_grad_layer = []
@@ -47,6 +58,14 @@ class ViTill(nn.Module):
 
     def forward(self, x):
 
+        """
+        模型前向传播函数
+        参数:
+            x: 输入张量
+        返回:
+            en: 编码器特征列表
+            de: 解码器特征列表
+        """
         # 从编码器获取中间层特征
         en_list = self.encoder.get_intermediate_layers(x, n=self.target_layers, norm=False)
 

@@ -1,8 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
 from typing import Sequence
 
 import torch
@@ -44,8 +39,8 @@ IMAGENET_DEFAULT_STD = (0.229, 0.224, 0.225)
 
 
 def make_normalize_transform(
-    mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
-    std: Sequence[float] = IMAGENET_DEFAULT_STD,
+        mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
+        std: Sequence[float] = IMAGENET_DEFAULT_STD,
 ) -> transforms.Normalize:
     return transforms.Normalize(mean=mean, std=std)
 
@@ -53,12 +48,12 @@ def make_normalize_transform(
 # This roughly matches torchvision's preset for classification training:
 #   https://github.com/pytorch/vision/blob/main/references/classification/presets.py#L6-L44
 def make_classification_train_transform(
-    *,
-    crop_size: int = 224,
-    interpolation=transforms.InterpolationMode.BICUBIC,
-    hflip_prob: float = 0.5,
-    mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
-    std: Sequence[float] = IMAGENET_DEFAULT_STD,
+        *,
+        crop_size: int = 224,
+        interpolation=transforms.InterpolationMode.BICUBIC,
+        hflip_prob: float = 0.5,
+        mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
+        std: Sequence[float] = IMAGENET_DEFAULT_STD,
 ):
     transforms_list = [transforms.RandomResizedCrop(crop_size, interpolation=interpolation)]
     if hflip_prob > 0.0:
@@ -75,12 +70,12 @@ def make_classification_train_transform(
 # This matches (roughly) torchvision's preset for classification evaluation:
 #   https://github.com/pytorch/vision/blob/main/references/classification/presets.py#L47-L69
 def make_classification_eval_transform(
-    *,
-    resize_size: int = 256,
-    interpolation=transforms.InterpolationMode.BICUBIC,
-    crop_size: int = 224,
-    mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
-    std: Sequence[float] = IMAGENET_DEFAULT_STD,
+        *,
+        resize_size: int = 256,
+        interpolation=transforms.InterpolationMode.BICUBIC,
+        crop_size: int = 224,
+        mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
+        std: Sequence[float] = IMAGENET_DEFAULT_STD,
 ) -> transforms.Compose:
     transforms_list = [
         transforms.Resize(resize_size, interpolation=interpolation),

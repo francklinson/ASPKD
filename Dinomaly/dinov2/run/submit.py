@@ -1,8 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
-
 import argparse
 import logging
 import os
@@ -16,7 +11,6 @@ from dinov2.utils.cluster import (
     get_slurm_partition,
     get_user_checkpoint_path,
 )
-
 
 logger = logging.getLogger("dinov2")
 
