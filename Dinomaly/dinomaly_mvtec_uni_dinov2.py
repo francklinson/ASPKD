@@ -1,8 +1,3 @@
-# This is a sample Python script.
-
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
-
 import logging
 import os
 import random
@@ -29,43 +24,89 @@ warnings.filterwarnings("ignore")
 
 
 def get_logger(name, save_path=None, level='INFO'):
+    """
+    创建并配置一个日志记录器
+    参数:
+        name (str): 日志记录器的名称
+        save_path (str, optional): 日志文件的保存路径，如果为None则不保存到文件
+        level (str, optional): 日志级别，默认为'INFO'
+    返回:
+        logging.Logger: 配置好的日志记录器
+    """
+    # 创建指定名称的日志记录器
     logger = logging.getLogger(name)
+    # 设置日志记录器的级别
     logger.setLevel(getattr(logging, level))
 
+    # 定义日志格式
     log_format = logging.Formatter('%(message)s')
+    # 创建控制台处理器
     streamHandler = logging.StreamHandler()
+    # 设置控制台处理器的日志格式
     streamHandler.setFormatter(log_format)
+    # 将控制台处理器添加到日志记录器
     logger.addHandler(streamHandler)
 
+    # 如果指定了日志保存路径
     if not save_path is None:
+        # 创建保存路径目录（如果不存在）
         os.makedirs(save_path, exist_ok=True)
+        # 创建文件处理器
         fileHandler = logging.FileHandler(os.path.join(save_path, 'log.txt'))
+        # 设置文件处理器的日志格式
         fileHandler.setFormatter(log_format)
+        # 将文件处理器添加到日志记录器
         logger.addHandler(fileHandler)
 
+    # 返回配置好的日志记录器
     return logger
 
 
 def count_parameters(model):
+    """
+    计算模型中需要训练的参数总数
+    参数:
+        model: 要计算参数的神经网络模型
+    返回:
+        int: 模型中需要训练的参数总数
+    """
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 def setup_seed(seed):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    """
+    设置随机种子以确保实验结果的可复现性
+
+    参数:
+        seed (int): 随机种子值
+
+    该函数会设置以下库的随机种子:
+        - PyTorch (CPU和GPU)
+        - NumPy
+        - Python内置random模块
+    """
+    torch.manual_seed(seed)  # 设置PyTorch的CPU随机种子
+    torch.cuda.manual_seed_all(seed)  # 设置PyTorch的所有GPU随机种子
+    np.random.seed(seed)  # 设置NumPy的随机种子
+    random.seed(seed)  # 设置Python内置random模块的随机种子
+    torch.backends.cudnn.deterministic = True  # 确保CUDA卷积操作是确定性的
+    torch.backends.cudnn.benchmark = False  # 禁用自动寻找最优算法，以确保确定性
 
 
 def train(item_list):
+    """
+    训练函数，用于训练模型
+    参数:
+        item_list: 包含训练数据项名称的列表
+    """
+    # 设置随机种子，确保实验可重复
     setup_seed(1)
 
-    total_iters = 10000
-    batch_size = 16
-    image_size = 448
-    crop_size = 392
+    # 定义训练参数
+    total_iters = 10000  # 总迭代次数
+    batch_size = 16      # 批次大小
+    image_size = 448     # 输入图像大小
+    crop_size = 392      # 裁剪大小
 
     # image_size = 448
     # crop_size = 448
@@ -210,7 +251,6 @@ def train(item_list):
                     print_fn(
                         '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
                             item, auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px))
-
                 print_fn(
                     'Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
                         np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list),

@@ -109,9 +109,31 @@ def train(item_list, model_size="base"):
     # 设置随机种子，保证实验可重复性
     setup_seed(1)
 
+    # 根据模型大小选择参数
+    assert model_size in ["base", "large"]
+    if model_size == "base":
+        # 设置模型参数
+        target_layers = [2, 3, 4, 5, 6, 7, 8, 9]  # 目标层列表
+        fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 编码器融合层
+        fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 解码器融合层
+        batch_size = 16  # 批次大小
+
+        # 设置编码器名称和权重路径
+        encoder_name = 'dinov3_vitb16'
+        encoder_weight = 'weights/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth'
+    elif model_size == "large":
+        # 定义目标层和融合层
+        target_layers = [4, 6, 8, 10, 12, 14, 16, 18]
+        fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
+        fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
+        batch_size = 8  # 批次大小
+
+        # 定义编码器名称和权重路径
+        encoder_name = 'dinov3_vitl16'
+        encoder_weight = 'weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth'
+
     # 设置训练参数
-    total_iters = 100  # 总训练迭代次数
-    batch_size = 8  # 批次大小
+    total_iters = 10000  # 总训练迭代次数
     image_size = 512  # 输入图像尺寸
     crop_size = 448  # 裁剪尺寸
 
@@ -142,26 +164,6 @@ def train(item_list, model_size="base"):
     train_data = ConcatDataset(train_data_list)
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=4,
                                                    drop_last=True)
-
-    assert model_size in ["base", "large"]
-    if model_size == "base":
-        # 设置模型参数
-        target_layers = [2, 3, 4, 5, 6, 7, 8, 9]  # 目标层列表
-        fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 编码器融合层
-        fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 解码器融合层
-
-        # 设置编码器名称和权重路径
-        encoder_name = 'dinov3_vitb16'
-        encoder_weight = 'weights/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth'
-    elif model_size == "large":
-        # 定义目标层和融合层
-        target_layers = [4, 6, 8, 10, 12, 14, 16, 18]
-        fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
-        fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
-
-        # 定义编码器名称和权重路径
-        encoder_name = 'dinov3_vitl16'
-        encoder_weight = 'weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth'
 
     # 加载预训练编码器模型
     encoder = load_dinov3_model(encoder_name, layers_to_extract_from=target_layers,

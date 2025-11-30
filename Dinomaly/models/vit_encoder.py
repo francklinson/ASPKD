@@ -3,7 +3,7 @@ import timm
 from torch.hub import HASH_REGEX, download_url_to_file, urlparse
 from dinov1 import vision_transformer
 from dinov2.models import vision_transformer as vision_transformer_dinov2
-from beit.vision_transformer import beitv2_base_patch16_448,beitv2_base_patch16_224
+from beit.vision_transformer import beitv2_base_patch16_448, beitv2_base_patch16_224
 import numpy as np
 from scipy import interpolate
 import logging
@@ -257,3 +257,33 @@ def beit_checkpoint_process(checkpoint_model, model):
             pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
             new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
             checkpoint_model['pos_embed'] = new_pos_embed
+
+
+if __name__ == '__main__':
+    # 预先下载所有的模型文件
+
+    # encoder_name = 'dinov2reg_vit_small_14'
+    # encoder_name = 'dinov2reg_vit_base_14'
+    # encoder_name = 'dinov2reg_vit_large_14'
+    # encoder_name = 'dinov2_vit_base_14'
+    # encoder_name = 'dino_vit_base_16'
+    # encoder_name = 'ibot_vit_base_16'
+    # encoder_name = 'mae_vit_base_16'
+    # encoder_name = 'beitv2_vit_base_16'
+    # encoder_name = 'beit_vit_base_16'
+    # encoder_name = 'digpt_vit_base_16'
+    # encoder_name = 'deit_vit_base_16'
+
+    encoder_name_list = ["dinov2reg_vit_small_14",
+                         "dinov2reg_vit_base_14",
+                         "dinov2reg_vit_large_14",
+                         "dinov2_vit_base_14",
+                         "dino_vit_base_16",
+                         "ibot_vit_base_16",
+                         "mae_vit_base_16",
+                         "beitv2_vit_base_16",
+                         "beit_vit_base_16",
+                         "digpt_vit_base_16",
+                         "deit_vit_base_16"]
+    for encoder_name in encoder_name_list:
+        load(encoder_name)
