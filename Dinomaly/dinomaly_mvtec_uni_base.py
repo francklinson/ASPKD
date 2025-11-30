@@ -165,12 +165,13 @@ def train(item_list):
 
             optimizer.zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm(trainable.parameters(), max_norm=0.1)
+            nn.utils.clip_grad_norm_(trainable.parameters(), max_norm=0.1)
 
             optimizer.step()
             loss_list.append(loss.item())
             lr_scheduler.step()
 
+            # 一定次数循环后进行模型效果验证
             # if (it + 1) % 5000 == 0:
             if True:
 
@@ -180,6 +181,7 @@ def train(item_list):
                 for item, test_data in zip(item_list, test_data_list):
                     test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False,
                                                                   num_workers=4)
+                    # 调用evaluation_batch 函数进行evaluate
                     results = evaluation_batch(model, test_dataloader, device, max_ratio=0.01, resize_mask=256)
                     auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, anomaly_map_list = results
 
@@ -208,6 +210,7 @@ def train(item_list):
                 break
 
         print_fn('iter [{}/{}], loss:{:.4f}'.format(it, total_iters, np.mean(loss_list)))
+    # 保存模型
     torch.save(model.state_dict(), f"saved_results/{args.save_name}/{time.ctime()}.pth")
     return
 
