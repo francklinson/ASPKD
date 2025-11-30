@@ -1,21 +1,16 @@
-import os
 from functools import partial
 
-import cv2
 import numpy as np
 import torch
 import torch.nn as nn
 from PIL import Image
-from torchvision.datasets import ImageFolder, DatasetFolder
-from torch.utils.data import TensorDataset, Dataset
 from torch.nn import functional as F
 
 from dataset import get_data_transforms, PredictDataset
 from dinov3.hub.backbones import load_dinov3_model
 from models.uad import ViTill
 from models.vision_transformer import Block as VitBlock, bMlp, LinearAttention2
-from utils import visualize, get_gaussian_kernel, cal_anomaly_maps, show_cam_on_image, min_max_norm, cvt2heatmap, \
-    visualize_when_predict
+from utils import get_gaussian_kernel, cal_anomaly_maps, visualize_when_predict
 
 
 class DinomalyInference:

@@ -109,7 +109,7 @@ def train(item_list, model_size="base"):
     setup_seed(1)
 
     # 根据模型大小选择参数
-    assert model_size in ["base", "large"]
+    assert model_size in ["small", "base", "large"]
     if model_size == "base":
         # 设置模型参数
         target_layers = [2, 3, 4, 5, 6, 7, 8, 9]  # 目标层列表
@@ -130,9 +130,20 @@ def train(item_list, model_size="base"):
         # 定义编码器名称和权重路径
         encoder_name = 'dinov3_vitl16'
         encoder_weight = 'weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth'
+    elif model_size == "small":
+        # 设置模型参数
+        target_layers = [2, 3, 4, 5, 6, 7, 8, 9]  # 目标层列表
+        fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 编码器融合层
+        fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 解码器融合层
+        batch_size = 16  # 批次大小
+
+        # 设置编码器名称和权重路径
+        encoder_name = 'dinov3_vits16'
+        encoder_weight = 'weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth'
+
 
     # 设置训练参数
-    total_iters = 100  # 总训练迭代次数
+    total_iters = 5000  # 总训练迭代次数
     image_size = 512  # 输入图像尺寸
     crop_size = 448  # 裁剪尺寸
 
@@ -419,9 +430,9 @@ if __name__ == '__main__':
     parser.add_argument('--save_name', type=str, default='vitill_mvtec_uni_dinov3')
     args = parser.parse_args()
 
-    # item_list = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule',
-    #              'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
-    item_list = ['toothbrush', ]
+    item_list = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule',
+                 'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
+    # item_list = ['toothbrush', ]
 
     logger = get_logger(args.save_name, os.path.join(args.save_dir, args.save_name))
     print_fn = logger.info
@@ -430,7 +441,7 @@ if __name__ == '__main__':
     print_fn(f"Using device: {device}")
 
     # 执行训练
-    train(item_list, model_size="base")
+    train(item_list, model_size="small")
 
     # 执行测试
     # model_test(model_path="saved_results/vitill_mvtec_uni_dinov3/Dinomaly_base_epoch_100_Sun Nov 30 15:03:54 2025.pth",
