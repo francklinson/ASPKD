@@ -1,27 +1,21 @@
-import torch
-from dataset import get_data_transforms
-from torchvision.datasets import ImageFolder
+import math
+import os
+import pickle
+from functools import partial
+from statistics import mean
+
+import cv2
 import numpy as np
-from torch.utils.data import DataLoader
-from dataset import MVTecDataset
+import pandas as pd
+import torch
+from numpy import ndarray
+from scipy.ndimage import gaussian_filter
+from skimage import measure
+from sklearn.metrics import auc
+from sklearn.metrics import roc_auc_score, precision_recall_curve, \
+    average_precision_score
 from torch.nn import functional as F
 from torch.optim.lr_scheduler import _LRScheduler
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from sklearn.metrics import roc_auc_score, f1_score, recall_score, accuracy_score, precision_recall_curve, \
-    average_precision_score
-import cv2
-import matplotlib.pyplot as plt
-from sklearn.metrics import auc
-from skimage import measure
-import pandas as pd
-from numpy import ndarray
-from statistics import mean
-from scipy.ndimage import gaussian_filter, binary_dilation
-import os
-from functools import partial
-import math
-
-import pickle
 
 
 def modify_grad(x, inds, factor=0.):

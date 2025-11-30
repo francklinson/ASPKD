@@ -37,25 +37,30 @@ class LinearKMaskedBias(nn.Linear):
 
 class SelfAttention(nn.Module):
     def __init__(
-        self,
-        dim: int,
-        num_heads: int = 8,
-        qkv_bias: bool = False,
-        proj_bias: bool = True,
-        attn_drop: float = 0.0,
-        proj_drop: float = 0.0,
-        mask_k_bias: bool = False,
-        device=None,
+            self,
+            dim: int,  # 输入特征的维度
+            num_heads: int = 8,  # 注意力头的数量，默认为8
+            qkv_bias: bool = False,  # 在查询、键、值线性变换中是否添加偏置，默认为False
+            proj_bias: bool = True,  # 在输出投影层中是否添加偏置，默认为True
+            attn_drop: float = 0.0,  # 注意力权重dropout率，默认为0.0
+            proj_drop: float = 0.0,  # 输出dropout率，默认为0.0
+            mask_k_bias: bool = False,  # 是否使用带掩码的键偏置，默认为False
+            device=None,  # 计算设备，默认为None
     ) -> None:
-        super().__init__()
-        self.num_heads = num_heads
-        head_dim = dim // num_heads
-        self.scale = head_dim**-0.5
+        super().__init__()  # 调用父类的初始化方法
+        self.num_heads = num_heads  # 存储注意力头的数量
+        head_dim = dim // num_heads  # 计算每个注意力头的维度
+        self.scale = head_dim ** -0.5  # 缩放因子，用于缩放注意力分数
 
+        # 根据mask_k_bias选择线性变换类
         linear_class = LinearKMaskedBias if mask_k_bias else nn.Linear
+        # 初始化查询、键、值的线性变换层
         self.qkv = linear_class(dim, dim * 3, bias=qkv_bias, device=device)
+        # 注意力权重dropout层
         self.attn_drop = nn.Dropout(attn_drop)
+        # 输出投影层
         self.proj = nn.Linear(dim, dim, bias=proj_bias, device=device)
+        # 输出dropout层
         self.proj_drop = nn.Dropout(proj_drop)
 
     def apply_rope(self, q: Tensor, k: Tensor, rope: Tensor | Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
@@ -115,45 +120,66 @@ class SelfAttention(nn.Module):
 
 class CausalSelfAttention(nn.Module):
     def __init__(
-        self,
-        dim: int,
-        num_heads: int = 8,
-        qkv_bias: bool = False,
-        proj_bias: bool = True,
-        attn_drop: float = 0.0,
-        proj_drop: float = 0.0,
+            self,
+            dim: int,  # 输入特征的维度
+            num_heads: int = 8,  # 注意力头的数量，默认为8
+            qkv_bias: bool = False,  # QKV线性层是否使用偏置，默认为False
+            proj_bias: bool = True,  # 输出投影层是否使用偏置，默认为True
+            attn_drop: float = 0.0,  # 注意力dropout概率，默认为0.0
+            proj_drop: float = 0.0,  # 输出投影dropout概率，默认为0.0
     ) -> None:
-        super().__init__()
-        self.dim = dim
-        self.num_heads = num_heads
-        head_dim = dim // num_heads
-        self.scale = head_dim**-0.5
 
+        """
+        初始化多头注意力机制模块
+
+        参数:
+            dim: 输入特征的维度
+            num_heads: 注意力头的数量，默认为8
+            qkv_bias: QKV线性层是否使用偏置，默认为False
+            proj_bias: 输出投影层是否使用偏置，默认为True
+            attn_drop: 注意力dropout概率，默认为0.0
+            proj_drop: 输出投影dropout概率，默认为0.0
+        """
+        super().__init__()  # 调用父类的初始化方法
+        self.dim = dim  # 保存输入特征的维度
+        self.num_heads = num_heads  # 保存注意力头的数量
+        head_dim = dim // num_heads  # 每个注意力头的维度
+        self.scale = head_dim ** -0.5  # 缩放因子，用于缩点积注意力
+
+        # QKV线性变换层，将输入特征映射为查询、键、值
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.attn_drop = attn_drop
-        self.proj = nn.Linear(dim, dim, bias=proj_bias)
-        self.proj_drop = nn.Dropout(proj_drop)
+        self.proj = nn.Linear(dim, dim, bias=proj_bias)  # 输出投影层
+        self.proj_drop = nn.Dropout(proj_drop)  # 输出投影后的dropout
 
     def init_weights(
-        self, init_attn_std: float | None = None, init_proj_std: float | None = None, factor: float = 1.0
+            self, init_attn_std: float | None = None, init_proj_std: float | None = None, factor: float = 1.0
     ) -> None:
-        init_attn_std = init_attn_std or (self.dim**-0.5)
+        # 初始化注意力权重和投影权重的标准差
+        init_attn_std = init_attn_std or (self.dim ** -0.5)
         init_proj_std = init_proj_std or init_attn_std * factor
+        # 初始化QKV层和投影层的权重
         nn.init.normal_(self.qkv.weight, std=init_attn_std)
         nn.init.normal_(self.proj.weight, std=init_proj_std)
+        # 如果存在偏置，则初始化为0
         if self.qkv.bias is not None:
             nn.init.zeros_(self.qkv.bias)
         if self.proj.bias is not None:
             nn.init.zeros_(self.proj.bias)
 
     def forward(self, x: Tensor, is_causal: bool = True) -> Tensor:
-        B, N, C = x.shape
+        B, N, C = x.shape  # 获取输入张量的批次大小、序列长度和特征维度
+        # 将输入特征映射为QKV，并重塑为多头形式
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads)
-        q, k, v = torch.unbind(qkv, 2)
+        q, k, v = torch.unbind(qkv, 2)  # 分离出查询、键、值
+        # 调整维度顺序，以便进行多头注意力计算
         q, k, v = [t.transpose(1, 2) for t in [q, k, v]]
+        # 计算缩放点积注意力，支持因果掩码
         x = torch.nn.functional.scaled_dot_product_attention(
             q, k, v, attn_mask=None, dropout_p=self.attn_drop if self.training else 0, is_causal=is_causal
         )
+        # 调整回原始维度顺序并合并
         x = x.transpose(1, 2).contiguous().view(B, N, C)
+        # 应用输出投影和dropout
         x = self.proj_drop(self.proj(x))
         return x
