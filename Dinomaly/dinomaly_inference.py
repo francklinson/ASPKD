@@ -13,7 +13,7 @@ from models.vision_transformer import Block as VitBlock, bMlp, LinearAttention2
 from utils import get_gaussian_kernel, cal_anomaly_maps, visualize_when_predict
 
 
-class DinomalyInference:
+class DinomalyDinoV3Inference:
     def __init__(self, model_path, model_size='base', device='cuda:0'):
         """
         初始化异常检测器
@@ -40,6 +40,7 @@ class DinomalyInference:
         Returns:
             加载好的模型
         """
+        encoder_name, encoder_weight, target_layers, fuse_layer_encoder, fuse_layer_decoder = None, None, None, None, None
         if self.model_size == "base":
             target_layers = [2, 3, 4, 5, 6, 7, 8, 9]
             fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
@@ -56,9 +57,29 @@ class DinomalyInference:
             encoder_weight = 'weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth'
             embed_dim, num_heads = 1024, 16
 
+        elif self.model_size == "small":
+            # 设置模型参数
+            target_layers = [2, 3, 4, 5, 6, 7, 8, 9]  # 目标层列表
+            fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 编码器融合层
+            fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 解码器融合层
+            batch_size = 16  # 批次大小
+            # 设置编码器名称和权重路径
+            encoder_name = 'dinov3_vits16'
+            encoder_weight = 'weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth'
+
         # 加载预训练编码器
         encoder = load_dinov3_model(encoder_name, layers_to_extract_from=target_layers,
                                     pretrained_weight_path=encoder_weight)
+
+        # 根据编码器名称设置模型参数
+        if 'vits' in encoder_name:
+            embed_dim, num_heads = 384, 6
+        elif 'vitb' in encoder_name:
+            embed_dim, num_heads = 768, 12
+        elif 'vitl' in encoder_name:
+            embed_dim, num_heads = 1024, 16
+        else:
+            raise "Architecture not in vits, vitb, vitl."
 
         # 初始化瓶颈层和解码器
         bottleneck = []
@@ -89,6 +110,7 @@ class DinomalyInference:
         # 加载权重
         model.load_state_dict(torch.load(model_path, map_location=self.device))
         model = model.to(self.device)
+        print(f"Load model from {model_path} successfully!!")
         return model
 
     def preprocess_image(self, image):
@@ -124,8 +146,8 @@ class DinomalyInference:
         pred_data = PredictDataset(input_img_pth=image_path, transform=data_transform)
         pred_dataloader = torch.utils.data.DataLoader(pred_data, batch_size=self.batch_size, shuffle=False,
                                                       num_workers=4)
-
         # 预测
+        sp_score_list = []
         with torch.no_grad():  # 关闭梯度计算以节省内存
             for img, img_path in pred_dataloader:
                 img = img.to(self.device)  # 确保图像在正确的设备上
@@ -135,14 +157,11 @@ class DinomalyInference:
                 # torch.cuda.synchronize()
                 # curr_time = starter.elapsed_time(ender)
                 en, de = output[0], output[1]  # 分离编码器和解码器的输出
-
                 # 计算anomaly_maps
                 anomaly_map, _ = cal_anomaly_maps(en, de, img.shape[-1])  # 计算异常图
-
                 if resize_mask is not None:  # 如果需要调整异常图大小
                     anomaly_map = F.interpolate(anomaly_map, size=resize_mask, mode='bilinear',
                                                 align_corners=False)  # 使用双线性插值调整大小
-
                 anomaly_map = gaussian_kernel(anomaly_map)  # 应用高斯核平滑异常图
                 if max_ratio == 0:  # 如果max_ratio为0，使用最大值作为异常分数
                     sp_score = torch.max(anomaly_map.flatten(1), dim=1)[0]
@@ -151,21 +170,28 @@ class DinomalyInference:
                     sp_score = torch.sort(anomaly_map, dim=1, descending=True)[0][:,
                                :int(anomaly_map.shape[1] * max_ratio)]
                     sp_score = sp_score.mean(dim=1)
+                print(img_path)
+                sp_score_list.extend(sp_score.tolist())
             # 执行可视化
             visualize_when_predict(self.model, dataloader=pred_dataloader, device=self.device, _class_="predict",
                                    save_name=f"dinomaly_model_size_{self.model_size}_predict")
 
-        return sp_score  # 返回计算得到的异常分数
+        return sp_score_list  # 返回计算得到的异常分数
 
 
 if __name__ == '__main__':
     # 初始化检测器
-    detector = DinomalyInference(
-        model_path='saved_results/vitill_mvtec_uni_dinov3/Dinomaly_base_epoch_100_Sun Nov 30 15:03:54 2025.pth',
-        model_size='base')
+    detector = DinomalyDinoV3Inference(
+        model_path='saved_results/vitill_mvtec_uni_dinov3/DinomalyV3_small_epoch_10000_Thu Dec 11 08_59_26 2025.pth',
+        model_size='small')
 
     # 单张图像检测
-    image = '004.png'
+    # image = r'C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk_251210\dk_22050\test\bad\0a1438fbe30547ddf944665f4e17cd4f.png'
+    # anomaly_score = detector.predict_anomaly_score(image)
+    # print(anomaly_score)
+
+    # 检测文件夹
+    image = r'C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\Dinomaly\mini_test'
     anomaly_score = detector.predict_anomaly_score(image)
     print(anomaly_score)
 

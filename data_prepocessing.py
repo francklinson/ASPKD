@@ -1,151 +1,33 @@
-# 将数据修改为normal_id_01_00000000.wav格式
+import heapq
+import json
+import math
 import os
+import secrets
 import shutil
-import re
-import argparse
-import glob
 import time
 
-import numpy as np
-import librosa
-import soundfile as sf
-from tqdm import tqdm, trange
-
-"""处理文件名"""
-raw_normal_data_dir = r"E:\音频素材\异音检测\split\normal"
-raw_anomaly_data_dir = r"E:\音频素材\异音检测\split\abnormal"
-save_train_data_dir = r"E:\音频素材\异音检测\dev_data\spk\train"
-save_test_data_dir = r"E:\音频素材\异音检测\dev_data\spk\test"
-
-
-def generate_normal_data():
-    NSPK320_TRAIN_NUM = 0
-    NSPK320_TEST_NUM = 0
-    SPK3200_TRAIN_NUM = 0
-    SPK3200_TEST_NUM = 0
-    SPK301_TRAIN_NUM = 0
-    SPK301_TEST_NUM = 0
-    SPK603_TRAIN_NUM = 0
-    SPK603_TEST_NUM = 0
-    for root, dirs, files in os.walk(raw_normal_data_dir):
-        for i in trange(len(files)):
-            file = files[i]
-            if not file.endswith(".wav"):
-                continue
-            new_file_name = ""
-            if 'NSPK320' in file:
-                # 重命名  normal_id_01_00000000.wav
-                if NSPK320_TRAIN_NUM < 100:
-                    new_file_name = 'normal_id_01_{:08d}.wav'.format(NSPK320_TRAIN_NUM)
-                    shutil.copy(os.path.join(root, file), os.path.join(save_train_data_dir, new_file_name))
-                    NSPK320_TRAIN_NUM += 1
-                else:
-                    new_file_name = 'normal_id_01_{:08d}.wav'.format(NSPK320_TEST_NUM)
-                    shutil.copy(os.path.join(root, file), os.path.join(save_test_data_dir, new_file_name))
-                    NSPK320_TEST_NUM += 1
-
-            elif 'SPK3200' in file:
-                # 重命名  normal_id_02_00000000.wav
-                if SPK3200_TRAIN_NUM < 170:
-                    new_file_name = 'normal_id_02_{:08d}.wav'.format(SPK3200_TRAIN_NUM)
-                    shutil.copy(os.path.join(root, file), os.path.join(save_train_data_dir, new_file_name))
-                    SPK3200_TRAIN_NUM += 1
-                else:
-                    new_file_name = 'normal_id_02_{:08d}.wav'.format(SPK3200_TEST_NUM)
-                    shutil.copy(os.path.join(root, file), os.path.join(save_test_data_dir, new_file_name))
-                    SPK3200_TEST_NUM += 1
-
-            elif 'SPK301' in file:
-                # 重命名  normal_id_03_00000000.wav
-                if SPK301_TRAIN_NUM < 150:
-                    new_file_name = 'normal_id_03_{:08d}.wav'.format(SPK301_TRAIN_NUM)
-                    shutil.copy(os.path.join(root, file), os.path.join(save_train_data_dir, new_file_name))
-                    SPK301_TRAIN_NUM += 1
-                else:
-                    new_file_name = 'normal_id_03_{:08d}.wav'.format(SPK301_TEST_NUM)
-                    shutil.copy(os.path.join(root, file), os.path.join(save_test_data_dir, new_file_name))
-                    SPK301_TEST_NUM += 1
-
-            elif 'SPK603' in file:
-                # 重命名  normal_id_04_00000000.wav
-                if SPK603_TRAIN_NUM < 50:
-                    new_file_name = 'normal_id_04_{:08d}.wav'.format(SPK603_TRAIN_NUM)
-                    shutil.copy(os.path.join(root, file), os.path.join(save_train_data_dir, new_file_name))
-                    SPK603_TRAIN_NUM += 1
-                else:
-                    new_file_name = 'normal_id_04_{:08d}.wav'.format(SPK603_TEST_NUM)
-                    shutil.copy(os.path.join(root, file), os.path.join(save_test_data_dir, new_file_name))
-                    SPK603_TEST_NUM += 1
-
-
-def generate_anomaly_data():
-    NSPK320_TEST_NUM = 0
-    SPK3200_TEST_NUM = 0
-    SPK301_TEST_NUM = 0
-    SPK603_TEST_NUM = 0
-    for root, dirs, files in os.walk(raw_anomaly_data_dir):
-        for i in trange(len(files)):
-            file = files[i]
-            if not file.endswith(".wav"):
-                continue
-            new_file_name = ""
-            if 'NSPK320' in file:
-                # 重命名  anomaly_id_01_00000000.wav
-                new_file_name = 'anomaly_id_01_{:08d}.wav'.format(NSPK320_TEST_NUM)
-                shutil.copy(os.path.join(root, file), os.path.join(save_test_data_dir, new_file_name))
-                NSPK320_TEST_NUM += 1
-            elif 'SPK3200' in file:
-                # 重命名  anomaly_id_02_00000000.wav
-                new_file_name = 'anomaly_id_02_{:08d}.wav'.format(SPK3200_TEST_NUM)
-                shutil.copy(os.path.join(root, file), os.path.join(save_test_data_dir, new_file_name))
-                SPK3200_TEST_NUM += 1
-            elif 'SPK301' in file:
-                # 重命名  anomaly_id_03_00000000.wav
-                new_file_name = 'anomaly_id_03_{:08d}.wav'.format(SPK301_TEST_NUM)
-                shutil.copy(os.path.join(root, file), os.path.join(save_test_data_dir, new_file_name))
-                SPK301_TEST_NUM += 1
-            elif 'SPK603' in file:
-                # 重命名  anomaly_id_04_00000000.wav
-                new_file_name = 'anomaly_id_04_{:08d}.wav'.format(SPK603_TEST_NUM)
-                shutil.copy(os.path.join(root, file), os.path.join(save_test_data_dir, new_file_name))
-                SPK603_TEST_NUM += 1
-
-
-def pad_audio_to_10s():
-    """将音频补齐到10s，16kHz wav"""
-
-    def pad_audio(audio, sr, target_length):
-        if len(audio) < target_length:
-            return np.pad(audio, (0, target_length - len(audio)), mode='constant')
-        else:
-            return audio[:target_length]
-
-    for wav_dir in [save_train_data_dir, save_test_data_dir]:
-        for root, dirs, files in os.walk(wav_dir):
-            for file in tqdm(files):
-                if not file.endswith(".wav"):
-                    continue
-                audio, sr = librosa.load(os.path.join(root, file), sr=16000)
-                audio = pad_audio(audio, sr, 10 * sr)
-                sf.write(os.path.join(root, file), audio, sr)
-
-
-import numpy as np
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt
+import numpy as np
+from dtw import dtw
+from tqdm import tqdm, trange
 
 
-def plot_spectrogram(audio_path, output_path):
+def plot_spectrogram(audio_path, output_path, offset=0.0, duration=None):
     """
     读取音频文件，绘制时频图并保存为.png
 
     参数:
         audio_path (str): 输入音频文件路径
         output_path (str): 输出图像保存路径
+        offset (float, optional): 开始绘制的时间偏移量，单位为秒。默认为None，表示从音频开始绘制
+        duration (float, optional): 绘制音频的持续时间，单位为秒。默认为None，表示绘制整个音频
     """
     # 加载音频文件
-    y, sr = librosa.load(audio_path)
+    y, sr = librosa.load(audio_path, offset=offset, duration=duration, sr=22050)
+    # 幅值归一化
+    y = librosa.util.normalize(y)
     # 计算短时傅里叶变换(STFT)
     D = librosa.stft(y)
     # 转换为分贝标度
@@ -161,8 +43,9 @@ def plot_spectrogram(audio_path, output_path):
     # 不需要边缘
     plt.axis('off')
     plt.tight_layout()
+    # 转成RGB格式
     # 保存图像，没有白边
-    plt.savefig(output_path, bbox_inches='tight', pad_inches=0, transparent=True)
+    plt.savefig(output_path, bbox_inches='tight', pad_inches=0, transparent=False)
     plt.close()
 
 
@@ -173,8 +56,24 @@ def plot_ghost_ground_truth():
     """
     # 生成600 * 600 全黑的数据
     ghost_data = np.zeros((600, 600, 3), dtype=np.uint8)
+    # 中间随机构造一些白色
+    for i in range(600):
+        for j in range(300):
+            ghost_data[i, j, :] = 255
+
     # 保存为png
-    plt.imsave('ghost.png', ghost_data)
+    plt.imsave('all_black.png', ghost_data)
+
+
+def convert_to_gray():
+    from PIL import Image
+
+    # 读取彩色图像并转换为灰度
+    img = Image.open('all_black.png').convert('L')  # 'L'模式表示8位灰度
+    # 修改为600*600大小
+    img = img.resize((600, 600))
+    # 保存为灰度图像
+    img.save('ghost.png')
 
 
 def generate_ghost_ground_truth():
@@ -182,133 +81,381 @@ def generate_ghost_ground_truth():
     生成幽灵 ground truth数据
     Returns:
     """
-    test_dir_list = ["ADer/data/spk/N32", "ADer/data/spk/IP", "ADer/data/spk/TRY"]
+    test_dir_list = ["data/spk_251210/dk_22050","data/spk_251210/qzgy_22050"]
     for test_dir in test_dir_list:
         for root, dirs, files in os.walk(os.path.join(test_dir, 'test')):
             # 只处理bad文件夹
             if 'bad' not in root:
                 continue
             for file in tqdm(files):
+                # 如果没有ground_truth文件夹，则创建
+                if not os.path.exists(os.path.join(test_dir, 'ground_truth')):
+                    os.makedirs(os.path.join(test_dir, 'ground_truth'))
+                # 如果没有bad文件夹，则创建
+                if not os.path.exists(os.path.join(test_dir, 'ground_truth', 'bad')):
+                    os.makedirs(os.path.join(test_dir, 'ground_truth', 'bad'))
                 # 生成幽灵数据，复制'ghost.png' 到ground_truth文件夹
                 shutil.copy('ghost.png',
                             os.path.join(test_dir, 'ground_truth', 'bad', file.split('.')[0] + '_mask.png'))
 
 
-def plot_mfcc(audio_path, output_image_path, n_mfcc=40):
-    """
-    读取音频文件，提取MFCC特征并绘制图像保存
-
-    参数:
-        audio_path: 输入音频文件路径
-        output_image_path: 输出图像保存路径
-        n_mfcc: MFCC特征的维度，默认为13
-    """
-    # 加载音频文件，sr=None表示保留原始采样率
-    y, sr = librosa.load(audio_path, sr=None)
-
-    # 提取MFCC特征，n_fft和hop_length为STFT参数
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc, n_fft=2048, hop_length=256)
-
-    # 创建图像并设置大小
-    plt.figure(figsize=(10, 4))
-
-    # 绘制MFCC热力图，使用librosa的可视化函数
-    librosa.display.specshow(mfcc, x_axis='time', sr=sr, hop_length=256)
-
-    # 添加颜色条和标签
-    plt.colorbar(format='%+2.0f dB')
-    plt.title('MFCC')
-    plt.xlabel('t (s)')
-    plt.ylabel('MFCC')
-
-    # 调整布局并保存图像
-    plt.tight_layout()
-    plt.savefig(output_image_path, dpi=300)
-    plt.close()
-
-
 def generate_dataset():
-    DATA_SRC_INFO = {"n32": (["原始数据/标记后/auto_test/48k",
-                              "原始数据/标记后/manual_record/250626/201P/split/48k",
-                              "原始数据/标记后/manual_record/250626/3200wg 1.0/48k",
-                              "原始数据/标记后/manual_record/250721/NSPK320/N32/split",
-                              "原始数据/标记后/manual_record/250721/SPK201/N32/split",
-                              "原始数据/标记后/manual_record/250721/SPK3200/N32/split",
-                              "原始数据/标记后/N32MPT/48k"],
-                             "ADer/data/spk/N32/train",
-                             "ADer/data/spk/N32/test"),
-                     "ip": (["原始数据/标记后/manual_record/250721/NSPK320/IP/split",
-                             "原始数据/标记后/manual_record/250721/SPK201/IP/split",
-                             "原始数据/标记后/manual_record/250721/SPK3200/IP/split"],
-                            "ADer/data/spk/IP/train",
-                            "ADer/data/spk/IP/test"),
-                     "try": (["原始数据/标记后/manual_record/250721/NSPK320/TRY/split",
-                              "原始数据/标记后/manual_record/250721/SPK201/TRY/split",
-                              "原始数据/标记后/manual_record/250721/SPK3200/TRY/split"],
-                             "ADer/data/spk/TRY/train",
-                             "ADer/data/spk/TRY/test")
-                     }
+    DATA_SRC_INFO = {"n32": ([
+                                 r"E:\异音检测\raw\产测N32汇总\48k",
+                                 r"E:\异音检测\raw\自动化产出音频数据",
+                                 # r"E:\异音检测\raw\手动录制\1\201P\split\8k",
+                                 # r"E:\异音检测\raw\手动录制\1\201P\split\16k",
+                                 # r"E:\异音检测\raw\手动录制\1\201P\split\22.05k",
+                                 # r"E:\异音检测\raw\手动录制\1\201P\split\32k",
+                                 # r"E:\异音检测\raw\手动录制\1\201P\split\44.1k",
+                                 # r"E:\异音检测\raw\手动录制\1\201P\split\48k",
+                                 r"E:\异音检测\raw\手动录制\1\3200wg 1.0\8k",
+                                 r"E:\异音检测\raw\手动录制\1\3200wg 1.0\16k",
+                                 # r"E:\异音检测\raw\手动录制\1\3200wg 1.0\22.05k",
+                                 # r"E:\异音检测\raw\手动录制\1\3200wg 1.0\32k",
+                                 # r"E:\异音检测\raw\手动录制\1\3200wg 1.0\44.1k",
+                                 # r"E:\异音检测\raw\手动录制\1\3200wg 1.0\48k",
+                                 # r"E:\异音检测\raw\手动录制\2\201P\N32\split",
+                                 r"E:\异音检测\raw\手动录制\2\3200WG\N32\split",
+                                 # r"E:\异音检测\raw\手动录制\2\NSPK320\N32\split",
+                             ],
+                             r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\N32\train",
+                             r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\N32\test"),
+        # "ip": ([r"E:\异音检测\raw\手动录制\2\201P\IP",
+        #         r"E:\异音检测\raw\手动录制\2\3200WG\IP\split",
+        #         r"E:\异音检测\raw\手动录制\2\NSPK320\IP\split"],
+        #        r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\IP\train",
+        #        r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\IP\test"),
+        # "try": ([r"E:\异音检测\raw\手动录制\2\201P\TRY\split",
+        #          r"E:\异音检测\raw\手动录制\2\3200WG\TRY\split",
+        #          r"E:\异音检测\raw\手动录制\2\NSPK320\TRY\split"],
+        #         r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\TRY\train",
+        #         r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\TRY\test")
+    }
     for key in DATA_SRC_INFO.keys():
-        audio_good_num = 0
-        audio_bad_num = 0
-        IP_SRC_DIR_LIST = DATA_SRC_INFO[key][0]
+        print(f"Processing class: {key}")
+        SRC_DIR_LIST = DATA_SRC_INFO[key][0]
         save_train_data_dir = DATA_SRC_INFO[key][1]
         save_test_data_dir = DATA_SRC_INFO[key][2]
-
-        for ip_src_dir in IP_SRC_DIR_LIST:
-            for root, dirs, files in os.walk(ip_src_dir):
+        # 保存原始数据和生成数据之间的对应关系
+        src_audio_gen_pic_map = dict()
+        for src_dir in SRC_DIR_LIST:
+            for root, dirs, files in os.walk(src_dir):
                 # 若目标文件夹不存在，则新建
                 if not os.path.exists(os.path.join(save_train_data_dir, 'good')):
                     os.makedirs(os.path.join(save_train_data_dir, 'good'))
-                # else:
-                #     # 删除所有内容后新建
-                #     # shutil.rmtree(os.path.join(save_train_data_dir, 'good'))
-                #     os.makedirs(os.path.join(save_train_data_dir, 'good'))
                 for _root, _dirs, _files in os.walk(os.path.join(root, 'good')):
                     for file in tqdm(_files):
                         if not file.endswith(".wav"):
                             continue
+                        print(f"Generating spectrogram for {file} in class {key} train dataset")
+                        new_file_name = secrets.token_hex(16)
                         plot_spectrogram(os.path.join(_root, file),
                                          os.path.join(save_train_data_dir, 'good',
-                                                      '{:03d}.png'.format(audio_good_num + 1)))
-                        audio_good_num += 1
+                                                      '{}.png'.format(new_file_name)))
+                        src_audio_gen_pic_map[os.path.join(_root, file)] = '{}.png'.format(new_file_name)
                 # 若目标文件夹不存在，则新建
                 if not os.path.exists(os.path.join(save_test_data_dir, 'bad')):
                     os.makedirs(os.path.join(save_test_data_dir, 'bad'))
-                # else:
-                #     # 删除所有内容后新建
-                #     # shutil.rmtree(os.path.join(save_test_data_dir, 'bad'))
-                #     os.makedirs(os.path.join(save_test_data_dir, 'bad'))
                 for _root, _dirs, _files in os.walk(os.path.join(root, 'bad')):
                     for file in tqdm(_files):
                         if not file.endswith(".wav"):
                             continue
+                        print(f"Generating spectrogram for {file} in class {key} test dataset")
+                        new_file_name = secrets.token_hex(16)
                         plot_spectrogram(os.path.join(_root, file),
                                          os.path.join(save_test_data_dir, 'bad',
-                                                      '{:03d}.png'.format(audio_bad_num + 1)))
-                        audio_bad_num += 1
+                                                      '{}.png'.format(new_file_name)))
+                        src_audio_gen_pic_map[os.path.join(_root, file)] = '{}.png'.format(new_file_name)
+        # 保存对应关系到文件中
+        with open('src_audio_gen_pic_map.json', 'w', encoding="utf-8") as f:
+            json.dump(src_audio_gen_pic_map, f, ensure_ascii=False, indent=4)
+
         # 等待3s
         time.sleep(3)
-        # 选择10%的good样本，移动到test中
+        # 选择20%的good样本，移动到test中
         # 若目标文件夹不存在，则新建
         if not os.path.exists(os.path.join(save_test_data_dir, 'good')):
             os.makedirs(os.path.join(save_test_data_dir, 'good'))
-        # else:
-        #     # 删除所有内容后新建
-        #     # shutil.rmtree(os.path.join(save_test_data_dir, 'good'))
-        #     os.makedirs(os.path.join(save_test_data_dir, 'good'))
         print("Save to {} and {}".format(save_train_data_dir, save_test_data_dir))
         for file in tqdm(os.listdir(os.path.join(save_train_data_dir, 'good'))):
-            if np.random.rand() < 0.1:
+            if np.random.rand() < 0.2:
                 shutil.move(os.path.join(save_train_data_dir, 'good', file),
                             os.path.join(save_test_data_dir, 'good', file))
 
 
+class FixedPriorityQueue:
+    def __init__(self, max_size):
+        self.max_size = max_size
+        self.heap = []  # 最小堆 (优先级, 数据)
+
+    def push(self, priority, item):
+        """添加元素，保持队列不超过最大长度"""
+        if len(self.heap) < self.max_size:
+            heapq.heappush(self.heap, (priority, item))
+        else:
+            # 只保留优先级更高的元素（数值更小）
+            if priority < self.heap[0][0]:
+                heapq.heapreplace(self.heap, (priority, item))
+
+    def pop(self):
+        """弹出优先级最高的元素"""
+        return heapq.heappop(self.heap) if self.heap else None
+
+    def get_all(self):
+        """获取所有元素（按优先级升序排序）"""
+        return sorted(self.heap, key=lambda x: x[0])
+
+    def __len__(self):
+        return len(self.heap)
+
+    def __str__(self):
+        return str([f"({p}, {i})" for p, i in self.get_all()])
+
+    def clear(self):
+        while not self.empty():
+            self.heap.pop()
+
+    def empty(self):
+        return len(self.heap) == 0
+
+
+class MFCCLocate:
+    def __init__(self, ref_file):
+        self.ref_file = ref_file
+        self.sr = 12000  # 低一点采样率就可以了
+        self.hop_size = 512
+        self.nfft = 2048
+        # 按照这个配置，每一帧是间隔：512/16000=32ms 帧长：2048/16000=128ms
+        # 使用示例
+        self.pq = FixedPriorityQueue(10)  # 最大长度
+
+    def extract_mfcc(self, audio_path, sr=16000, n_mfcc=13):
+        """
+        提取mfcc特征，调用librosa的方法
+        Args:
+            audio_path:
+            sr:
+            n_mfcc:
+
+        Returns:
+
+        """
+        y, sr = librosa.load(audio_path, sr=sr)
+        # nfft = 2048, hop_length = 512
+        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc)
+        return mfcc.T  # 转置为(时间帧, 特征维度)
+        # return mfcc.mean(axis=1).flatten()
+
+    def index2time(self, index):
+        """
+        index ——> time stamp
+        Args:
+            index:
+
+        Returns:
+
+        """
+        _time = index * (self.hop_size / self.sr)
+        return _time
+
+    def time2index(self, _time):
+        """
+        time stamp ——> index
+        Args:
+            _time:
+
+        Returns:
+        """
+        _index = math.floor(_time * self.sr / self.hop_size)
+        return _index
+
+    def audio_locate(self, long_audio_path):
+        riddle_start_time = self._locate_short_audio_with_dtw(long_audio_path,
+                                                              search_start_time=0,
+                                                              search_stop_time=1e4,
+                                                              n_mfcc=40,
+                                                              jump_step=15)
+        # print(f"riddle_start_time:{riddle_start_time}")
+        # 精筛，在粗筛结果的基础上，前后1s以内
+        # 用更大的n_mfcc和更小的step
+        fine_start_time = self._locate_short_audio_with_dtw(long_audio_path,
+                                                            search_start_time=riddle_start_time - 1,
+                                                            search_stop_time=riddle_start_time + 1,
+                                                            n_mfcc=40,
+                                                            jump_step=1)
+        # print(f"fine_start_time:{fine_start_time}")
+        return fine_start_time
+
+    def _locate_short_audio_with_dtw(self, long_audio_path, search_start_time, search_stop_time, n_mfcc,
+                                     jump_step):
+        """
+        筛选
+        Args:
+            long_audio_path:
+            search_start_time:
+            search_stop_time:
+            n_mfcc:
+            jump_step:
+
+        Returns:
+        """
+        # 提取特征
+        long_mfcc = self.extract_mfcc(long_audio_path, sr=self.sr, n_mfcc=n_mfcc)
+        short_mfcc = self.extract_mfcc(self.ref_file, sr=self.sr, n_mfcc=n_mfcc)
+        # 滑动窗口对比
+        min_distance = float('inf')
+        window_size = short_mfcc.shape[0]
+        best_start_index = -1
+
+        start_index = max(0, self.time2index(search_start_time))
+        stop_index = min(len(long_mfcc) - window_size + 1, self.time2index(search_stop_time))
+
+        for i in range(start_index, stop_index, jump_step):
+            window = long_mfcc[i:i + window_size]
+
+            # dtw法
+            distance = dtw(window, short_mfcc, dist_method='euclidean')
+            self.pq.push(priority=distance.distance, item=i)
+            # if distance.distance < min_distance:
+            #     min_distance = distance.distance
+            #     best_start_index = i
+
+            # 余弦距离
+            # distance = cosine_distances(window, short_mfcc)
+            # if distance[0][0] < min_distance:
+            #     min_distance = distance[0][0]
+            #     best_start = i
+        if not self.pq.empty():
+            _, best_start_index = self.pq.pop()
+        else:
+            best_start_index = 0
+        start_time = self.index2time(best_start_index)
+        return start_time
+
+
+class Preprocessor:
+    def __init__(self, ref_file, split_method='mfcc_dtw'):
+        self.ref_file = ref_file
+
+        # 获取目标音频时长
+        self.target_segment_duration = librosa.get_duration(path=self.ref_file)
+        self.y_target, self.sr_target = librosa.load(self.ref_file)
+
+        self.src_audio_gen_pic_map_file = "src_audio_gen_pic_map.json"
+        self.src_audio_gen_pic_map = dict()
+        # 若存在则加载
+        if os.path.exists(self.src_audio_gen_pic_map_file):
+            with open(self.src_audio_gen_pic_map_file, 'r', encoding="utf-8") as f:
+                self.src_audio_gen_pic_map = json.load(f)
+        assert split_method in ['mfcc_dtw', 'corr']
+        self.split_method = split_method
+        self.mfcc_finder = MFCCLocate(ref_file=self.ref_file)
+
+    def find_audio_segment(self, audio_path, threshold=0.7):
+        """
+        在音频文件中查找特定片段
+
+        参数:
+            audio_path: 完整音频文件路径
+            target_segment_path: 要查找的片段音频路径
+            threshold: 相似度阈值(0-1)，越高越严格
+
+        返回:
+            找到的片段位置列表(以秒为单位)
+        """
+        # 加载音频文件
+        y_full, sr_full = librosa.load(audio_path)
+        # y_target, sr_target = librosa.load(self.ref_file)  # 放到类的初始化中去读取
+
+        # 确保采样率一致
+        if sr_full != self.sr_target:
+            print(f"Found different sample rate, resample to {self.sr_target}Hz")
+            y_full = librosa.resample(y_full, orig_sr=sr_full, target_sr=self.sr_target)
+
+        # 计算互相关
+        correlation = np.correlate(y_full, self.y_target, mode='valid')
+        # 归一化互相关
+        correlation = correlation / (np.max(np.abs(correlation)) + 1e-10)
+        # 找到超过阈值的位置
+        matches = np.where(correlation > threshold)[0]
+        # 转换为秒
+        positions = matches / sr_full
+        # 取平均值
+        if len(positions) > 0:
+            return positions.mean()
+        else:
+            return -1
+
+    def process_audio(self, file_list, save_dir):
+        """
+        处理file_list中的所有音频文件，并保存到save_dir文件夹下
+        Args:
+            file_list:
+            save_dir:
+        Returns:
+        """
+        # 检查输入数据类型正确，分别为文件夹和音频文件
+        if not isinstance(file_list, list) or len(file_list) == 0:
+            raise ValueError("输入的音频列表不存在")
+
+        if not os.path.isfile(self.ref_file):
+            raise ValueError("目标片段音频文件不存在")
+
+        # 遍历音频目录中的所有音频文件
+        for i in trange(len(file_list)):
+            _file = file_list[i]
+            if _file.endswith(".wav"):
+                print(f"正在处理文件: {_file}")
+                # 查找目标片段在音频中的位置
+                found_position = 0
+
+                if self.split_method == 'corr':
+                    found_position = self.find_audio_segment(_file)
+                elif self.split_method == 'mfcc_dtw':
+                    found_position = self.mfcc_finder.audio_locate(_file)
+
+                if found_position > 0:
+                    print(f"找到片段起始位置(秒): {found_position}")
+                    # 提取目标片段
+                    new_file_name = secrets.token_hex(16)
+                    # 保存文件
+                    output_path = os.path.join(save_dir, f'{new_file_name}.png')
+                    try:
+                        plot_spectrogram(_file, output_path, offset=found_position,
+                                         duration=min(10.0, self.target_segment_duration))
+                        print(f"保存图像到: {output_path}")
+                        self.src_audio_gen_pic_map[_file] = '{}.png'.format(new_file_name)
+                    except Exception as e:
+                        print(f"Data transform failed! Error: {e} \nPlease check file:{_file}")
+                else:
+                    print("未找到指定片段")
+            else:
+                print("---跳过非音频文件: {}".format(_file))
+
+        # 保存对应关系到文件中
+        with open(self.src_audio_gen_pic_map_file, 'w', encoding="utf-8") as f:
+            json.dump(self.src_audio_gen_pic_map, f, ensure_ascii=False, indent=4)
+
+
 if __name__ == '__main__':
-    # generate_normal_data()
-    # generate_anomaly_data()
-    # pad_audio_to_10s()
     # generate_dataset()
     # plot_ghost_ground_truth()
+    # convert_to_gray()
     # generate_ghost_ground_truth()
-    plot_mfcc("原始数据/标记后/N32MPT/48k/good/speaker_rec_audio_eInSpeakerOnly_20250724173543_Pass.wav", '123.png')
+
+    # p = Preprocessor(ref_file="ref/渡口片段10s.wav")
+    p = Preprocessor(ref_file="ref/青藏高原片段_10s.wav")
+    # single
+    # predict_file_list = [r"E:\异音检测\raw\手动录制\2\201P\TRY\split\bad\1.wav"]
+
+    # batch
+    predict_file_list = list()
+    predict_dir = r"E:\异音检测\raw\自动化产出音频数据\251210更新"
+    for root, dirs, files in os.walk(predict_dir):
+        for file in files:
+            if file.endswith(".wav"):
+                predict_file_list.append(os.path.join(root, file))
+    p.process_audio(
+        file_list=predict_file_list,
+        save_dir="slice")

@@ -12,7 +12,7 @@ from dinov2.models import vision_transformer as vision_transformer_dinov2
 
 _logger = logging.getLogger(__name__)
 
-_WEIGHTS_DIR = "backbones/weights"
+_WEIGHTS_DIR = "weights"
 os.makedirs(_WEIGHTS_DIR, exist_ok=True)
 
 

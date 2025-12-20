@@ -343,7 +343,7 @@ class DinoVisionTransformer(nn.Module):
         x = self.norm(x)
         return x[:, 0]
 
-    def get_intermediate_layers(self, x, n=1):
+    def get_intermediate_layers(self, x, n=1, norm=False):
         x = self.prepare_tokens_with_masks(x)
         # we return the output tokens from the `n` last blocks
         output = []

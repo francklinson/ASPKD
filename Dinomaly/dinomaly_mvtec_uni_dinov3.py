@@ -9,6 +9,8 @@ from functools import partial
 import numpy as np
 import torch
 import torch.nn as nn
+from matplotlib import pyplot as plt
+from sklearn import metrics
 from torch.utils.data import ConcatDataset
 from torchvision.datasets import ImageFolder
 
@@ -101,7 +103,6 @@ def train(item_list, model_size="base"):
     Args:
         item_list:
         model_size:
-
     Returns:
 
     """
@@ -110,6 +111,7 @@ def train(item_list, model_size="base"):
 
     # 根据模型大小选择参数
     assert model_size in ["small", "base", "large"]
+    print_fn(f"Using DinoV3 model size {model_size}")
     if model_size == "base":
         # 设置模型参数
         target_layers = [2, 3, 4, 5, 6, 7, 8, 9]  # 目标层列表
@@ -120,30 +122,29 @@ def train(item_list, model_size="base"):
         # 设置编码器名称和权重路径
         encoder_name = 'dinov3_vitb16'
         encoder_weight = 'weights/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth'
+
     elif model_size == "large":
         # 定义目标层和融合层
         target_layers = [4, 6, 8, 10, 12, 14, 16, 18]
         fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
         fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
         batch_size = 8  # 批次大小
-
         # 定义编码器名称和权重路径
         encoder_name = 'dinov3_vitl16'
         encoder_weight = 'weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth'
+
     elif model_size == "small":
         # 设置模型参数
         target_layers = [2, 3, 4, 5, 6, 7, 8, 9]  # 目标层列表
         fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 编码器融合层
         fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 解码器融合层
         batch_size = 16  # 批次大小
-
         # 设置编码器名称和权重路径
         encoder_name = 'dinov3_vits16'
         encoder_weight = 'weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth'
 
-
     # 设置训练参数
-    total_iters = 5000  # 总训练迭代次数
+    total_iters = 1000  # 总训练迭代次数
     image_size = 512  # 输入图像尺寸
     crop_size = 448  # 裁剪尺寸
 
@@ -260,36 +261,40 @@ def train(item_list, model_size="base"):
 
             # 一定次数循环后进行模型效果验证
             if (it + 1) % 1000 == 0:
-                auroc_sp_list, ap_sp_list, f1_sp_list = [], [], []
-                auroc_px_list, ap_px_list, f1_px_list, aupro_px_list = [], [], [], []
+                print_fn("Begin model eval!!!")
+                auroc_sp_list, ap_sp_list, f1_sp_list, gt_sp_list, pr_sp_list = [], [], [], [], []
 
                 for item, test_data in zip(item_list, test_data_list):
                     test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False,
                                                                   num_workers=4)
                     # 调用evaluation_batch 函数进行evaluate
                     results = evaluation_batch(model, test_dataloader, device, max_ratio=0.01, resize_mask=256)
-                    auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, gt_list_sp, pr_list_sp = results
+                    auroc_sp, ap_sp, f1_sp, gt_sp, pr_sp = results
 
                     auroc_sp_list.append(auroc_sp)
                     ap_sp_list.append(ap_sp)
                     f1_sp_list.append(f1_sp)
-                    auroc_px_list.append(auroc_px)
-                    ap_px_list.append(ap_px)
-                    f1_px_list.append(f1_px)
-                    aupro_px_list.append(aupro_px)
 
+                    gt_sp_list.extend(gt_sp)
+                    pr_sp_list.extend(pr_sp)
+                    # auroc_px_list.append(auroc_px)
+                    # ap_px_list.append(ap_px)
+                    # f1_px_list.append(f1_px)
+                    # aupro_px_list.append(aupro_px)
+
+                    # print_fn(
+                    #     '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
+                    #         item, auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px))
                     print_fn(
-                        '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
-                            item, auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px))
+                        '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, '.format(
+                            item, auroc_sp, ap_sp, f1_sp))
 
                     # 做可视化,按照时间保存
                     visualize(model, test_dataloader, device, _class_=item,
-                              save_name=f"model_size_{model_size}_epoch_{it + 1}")
+                              save_name=f"dinov3_model_size_{model_size}_epoch_{it + 1}")
 
-                print_fn(
-                    'Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
-                        np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list),
-                        np.mean(auroc_px_list), np.mean(ap_px_list), np.mean(f1_px_list), np.mean(aupro_px_list)))
+                print_fn('Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}'.format(
+                    np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list), ))
 
                 model.train()
                 model.encoder.eval()
@@ -301,7 +306,12 @@ def train(item_list, model_size="base"):
         print_fn('iter [{}/{}], loss:{:.4f}'.format(it, total_iters, np.mean(loss_list)))
     # 保存模型
     # 如果没有路径就新建一个
-    model_save_pth = f"saved_results/{args.save_name}/Dinomaly_{model_size}_epoch_{total_iters}_{time.ctime()}.pth"
+    # 根据item_list确定保存模型的文件名
+    item_list_str = ""
+    for it in item_list:
+        item_list_str += it
+        item_list_str += "_"
+    model_save_pth = f"saved_results/{args.save_name}/DinomalyV3_{model_size}_{item_list_str}epoch_{total_iters}_{time.ctime()}.pth"
     if not os.path.exists(f"saved_results/{args.save_name}"):
         os.makedirs(f"saved_results/{args.save_name}")
     torch.save(model.state_dict(), model_save_pth)
@@ -315,7 +325,9 @@ def model_test(model_path, model_size="base"):
 
     """
     # 根据模型大小选择参数
-    assert model_size in ["base", "large"]
+    # 根据模型大小选择参数
+    assert model_size in ["small", "base", "large"]
+    encoder_name, encoder_weight, target_layers,fuse_layer_encoder,fuse_layer_decoder = None, None, None,None,None
     if model_size == "base":
         # 设置模型参数
         target_layers = [2, 3, 4, 5, 6, 7, 8, 9]  # 目标层列表
@@ -336,6 +348,15 @@ def model_test(model_path, model_size="base"):
         # 定义编码器名称和权重路径
         encoder_name = 'dinov3_vitl16'
         encoder_weight = 'weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth'
+    elif model_size == "small":
+        # 设置模型参数
+        target_layers = [2, 3, 4, 5, 6, 7, 8, 9]  # 目标层列表
+        fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 编码器融合层
+        fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]  # 解码器融合层
+        batch_size = 16  # 批次大小
+        # 设置编码器名称和权重路径
+        encoder_name = 'dinov3_vits16'
+        encoder_weight = 'weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth'
 
     # 设置参数
     image_size = 512  # 输入图像尺寸
@@ -350,7 +371,6 @@ def model_test(model_path, model_size="base"):
     # 遍历数据集项目列表，加载训练和测试数据
     for i, item in enumerate(item_list):
         test_path = os.path.join(args.data_path, item)  # 测试数据路径
-
         # 加载测试数据集
         test_data = MVTecDataset(root=test_path, transform=data_transform, gt_transform=gt_transform, phase="test")
         test_data_list.append(test_data)
@@ -392,35 +412,55 @@ def model_test(model_path, model_size="base"):
     # 加载权重
     model.load_state_dict(torch.load(model_path, map_location=device))
     model = model.to(device)
+    print_fn("Model load finished!")
 
-    auroc_sp_list, ap_sp_list, f1_sp_list = [], [], []
-    auroc_px_list, ap_px_list, f1_px_list, aupro_px_list = [], [], [], []
-
+    auroc_sp_list, ap_sp_list, f1_sp_list, gt_sp_list, pr_sp_list = [], [], [], [], []
+    print_fn("Loading test data!")
     for item, test_data in zip(item_list, test_data_list):
         test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False,
                                                       num_workers=4)
         # 调用evaluation_batch 函数进行evaluate
         results = evaluation_batch(model, test_dataloader, device, max_ratio=0.01, resize_mask=256)
-        auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, gt_list_sp, pr_list_sp = results
+        auroc_sp, ap_sp, f1_sp, gt_sp, pr_sp = results
 
         auroc_sp_list.append(auroc_sp)
         ap_sp_list.append(ap_sp)
         f1_sp_list.append(f1_sp)
-        auroc_px_list.append(auroc_px)
-        ap_px_list.append(ap_px)
-        f1_px_list.append(f1_px)
-        aupro_px_list.append(aupro_px)
 
+        gt_sp_list.extend(gt_sp)
+        pr_sp_list.extend(pr_sp)
+        # auroc_px_list.append(auroc_px)
+        # ap_px_list.append(ap_px)
+        # f1_px_list.append(f1_px)
+        # aupro_px_list.append(aupro_px)
+
+        # print_fn(
+        #     '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
+        #         item, auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px))
         print_fn(
-            '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
-                item, auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px))
+            '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, '.format(
+                item, auroc_sp, ap_sp, f1_sp))
 
-        print_fn('gt: {} \n pr: {}'.format(gt_list_sp, pr_list_sp))
+    # print_fn(
+    #     'Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
+    #         np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list),
+    #         np.mean(auroc_px_list), np.mean(ap_px_list), np.mean(f1_px_list), np.mean(aupro_px_list)))
+    print_fn('Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}'.format(
+        np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list), ))
 
-    print_fn(
-        'Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
-            np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list),
-            np.mean(auroc_px_list), np.mean(ap_px_list), np.mean(f1_px_list), np.mean(aupro_px_list)))
+    # 计算AUROC
+    fpr, tpr, thresholds = metrics.roc_curve(gt_sp_list, pr_sp_list)
+    print("fpr: ", fpr)
+    print("tpr: ", tpr)
+    print("thresholds: ", thresholds)
+    print("AUROC: ", metrics.auc(fpr, tpr))
+    # 绘制ROC曲线
+    plt.plot(fpr, tpr)
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('ROC Curve')
+    # 保存
+    plt.savefig('roc_curve.png')
 
 
 if __name__ == '__main__':
@@ -430,9 +470,10 @@ if __name__ == '__main__':
     parser.add_argument('--save_name', type=str, default='vitill_mvtec_uni_dinov3')
     args = parser.parse_args()
 
-    item_list = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule',
-                 'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
-    # item_list = ['toothbrush', ]
+    # item_list = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule',
+    #              'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
+    # item_list = ['qzgy_22050','dk_22050' ]
+    item_list = ['bottle','tile' ]
 
     logger = get_logger(args.save_name, os.path.join(args.save_dir, args.save_name))
     print_fn = logger.info
@@ -444,5 +485,6 @@ if __name__ == '__main__':
     train(item_list, model_size="small")
 
     # 执行测试
-    # model_test(model_path="saved_results/vitill_mvtec_uni_dinov3/Dinomaly_base_epoch_100_Sun Nov 30 15:03:54 2025.pth",
-    #            model_size="base")
+    # model_test(
+    #     model_path="Dinomaly/saved_results/vitill_mvtec_uni_dinov3/DinomalyV3_small_epoch_10000_Thu Dec 11 08_59_26 2025.pth",
+    #     model_size="small")

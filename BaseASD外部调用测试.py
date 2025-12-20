@@ -6,7 +6,11 @@ from BaseASD.DifferNet.DifferNet_interface import DifferNetInterface
 
 if __name__ == '__main__':
     d = DenseAEInterface()
-    print(d.judge_is_normal(r"C:\data\音频汇总\BC1076636\SNAPSHOT_FILE\step2_扫频-8k.wav"))
+    c = CAEInterface()
+    v = VAEInterface()
+    a = AEGANInterface()
+    d2 = DifferNetInterface()
+    # print(d.judge_is_normal(r"C:\data\音频汇总\BC1076636\SNAPSHOT_FILE\step2_扫频-8k.wav"))
     # print(d.judge_is_normal(r"C:\data\音频汇总\BC1076636\SNAPSHOT_FILE\step2_扫频-16k.wav"))
     # print(d.judge_is_normal(r"C:\data\音频汇总\BC1076636\SNAPSHOT_FILE\step2_扫频-22.05k.wav"))
     # print(d.judge_is_normal(r"C:\data\音频汇总\BC1076636\SNAPSHOT_FILE\step2_扫频-32k.wav"))

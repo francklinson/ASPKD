@@ -1,6 +1,7 @@
 import logging
 import os
 import random
+import time
 import warnings
 from functools import partial
 
@@ -14,7 +15,7 @@ from dataset import MVTecDataset
 from dataset import get_data_transforms
 from dinov1.utils import trunc_normal_
 from models import vit_encoder
-from models.uad import ViTill
+from models.uad import ViTillDinoV2
 from models.vision_transformer import Block as VitBlock, bMlp, LinearAttention2
 from optimizers import StableAdamW
 from utils import evaluation_batch, global_cosine_hm_percent, \
@@ -93,20 +94,21 @@ def setup_seed(seed):
     torch.backends.cudnn.benchmark = False  # 禁用自动寻找最优算法，以确保确定性
 
 
-def train(item_list):
+def train(item_list, model_size):
     """
     训练函数，用于训练模型
     参数:
         item_list: 包含训练数据项名称的列表
+
     """
     # 设置随机种子，确保实验可重复
     setup_seed(1)
 
     # 定义训练参数
     total_iters = 10000  # 总迭代次数
-    batch_size = 16      # 批次大小
-    image_size = 448     # 输入图像大小
-    crop_size = 392      # 裁剪大小
+    batch_size = 16  # 批次大小
+    image_size = 448  # 输入图像大小
+    crop_size = 392  # 裁剪大小
 
     # image_size = 448
     # crop_size = 448
@@ -133,9 +135,17 @@ def train(item_list):
                                                    drop_last=True)
     # test_dataloader_list = [torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False, num_workers=4)
     #                         for test_data in test_data_list]
+    encoder_name = None
+    assert model_size in ["small", "base", "large"]
+    if model_size == "small":
+        encoder_name = "dinov2reg_vit_small_14"
+    elif model_size == "base":
+        encoder_name = "dinov2reg_vit_base_14"
+    elif model_size == "large":
+        encoder_name = "dinov2reg_vit_large_14"
 
     # encoder_name = 'dinov2reg_vit_small_14'
-    encoder_name = 'dinov2reg_vit_base_14'
+    # encoder_name = 'dinov2reg_vit_base_14'
     # encoder_name = 'dinov2reg_vit_large_14'
 
     # encoder_name = 'dinov2_vit_base_14'
@@ -182,7 +192,7 @@ def train(item_list):
         decoder.append(blk)
     decoder = nn.ModuleList(decoder)
 
-    model = ViTill(encoder=encoder, bottleneck=bottleneck, decoder=decoder, target_layers=target_layers,
+    model = ViTillDinoV2(encoder=encoder, bottleneck=bottleneck, decoder=decoder, target_layers=target_layers,
                    mask_neighbor_size=0, fuse_layer_encoder=fuse_layer_encoder, fuse_layer_decoder=fuse_layer_decoder)
     model = model.to(device)
     trainable = nn.ModuleList([bottleneck, decoder])
@@ -222,13 +232,13 @@ def train(item_list):
 
             optimizer.zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm(trainable.parameters(), max_norm=0.1)
+            nn.utils.clip_grad_norm_(trainable.parameters(), max_norm=0.1)
 
             optimizer.step()
             loss_list.append(loss.item())
             lr_scheduler.step()
 
-            if (it + 1) % 5000 == 0:
+            if (it + 1) % 1000 == 0:
                 # torch.save(model.state_dict(), os.path.join(args.save_dir, args.save_name, 'model.pth'))
 
                 auroc_sp_list, ap_sp_list, f1_sp_list = [], [], []
@@ -238,23 +248,28 @@ def train(item_list):
                     test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False,
                                                                   num_workers=4)
                     results = evaluation_batch(model, test_dataloader, device, max_ratio=0.01, resize_mask=256)
-                    auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px = results
+                    auroc_sp, ap_sp, f1_sp, gt_sp, pr_sp = results
 
                     auroc_sp_list.append(auroc_sp)
                     ap_sp_list.append(ap_sp)
                     f1_sp_list.append(f1_sp)
-                    auroc_px_list.append(auroc_px)
-                    ap_px_list.append(ap_px)
-                    f1_px_list.append(f1_px)
-                    aupro_px_list.append(aupro_px)
+                    # auroc_px_list.append(auroc_px)
+                    # ap_px_list.append(ap_px)
+                    # f1_px_list.append(f1_px)
+                    # aupro_px_list.append(aupro_px)
 
+                    # print_fn(
+                    #     '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
+                    #         item, auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px))
                     print_fn(
-                        '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
-                            item, auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px))
-                print_fn(
-                    'Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
-                        np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list),
-                        np.mean(auroc_px_list), np.mean(ap_px_list), np.mean(f1_px_list), np.mean(aupro_px_list)))
+                        '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, '.format(
+                            item, auroc_sp, ap_sp, f1_sp))
+                # print_fn(
+                #     'Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
+                #         np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list),
+                #         np.mean(auroc_px_list), np.mean(ap_px_list), np.mean(f1_px_list), np.mean(aupro_px_list)))
+                print_fn('Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}'.format(
+                    np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list), ))
 
                 model.train()
 
@@ -263,9 +278,13 @@ def train(item_list):
                 break
         print_fn('iter [{}/{}], loss:{:.4f}'.format(it, total_iters, np.mean(loss_list)))
 
-    # torch.save(model.state_dict(), os.path.join(args.save_dir, args.save_name, 'model.pth'))
-
-    return
+    # 保存模型
+    # 如果没有路径就新建一个
+    model_save_pth = f"saved_results/{args.save_name}/DinomalyV2_{model_size}_epoch_{total_iters}_{time.ctime()}.pth"
+    if not os.path.exists(f"saved_results/{args.save_name}"):
+        os.makedirs(f"saved_results/{args.save_name}")
+    torch.save(model.state_dict(), model_save_pth)
+    print_fn("Model saved to {}!".format(model_save_pth))
 
 
 if __name__ == '__main__':
@@ -273,18 +292,19 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--data_path', type=str, default='../data/mvtec')
+    parser.add_argument('--data_path', type=str, default='../data/spk_251210')
     parser.add_argument('--save_dir', type=str, default='./saved_results')
     parser.add_argument('--save_name', type=str,
-                        default='vitill_mvtec_uni_dinov2br_c392_en29_bn4dp2_de8_laelu_md2_i1_it10k_sams2e3_wd1e4_w1hcosa2e4_ghmp09f01w01_b16_s1')
+                        default='vitill_mvtec_uni_dinov2')
     args = parser.parse_args()
     #
-    item_list = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule',
-                 'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
+    # item_list = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule',
+    #              'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
+    item_list = ['qzgy_22050','dk_22050']
     logger = get_logger(args.save_name, os.path.join(args.save_dir, args.save_name))
     print_fn = logger.info
 
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    device = "cuda:0" if torch.cuda.is_available() else 'cpu'
     print_fn(device)
 
-    train(item_list)
+    train(item_list,model_size="large")

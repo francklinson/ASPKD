@@ -690,10 +690,11 @@ def evaluation_batch(model, dataloader, device, _class_=None, max_ratio=0, resiz
     pr_list_sp = []
     gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(device)
 
-    starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+    # starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
     with torch.no_grad():
         for img, gt, label, img_path in dataloader:
+            # print(f"Processing: {img_path}")
             img = img.to(device)
             # starter.record()
             output = model(img)
@@ -728,24 +729,25 @@ def evaluation_batch(model, dataloader, device, _class_=None, max_ratio=0, resiz
                 sp_score = sp_score.mean(dim=1)
             pr_list_sp.append(sp_score)
 
-        gt_list_px = torch.cat(gt_list_px, dim=0)[:, 0].cpu().numpy()
-        pr_list_px = torch.cat(pr_list_px, dim=0)[:, 0].cpu().numpy()
+        # gt_list_px = torch.cat(gt_list_px, dim=0)[:, 0].cpu().numpy()
+        # pr_list_px = torch.cat(pr_list_px, dim=0)[:, 0].cpu().numpy()
         gt_list_sp = torch.cat(gt_list_sp).flatten().cpu().numpy()
         pr_list_sp = torch.cat(pr_list_sp).flatten().cpu().numpy()
 
-        aupro_px = compute_pro(gt_list_px, pr_list_px)
+        # aupro_px = compute_pro(gt_list_px, pr_list_px)
 
-        gt_list_px, pr_list_px = gt_list_px.ravel(), pr_list_px.ravel()
+        # gt_list_px, pr_list_px = gt_list_px.ravel(), pr_list_px.ravel()
 
-        auroc_px = roc_auc_score(gt_list_px, pr_list_px)
+        # auroc_px = roc_auc_score(gt_list_px, pr_list_px)
         auroc_sp = roc_auc_score(gt_list_sp, pr_list_sp)
-        ap_px = average_precision_score(gt_list_px, pr_list_px)
+        # ap_px = average_precision_score(gt_list_px, pr_list_px)
         ap_sp = average_precision_score(gt_list_sp, pr_list_sp)
 
         f1_sp = f1_score_max(gt_list_sp, pr_list_sp)
-        f1_px = f1_score_max(gt_list_px, pr_list_px)
+        # f1_px = f1_score_max(gt_list_px, pr_list_px)
 
-    return [auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, gt_list_sp, pr_list_sp]
+    # return [auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, gt_list_sp, pr_list_sp]
+    return [auroc_sp, ap_sp, f1_sp, gt_list_sp, pr_list_sp]
 
 
 def evaluation_batch_loco(model, dataloader, device, _class_=None, max_ratio=0):
@@ -1069,10 +1071,10 @@ def visualize_when_predict(model, dataloader, device, _class_='None', save_name=
                 if not os.path.exists(save_dir_class):
                     os.mkdir(save_dir_class)
                 # 生成文件名
-                name = img_path[i].split('/')[-1].replace('.png', '')
+                name = img_path[i].split(os.sep)[-1].replace('.png', '')
                 # 保存原始图像、热力图和真实掩码
-                cv2.imwrite(save_dir_class + '/' + name + '_img.png', im)
-                cv2.imwrite(save_dir_class + '/' + name + '_cam.png', hm_on_img)
+                cv2.imwrite(save_dir_class + os.sep + name + '_img.png', im)
+                cv2.imwrite(save_dir_class + os.sep + name + '_cam.png', hm_on_img)
     return
 
 

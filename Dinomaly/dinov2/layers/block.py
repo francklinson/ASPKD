@@ -13,20 +13,20 @@ from .mlp import Mlp
 
 logger = logging.getLogger("dinov2")
 
-XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
-try:
-    if XFORMERS_ENABLED:
-        from xformers.ops import fmha, scaled_index_add, index_select_cat
-
-        XFORMERS_AVAILABLE = True
-        warnings.warn("xFormers is available (Block)")
-    else:
-        warnings.warn("xFormers is disabled (Block)")
-        raise ImportError
-except ImportError:
-    XFORMERS_AVAILABLE = False
-
-    warnings.warn("xFormers is not available (Block)")
+# XFORMERS_ENABLED = os.environ.get("XFORMERS_DISABLED") is None
+# try:
+#     if XFORMERS_ENABLED:
+#         from xformers.ops import fmha, scaled_index_add, index_select_cat
+#
+#         XFORMERS_AVAILABLE = True
+#         warnings.warn("xFormers is available (Block)")
+#     else:
+#         warnings.warn("xFormers is disabled (Block)")
+#         raise ImportError
+# except ImportError:
+#     XFORMERS_AVAILABLE = False
+#
+#     warnings.warn("xFormers is not available (Block)")
 
 
 class Block(nn.Module):
@@ -252,8 +252,8 @@ class NestedTensorBlock(Block):
         if isinstance(x_or_x_list, Tensor):
             return super().forward(x_or_x_list)
         elif isinstance(x_or_x_list, list):
-            if not XFORMERS_AVAILABLE:
-                raise AssertionError("xFormers is required for using nested tensors")
+            # if not XFORMERS_AVAILABLE:
+            #     raise AssertionError("xFormers is required for using nested tensors")
             return self.forward_nested(x_or_x_list)
         else:
             raise AssertionError
