@@ -453,19 +453,19 @@ if __name__ == '__main__':
     dinomaly_v2.logger = logger
 
     # 训练
-    dinomaly_v2.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=100)
+    # dinomaly_v2.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=100)
 
     # 评估
-    # model_path = "saved_results/dinomaly_dinov2_small_carpet_grid_epoch_500_Sat Dec 20 19:32:34 2025.pth"
-    # dinomaly_v2.evaluate(model_path, item_list, args.data_path)
+    model_path = "saved_results/dinomaly_dinov2_small_carpet_grid_epoch_500_Sat Dec 20 19:52:36 2025.pth"
+    dinomaly_v2.evaluate(model_path, item_list, args.data_path)
 
     # 创建并训练DinoV3模型
     dinomaly_v3 = DinomalyV3Trainer(model_size="small", device=device)
     dinomaly_v3.logger = logger
 
     # 训练
-    dinomaly_v3.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=100)
+    # dinomaly_v3.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=100)
 
     # 评估
-    # model_path = "saved_results/dinomaly_dinov3_small_carpet_grid_epoch_500_Sat Dec 20 19:35:41 2025.pth"
-    # dinomaly_v3.evaluate(model_path, item_list, args.data_path)
+    model_path = "saved_results/dinomaly_dinov3_small_carpet_grid_epoch_500_Sat Dec 20 19:55:45 2025.pth"
+    dinomaly_v3.evaluate(model_path, item_list, args.data_path)

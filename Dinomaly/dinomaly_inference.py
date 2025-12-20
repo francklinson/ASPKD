@@ -16,7 +16,6 @@ from models.vision_transformer import Block as VitBlock, bMlp, LinearAttention2
 from utils import get_gaussian_kernel, cal_anomaly_maps, visualize_when_predict
 
 
-
 class ModelConfig:
     """模型配置类，统一管理不同模型的配置参数"""
 
@@ -69,7 +68,7 @@ class ModelConfig:
 class DinomalyBaseInferencer(ABC):
     """异常检测器基类"""
 
-    def __init__(self, model_path: str, model_size: str, device: str = 'cuda:0'):
+    def __init__(self, model_path: str, model_size: str, device: str = 'cuda:0', threshold: float = 0.5):
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
         self.model_size = model_size
         self.model = self._load_model(model_path)
@@ -77,6 +76,7 @@ class DinomalyBaseInferencer(ABC):
         self.batch_size = 8
         self.transform = get_data_transforms(512, 448)
         self.vis_dir = "visualize"
+        self.threshold = threshold
 
     @abstractmethod
     def _load_model(self, model_path: str) -> nn.Module:
@@ -89,14 +89,14 @@ class DinomalyBaseInferencer(ABC):
             image = Image.fromarray(image)
         return self.transform(image).unsqueeze(0).to(self.device)
 
-    def predict_anomaly_score(
+    def predict(
             self,
             image_path: str,
             image_size: int = 512,
             crop_size: int = 448,
             max_ratio: float = 0.01,
             resize_mask: int = 256
-    ) -> List[float]:
+    ):
         """预测图像的异常分数"""
         data_transform, _ = get_data_transforms(image_size, crop_size)
         gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(self.device)
@@ -110,6 +110,7 @@ class DinomalyBaseInferencer(ABC):
         )
 
         sp_score_list = []
+        img_path_list = []
         with torch.no_grad():
             for img, img_path in pred_dataloader:
                 img = img.to(self.device)
@@ -135,7 +136,7 @@ class DinomalyBaseInferencer(ABC):
                     sp_score = torch.sort(anomaly_map, dim=1, descending=True)[0][
                         :, :int(anomaly_map.shape[1] * max_ratio)
                     ].mean(dim=1)
-
+                img_path_list.extend(list(img_path))
                 sp_score_list.extend(sp_score.tolist())
 
             visualize_save_dir = f"{self.__class__.__name__.lower()}_{self.model_size}_predict"
@@ -147,12 +148,32 @@ class DinomalyBaseInferencer(ABC):
                 save_name=visualize_save_dir
             )
             print(f"Visualization done!! Saved to ./visualize/{visualize_save_dir}")
+        pred_res_dict = dict()
+        for i in range(len(sp_score_list)):
+            score = sp_score_list[i]
+            pred_res_dict[img_path_list[i]] = (score, score > self.threshold)
+        self.format_output_pred_result(pred_res_dict)
+        return pred_res_dict
 
-        return sp_score_list
+    def format_output_pred_result(self, pred_res_dict):
+        """
+        格式化输出预测结果
+        Parameters
+        ----------
+        pred_res_dict : dict
+        """
+        print("Predict Result: ")
+        print('*' * 40)
+        print("File  :  Score  Label")
+        for k, v in pred_res_dict.items():
+            print(f"{k} : {v[0]:.4f} {v[1]}")
 
 
 class DinomalyDinoV2Inference(DinomalyBaseInferencer):
     """DINOv2异常检测器实现"""
+
+    def __init__(self, model_path: str, model_size: str, device: str = 'cuda:0', threshold: float = 0.15):
+        super().__init__(model_path, model_size, device, threshold)
 
     def _create_model(self, encoder: nn.Module, config: Dict, model_path) -> nn.Module:
         """创建模型实例"""
@@ -200,6 +221,9 @@ class DinomalyDinoV2Inference(DinomalyBaseInferencer):
 
 class DinomalyDinoV3Inference(DinomalyBaseInferencer):
     """DINOv3异常检测器实现"""
+
+    def __init__(self, model_path: str, model_size: str, device: str = 'cuda:0', threshold: float = 0.05):
+        super().__init__(model_path, model_size, device, threshold)
 
     def _create_model(self, encoder: nn.Module, config: Dict, model_path) -> nn.Module:
         """创建模型实例"""
@@ -251,23 +275,24 @@ class DinomalyDinoV3Inference(DinomalyBaseInferencer):
 
 if __name__ == '__main__':
     # 初始化检测器
-    detector = DinomalyDinoV2Inference(
+    detectorv2 = DinomalyDinoV2Inference(
         model_path='saved_results/dinomaly_dinov2_small_carpet_grid_epoch_500_Sat Dec 20 19:52:36 2025.pth',
         model_size='small')
 
-    # detector = DinomalyDinoV3Inference(
-    #     model_path='saved_results/dinomaly_dinov3_small_carpet_grid_epoch_500_Sat Dec 20 19:55:45 2025.pth',
-    #     model_size='small')
+    detectorv3 = DinomalyDinoV3Inference(
+        model_path='saved_results/dinomaly_dinov3_small_carpet_grid_epoch_500_Sat Dec 20 19:55:45 2025.pth',
+        model_size='small')
 
     # 单张图像检测
-    # image = r'C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk_251210\dk_22050\test\bad\0a1438fbe30547ddf944665f4e17cd4f.png'
-    # anomaly_score = detector.predict_anomaly_score(image)
-    # print(anomaly_score)
+    # image = r'minitest/003.png'
+    # detectorv2.predict(image)
+    # detectorv3.predict(image)
+
 
     # 检测文件夹
-    image = r'minitest'
-    anomaly_score = detector.predict_anomaly_score(image)
-    print(anomaly_score)
+    image = r'../data/mvtec/hazelnut/test/crack'
+    detectorv2.predict(image)
+    detectorv3.predict(image)
 
     # 批量检测
     # image_list = [Image.open(f) for f in ['test1.jpg', 'test2.jpg']]
