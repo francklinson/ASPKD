@@ -81,7 +81,7 @@ def generate_ghost_ground_truth():
     生成幽灵 ground truth数据
     Returns:
     """
-    test_dir_list = ["data/spk_251210/dk_22050","data/spk_251210/qzgy_22050"]
+    test_dir_list = ["data/spk/qzgy","data/spk/dk"]
     for test_dir in test_dir_list:
         for root, dirs, files in os.walk(os.path.join(test_dir, 'test')):
             # 只处理bad文件夹
@@ -97,91 +97,6 @@ def generate_ghost_ground_truth():
                 # 生成幽灵数据，复制'ghost.png' 到ground_truth文件夹
                 shutil.copy('ghost.png',
                             os.path.join(test_dir, 'ground_truth', 'bad', file.split('.')[0] + '_mask.png'))
-
-
-def generate_dataset():
-    DATA_SRC_INFO = {"n32": ([
-                                 r"E:\异音检测\raw\产测N32汇总\48k",
-                                 r"E:\异音检测\raw\自动化产出音频数据",
-                                 # r"E:\异音检测\raw\手动录制\1\201P\split\8k",
-                                 # r"E:\异音检测\raw\手动录制\1\201P\split\16k",
-                                 # r"E:\异音检测\raw\手动录制\1\201P\split\22.05k",
-                                 # r"E:\异音检测\raw\手动录制\1\201P\split\32k",
-                                 # r"E:\异音检测\raw\手动录制\1\201P\split\44.1k",
-                                 # r"E:\异音检测\raw\手动录制\1\201P\split\48k",
-                                 r"E:\异音检测\raw\手动录制\1\3200wg 1.0\8k",
-                                 r"E:\异音检测\raw\手动录制\1\3200wg 1.0\16k",
-                                 # r"E:\异音检测\raw\手动录制\1\3200wg 1.0\22.05k",
-                                 # r"E:\异音检测\raw\手动录制\1\3200wg 1.0\32k",
-                                 # r"E:\异音检测\raw\手动录制\1\3200wg 1.0\44.1k",
-                                 # r"E:\异音检测\raw\手动录制\1\3200wg 1.0\48k",
-                                 # r"E:\异音检测\raw\手动录制\2\201P\N32\split",
-                                 r"E:\异音检测\raw\手动录制\2\3200WG\N32\split",
-                                 # r"E:\异音检测\raw\手动录制\2\NSPK320\N32\split",
-                             ],
-                             r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\N32\train",
-                             r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\N32\test"),
-        # "ip": ([r"E:\异音检测\raw\手动录制\2\201P\IP",
-        #         r"E:\异音检测\raw\手动录制\2\3200WG\IP\split",
-        #         r"E:\异音检测\raw\手动录制\2\NSPK320\IP\split"],
-        #        r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\IP\train",
-        #        r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\IP\test"),
-        # "try": ([r"E:\异音检测\raw\手动录制\2\201P\TRY\split",
-        #          r"E:\异音检测\raw\手动录制\2\3200WG\TRY\split",
-        #          r"E:\异音检测\raw\手动录制\2\NSPK320\TRY\split"],
-        #         r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\TRY\train",
-        #         r"C:\Users\W0401544_ZCH\PycharmProjects\ASPKD\data\spk\TRY\test")
-    }
-    for key in DATA_SRC_INFO.keys():
-        print(f"Processing class: {key}")
-        SRC_DIR_LIST = DATA_SRC_INFO[key][0]
-        save_train_data_dir = DATA_SRC_INFO[key][1]
-        save_test_data_dir = DATA_SRC_INFO[key][2]
-        # 保存原始数据和生成数据之间的对应关系
-        src_audio_gen_pic_map = dict()
-        for src_dir in SRC_DIR_LIST:
-            for root, dirs, files in os.walk(src_dir):
-                # 若目标文件夹不存在，则新建
-                if not os.path.exists(os.path.join(save_train_data_dir, 'good')):
-                    os.makedirs(os.path.join(save_train_data_dir, 'good'))
-                for _root, _dirs, _files in os.walk(os.path.join(root, 'good')):
-                    for file in tqdm(_files):
-                        if not file.endswith(".wav"):
-                            continue
-                        print(f"Generating spectrogram for {file} in class {key} train dataset")
-                        new_file_name = secrets.token_hex(16)
-                        plot_spectrogram(os.path.join(_root, file),
-                                         os.path.join(save_train_data_dir, 'good',
-                                                      '{}.png'.format(new_file_name)))
-                        src_audio_gen_pic_map[os.path.join(_root, file)] = '{}.png'.format(new_file_name)
-                # 若目标文件夹不存在，则新建
-                if not os.path.exists(os.path.join(save_test_data_dir, 'bad')):
-                    os.makedirs(os.path.join(save_test_data_dir, 'bad'))
-                for _root, _dirs, _files in os.walk(os.path.join(root, 'bad')):
-                    for file in tqdm(_files):
-                        if not file.endswith(".wav"):
-                            continue
-                        print(f"Generating spectrogram for {file} in class {key} test dataset")
-                        new_file_name = secrets.token_hex(16)
-                        plot_spectrogram(os.path.join(_root, file),
-                                         os.path.join(save_test_data_dir, 'bad',
-                                                      '{}.png'.format(new_file_name)))
-                        src_audio_gen_pic_map[os.path.join(_root, file)] = '{}.png'.format(new_file_name)
-        # 保存对应关系到文件中
-        with open('src_audio_gen_pic_map.json', 'w', encoding="utf-8") as f:
-            json.dump(src_audio_gen_pic_map, f, ensure_ascii=False, indent=4)
-
-        # 等待3s
-        time.sleep(3)
-        # 选择20%的good样本，移动到test中
-        # 若目标文件夹不存在，则新建
-        if not os.path.exists(os.path.join(save_test_data_dir, 'good')):
-            os.makedirs(os.path.join(save_test_data_dir, 'good'))
-        print("Save to {} and {}".format(save_train_data_dir, save_test_data_dir))
-        for file in tqdm(os.listdir(os.path.join(save_train_data_dir, 'good'))):
-            if np.random.rand() < 0.2:
-                shutil.move(os.path.join(save_train_data_dir, 'good', file),
-                            os.path.join(save_test_data_dir, 'good', file))
 
 
 class FixedPriorityQueue:
@@ -402,6 +317,10 @@ class Preprocessor:
         if not os.path.isfile(self.ref_file):
             raise ValueError("目标片段音频文件不存在")
 
+        # 检查slice文件夹是否存在
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
         # 遍历音频目录中的所有音频文件
         for i in trange(len(file_list)):
             _file = file_list[i]
@@ -439,19 +358,17 @@ class Preprocessor:
 
 
 if __name__ == '__main__':
-    # generate_dataset()
     # plot_ghost_ground_truth()
     # convert_to_gray()
-    # generate_ghost_ground_truth()
 
-    # p = Preprocessor(ref_file="ref/渡口片段10s.wav")
-    p = Preprocessor(ref_file="ref/青藏高原片段_10s.wav")
+    p = Preprocessor(ref_file="ref/渡口片段10s.wav")
+    # p = Preprocessor(ref_file="ref/青藏高原片段_10s.wav")
     # single
     # predict_file_list = [r"E:\异音检测\raw\手动录制\2\201P\TRY\split\bad\1.wav"]
 
     # batch
     predict_file_list = list()
-    predict_dir = r"E:\异音检测\raw\自动化产出音频数据\251210更新"
+    predict_dir = r"原始数据/标记后/manual_record/250721/SPK3200/N32/split/good"
     for root, dirs, files in os.walk(predict_dir):
         for file in files:
             if file.endswith(".wav"):
@@ -459,3 +376,5 @@ if __name__ == '__main__':
     p.process_audio(
         file_list=predict_file_list,
         save_dir="slice")
+
+    generate_ghost_ground_truth()

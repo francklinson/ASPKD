@@ -1052,8 +1052,8 @@ def visualize_when_predict(model, dataloader, device, _class_='None', save_name=
             anomaly_map, _ = cal_anomaly_maps(en, de, img.shape[-1])  # 计算异常图
             anomaly_map = gaussian_kernel(anomaly_map)  # 应用高斯核平滑异常图
 
-            # 批量处理图像，每次处理8张
-            for i in range(0, anomaly_map.shape[0], 8):
+            # 批量处理图像
+            for i in range(0, anomaly_map.shape[0]):
                 # 归一化异常图并转换为热力图
                 heatmap = min_max_norm(anomaly_map[i, 0].cpu().numpy())
                 heatmap = cvt2heatmap(heatmap * 255)

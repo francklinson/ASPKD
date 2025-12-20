@@ -179,16 +179,12 @@ def dinomaly_dinov2_train(item_list, model_size):
     decoder = []
 
     bottleneck.append(bMlp(embed_dim, embed_dim * 4, embed_dim, drop=0.2))
-    # bottleneck.append(nn.Sequential(FeatureJitter(scale=40),
-    #                                 bMlp(embed_dim, embed_dim * 4, embed_dim, drop=0.)))
-
     bottleneck = nn.ModuleList(bottleneck)
 
     for i in range(8):
         blk = VitBlock(dim=embed_dim, num_heads=num_heads, mlp_ratio=4.,
                        qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-8),
                        attn=LinearAttention2)
-        # blk = ConvBlock(dim=embed_dim, kernel_size=7, mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-8))
         decoder.append(blk)
     decoder = nn.ModuleList(decoder)
 

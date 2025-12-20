@@ -282,7 +282,7 @@ class DinomalyV2Trainer(DinomalyBaseTrainer):
                 loss_list.append(loss.item())
                 scheduler.step()
 
-                if (it + 1) % 100 == 0:
+                if (it + 1) % 1000 == 0:
                     self.logger.info("Begin model eval!!!")
                     self.evaluate_model(item_list, test_data_list, batch_size)
                     for item, test_data in zip(item_list, test_data_list):
@@ -398,7 +398,7 @@ class DinomalyV3Trainer(DinomalyBaseTrainer):
                 loss_list.append(loss.item())
                 scheduler.step()
 
-                if (it + 1) % 100 == 0:
+                if (it + 1) % 1000 == 0:
                     self.logger.info("Begin model eval!!!")
                     self.evaluate_model(item_list, test_data_list, batch_size)
 
@@ -409,7 +409,7 @@ class DinomalyV3Trainer(DinomalyBaseTrainer):
                         visualize(
                             self.model, test_dataloader, self.device,
                             _class_=item,
-                            save_name=f"dinov3_model_size_{self.model_size}_epoch_{it + 1}"
+                            save_name=f"dinomaly_dinov3_{self.model_size}_epoch_{it + 1}"
                         )
 
                     self.model.train()
@@ -452,7 +452,7 @@ if __name__ == '__main__':
     dinomaly_v2.logger = logger
 
     # 训练
-    dinomaly_v2.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=100)
+    # dinomaly_v2.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=10000)
 
     # 评估
     model_path = "saved_results/dinomaly_dinov2_small_carpet_grid_epoch_100_Sat Dec 20 18:14:09 2025.pth"
@@ -463,7 +463,7 @@ if __name__ == '__main__':
     dinomaly_v3.logger = logger
 
     # 训练
-    dinomaly_v3.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=100)
+    # dinomaly_v3.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=10000)
 
     # 评估
     model_path = "saved_results/dinomaly_dinov3_small_carpet_grid_epoch_100_Sat Dec 20 18:14:43 2025.pth"
