@@ -94,7 +94,7 @@ def setup_seed(seed):
     torch.backends.cudnn.benchmark = False  # 禁用自动寻找最优算法，以确保确定性
 
 
-def train(item_list, model_size):
+def dinomaly_dinov2_train(item_list, model_size):
     """
     训练函数，用于训练模型
     参数:
@@ -105,7 +105,7 @@ def train(item_list, model_size):
     setup_seed(1)
 
     # 定义训练参数
-    total_iters = 10000  # 总迭代次数
+    total_iters = 500  # 总迭代次数
     batch_size = 16  # 批次大小
     image_size = 448  # 输入图像大小
     crop_size = 392  # 裁剪大小
@@ -280,11 +280,107 @@ def train(item_list, model_size):
 
     # 保存模型
     # 如果没有路径就新建一个
-    model_save_pth = f"saved_results/{args.save_name}/DinomalyV2_{model_size}_epoch_{total_iters}_{time.ctime()}.pth"
+    item_list_str = ""
+    for it in item_list:
+        item_list_str += it
+        item_list_str += "_"
+    model_save_pth = f"saved_results/{args.save_name}/DinomalyV2_{model_size}_{item_list_str}epoch_{total_iters}_{time.ctime()}.pth"
     if not os.path.exists(f"saved_results/{args.save_name}"):
         os.makedirs(f"saved_results/{args.save_name}")
     torch.save(model.state_dict(), model_save_pth)
     print_fn("Model saved to {}!".format(model_save_pth))
+
+
+def dinomaly_dinov2_model_test(model_path, model_size):
+    """
+    测试模型
+    Args:
+        model_path: 模型权重路径
+        model_size: 模型大小(small/base/large)
+    """
+    # 设置图像参数
+    image_size = 448
+    crop_size = 392
+
+    # 获取数据变换
+    data_transform, gt_transform = get_data_transforms(image_size, crop_size)
+
+    # 初始化测试数据列表
+    test_data_list = []
+
+    # 加载测试数据
+    for i, item in enumerate(item_list):
+        test_path = os.path.join(args.data_path, item)
+        test_data = MVTecDataset(root=test_path, transform=data_transform, gt_transform=gt_transform, phase="test")
+        test_data_list.append(test_data)
+
+    # 根据模型大小设置参数
+    assert model_size in ["small", "base", "large"]
+    encoder_name = None
+    if model_size == "small":
+        encoder_name = "dinov2reg_vit_small_14"
+    elif model_size == "base":
+        encoder_name = "dinov2reg_vit_base_14"
+    elif model_size == "large":
+        encoder_name = "dinov2reg_vit_large_14"
+
+    target_layers = [2, 3, 4, 5, 6, 7, 8, 9]
+    fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
+    fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
+
+    # 加载编码器
+    encoder = vit_encoder.load(encoder_name)
+
+    # 根据模型大小设置维度参数
+    if 'small' in encoder_name:
+        embed_dim, num_heads = 384, 6
+    elif 'base' in encoder_name:
+        embed_dim, num_heads = 768, 12
+    elif 'large' in encoder_name:
+        embed_dim, num_heads = 1024, 16
+        target_layers = [4, 6, 8, 10, 12, 14, 16, 18]
+
+    # 初始化模型组件
+    bottleneck = []
+    decoder = []
+
+    bottleneck.append(bMlp(embed_dim, embed_dim * 4, embed_dim, drop=0.2))
+    bottleneck = nn.ModuleList(bottleneck)
+
+    for i in range(8):
+        blk = VitBlock(dim=embed_dim, num_heads=num_heads, mlp_ratio=4.,
+                       qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-8),
+                       attn=LinearAttention2)
+        decoder.append(blk)
+    decoder = nn.ModuleList(decoder)
+
+    # 创建模型
+    model = ViTillDinoV2(encoder=encoder, bottleneck=bottleneck, decoder=decoder, target_layers=target_layers,
+                         mask_neighbor_size=0, fuse_layer_encoder=fuse_layer_encoder,
+                         fuse_layer_decoder=fuse_layer_decoder)
+
+    # 加载模型权重
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model = model.to(device)
+    print_fn("Model load finished!")
+
+    # 测试模型
+    auroc_sp_list, ap_sp_list, f1_sp_list = [], [], []
+
+    for item, test_data in zip(item_list, test_data_list):
+        test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=16, shuffle=False, num_workers=4)
+        results = evaluation_batch(model, test_dataloader, device, max_ratio=0.01, resize_mask=256)
+        auroc_sp, ap_sp, f1_sp, gt_sp, pr_sp = results
+
+        auroc_sp_list.append(auroc_sp)
+        ap_sp_list.append(ap_sp)
+        f1_sp_list.append(f1_sp)
+
+        print_fn('{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}'.format(item, auroc_sp, ap_sp, f1_sp))
+
+    print_fn('Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}'.format(
+        np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list)))
+
 
 
 if __name__ == '__main__':
@@ -292,7 +388,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--data_path', type=str, default='../data/spk_251210')
+    parser.add_argument('--data_path', type=str, default='../data/mvtec')
     parser.add_argument('--save_dir', type=str, default='./saved_results')
     parser.add_argument('--save_name', type=str,
                         default='vitill_mvtec_uni_dinov2')
@@ -300,11 +396,15 @@ if __name__ == '__main__':
     #
     # item_list = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule',
     #              'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
-    item_list = ['qzgy_22050','dk_22050']
+    # item_list = ['qzgy_22050','dk_22050']
+    item_list = ['carpet','grid']
     logger = get_logger(args.save_name, os.path.join(args.save_dir, args.save_name))
     print_fn = logger.info
 
     device = "cuda:0" if torch.cuda.is_available() else 'cpu'
     print_fn(device)
 
-    train(item_list,model_size="large")
+    dinomaly_dinov2_train(item_list,model_size="small")
+    # dinomaly_dinov2_model_test(
+    #     model_path="saved_results/vitill_mvtec_uni_dinov2/DinomalyV2_small_carpet_grid_epoch_500_Sat Dec 20 17:07:27 2025.pth",
+    #     model_size="small")
