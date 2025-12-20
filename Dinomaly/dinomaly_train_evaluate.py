@@ -243,7 +243,7 @@ class DinomalyV2Trainer(DinomalyBaseTrainer):
         self.initialize_weights()
 
     def train(self, item_list, data_path, save_dir, total_iters=10000, batch_size=16,
-              image_size=448, crop_size=392):
+              image_size=512, crop_size=448):
         """训练模型"""
         self.logger.info("Begin DinomalyDinov2 model train!!!")
         setup_seed(1)
@@ -282,7 +282,7 @@ class DinomalyV2Trainer(DinomalyBaseTrainer):
                 loss_list.append(loss.item())
                 scheduler.step()
 
-                if (it + 1) % 1000 == 0:
+                if (it + 1) % 50 == 0:
                     self.logger.info("Begin model eval!!!")
                     self.evaluate_model(item_list, test_data_list, batch_size)
                     for item, test_data in zip(item_list, test_data_list):
@@ -292,8 +292,9 @@ class DinomalyV2Trainer(DinomalyBaseTrainer):
                         visualize(
                             self.model, test_dataloader, self.device,
                             _class_=item,
-                            save_name=f"dinov2_model_size_{self.model_size}_epoch_{it + 1}"
+                            save_name=f"dinomaly_dinov2_{self.model_size}_epoch_{it + 1}"
                         )
+                    self.logger.info("Visualization done!")
                     self.model.train()
 
                 it += 1
@@ -304,7 +305,7 @@ class DinomalyV2Trainer(DinomalyBaseTrainer):
         self.save_model(save_dir=save_dir, save_name="dinomaly_dinov2", item_list=item_list, total_iters=total_iters)
 
     def evaluate(self, model_path, item_list, data_path, batch_size=16,
-                 image_size=448, crop_size=392):
+                 image_size=512, crop_size=448):
         """评估模型"""
         data_transform, gt_transform = get_data_transforms(image_size, crop_size)
         test_data_list = self.prepare_test_data(item_list, data_path, data_transform, gt_transform)
@@ -398,7 +399,7 @@ class DinomalyV3Trainer(DinomalyBaseTrainer):
                 loss_list.append(loss.item())
                 scheduler.step()
 
-                if (it + 1) % 1000 == 0:
+                if (it + 1) % 50 == 0:
                     self.logger.info("Begin model eval!!!")
                     self.evaluate_model(item_list, test_data_list, batch_size)
 
@@ -411,7 +412,7 @@ class DinomalyV3Trainer(DinomalyBaseTrainer):
                             _class_=item,
                             save_name=f"dinomaly_dinov3_{self.model_size}_epoch_{it + 1}"
                         )
-
+                    self.logger.info("Visualization done!")
                     self.model.train()
                     self.model.encoder.eval()
 
@@ -445,26 +446,26 @@ if __name__ == '__main__':
 
     item_list = ['carpet', 'grid']
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    logger = get_logger(args.save_name, os.path.join(args.save_dir, args.save_name))
+    logger = get_logger(args.save_name, args.save_dir)
 
     # 创建并训练DinoV2模型
     dinomaly_v2 = DinomalyV2Trainer(model_size="small", device=device)
     dinomaly_v2.logger = logger
 
     # 训练
-    # dinomaly_v2.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=10000)
+    dinomaly_v2.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=100)
 
     # 评估
-    model_path = "saved_results/dinomaly_dinov2_small_carpet_grid_epoch_100_Sat Dec 20 18:14:09 2025.pth"
-    dinomaly_v2.evaluate(model_path, item_list, args.data_path)
+    # model_path = "saved_results/dinomaly_dinov2_small_carpet_grid_epoch_500_Sat Dec 20 19:32:34 2025.pth"
+    # dinomaly_v2.evaluate(model_path, item_list, args.data_path)
 
     # 创建并训练DinoV3模型
     dinomaly_v3 = DinomalyV3Trainer(model_size="small", device=device)
     dinomaly_v3.logger = logger
 
     # 训练
-    # dinomaly_v3.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=10000)
+    dinomaly_v3.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=100)
 
     # 评估
-    model_path = "saved_results/dinomaly_dinov3_small_carpet_grid_epoch_100_Sat Dec 20 18:14:43 2025.pth"
-    dinomaly_v3.evaluate(model_path, item_list, args.data_path)
+    # model_path = "saved_results/dinomaly_dinov3_small_carpet_grid_epoch_500_Sat Dec 20 19:35:41 2025.pth"
+    # dinomaly_v3.evaluate(model_path, item_list, args.data_path)
