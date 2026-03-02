@@ -9,7 +9,7 @@ import librosa
 import numpy as np
 from sklearn import metrics
 from Anomalib.data import MVTecAD
-from Anomalib.models import Dinomaly
+from Anomalib.models import Dinomaly, Patchcore
 from Anomalib.engine import Engine
 from Anomalib.data import PredictDataset
 from Anomalib.visualization import ImageVisualizer
@@ -40,10 +40,11 @@ Image Models:
 """
 
 # 定义数据集模块
-datamodule = MVTecAD(root="data/spk_251031", category="qzgy_22050", train_batch_size=16, eval_batch_size=16)
+datamodule = MVTecAD(root="data/spk", category="dk", train_batch_size=16, eval_batch_size=16)
 
 # 定义检测模型
-model = Dinomaly()
+# model = Dinomaly()
+model = Patchcore()
 
 # 定义训练引擎
 engine = Engine(max_epochs=1000)
@@ -204,7 +205,7 @@ class ModelPredict:
             data_path=self.predict_dir,
         )
         res = list()
-        if prediction is None :
+        if prediction is None:
             return res
         for _p in prediction:
             res.append([_p.image_path[0], _p.pred_label, _p.pred_score])
@@ -312,15 +313,15 @@ if __name__ == '__main__':
 
     train()
     # mt = ModelTest(
-    #     ckpt_path="/mnt/test/scripts/asd_for_spk/results/Dinomaly/MVTecAD/qzgy_32000/v8/weights/lightning/model.ckpt"
+    #     ckpt_path="/home/zhouchenghao/PycharmProjects/ASD_for_SPK/results/Patchcore/MVTecAD/dk/v0/weights/lightning/model.ckpt"
     # )
     # mp = ModelPredict(
-    #     ckpt_path="model_ckpts/dinomaly_qzgy_22050_e1000.ckpt",
-    #     ref_file="ref/青藏高原片段.wav")
+    #     ckpt_path="/home/zhouchenghao/PycharmProjects/ASD_for_SPK/results/Patchcore/MVTecAD/dk/v0/weights/lightning/model.ckpt",
+    #     ref_file="ref/渡口片段10s.wav")
     #
     # t = mt.model_batch_test()
-    #
-    # p = mp.predict(predict_file=r"E:\异音检测\raw\手动录制\2\3200WG\N32\split\bad\bad")
+
+    # p = mp.predict(predict_file=r"/home/zhouchenghao/PycharmProjects/ASD_for_SPK/data/spk/dk/test/bad")
     # print(p)
 
     t2 = time.time()
