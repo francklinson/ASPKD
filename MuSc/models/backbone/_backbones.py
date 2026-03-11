@@ -93,4 +93,5 @@ def load(name):
         state_dict = torch.hub.load_state_dict_from_url(url="https://dl.fbaipublicfiles.com/dino/" + url)
         model.load_state_dict(state_dict, strict=True)
         return model
+    print("model_url:", url)
     return eval(_BACKBONES[name])

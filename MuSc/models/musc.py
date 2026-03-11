@@ -127,6 +127,9 @@ class MuSc():
         self.load_backbone()
 
     def load_backbone(self):
+        """
+        加载预训练的骨干网络
+        """
         if 'dino' in self.model_name:
             # dino or dino_v2
             self.dino_model = _backbones.load(self.model_name)
@@ -138,6 +141,7 @@ class MuSc():
                                                                                         self.image_size,
                                                                                         pretrained=self.pretrained)
             self.clip_model.to(self.device)
+
 
     def load_datasets(self, category, divide_num=1, divide_iter=0):
         """
@@ -153,6 +157,7 @@ class MuSc():
             每种数据集都会使用相同的参数进行初始化，包括数据源、分割方式、类别名称、图像大小、预处理等
         """
         # dataloader
+        test_dataset = None
         if self.dataset == 'visa':  # 如果数据集类型是visa
             test_dataset = visa.VisaDataset(source=self.path, split=visa.DatasetSplit.TEST,  # 使用VisaDataset类创建测试数据集
                                             classname=category, resize=self.image_size, imagesize=self.image_size,
@@ -161,8 +166,9 @@ class MuSc():
                                             divide_num=divide_num, divide_iter=divide_iter,
                                             random_seed=self.seed)  # 设置划分参数和随机种子
         elif self.dataset == 'mvtec_ad':  # 如果数据集类型是mvtec_ad
+            # 只用test数据进行预测
             test_dataset = mvtec.MVTecDataset(source=self.path, split=mvtec.DatasetSplit.TEST,  # 使用MVTecDataset类创建测试数据集
-                                              classname=category, resize=self.image_size, imagesize=self.image_size,
+                                              class_name=category, resize=self.image_size, imagesize=self.image_size,
                                               # 设置类别和图像大小
                                               clip_transformer=self.preprocess,  # 设置预处理转换器
                                               divide_num=divide_num, divide_iter=divide_iter,
@@ -205,10 +211,23 @@ class MuSc():
                     save_path = os.path.join(self.output_dir, category, anomaly_type)
                     os.makedirs(save_path, exist_ok=True)
                     save_path = os.path.join(save_path, img_name)
+
+                    # 读取原始图像
+                    original_img = cv2.imread(path)
+
                     anomaly_map = pr_px[i].squeeze()
                     anomaly_map = normalization01(anomaly_map) * 255
                     anomaly_map = cv2.applyColorMap(anomaly_map.astype(np.uint8), cv2.COLORMAP_JET)
-                    cv2.imwrite(save_path, anomaly_map)
+
+                    # 调整热力图尺寸以匹配原始图像
+                    h, w = original_img.shape[:2]
+                    anomaly_map = cv2.resize(anomaly_map, (w, h))
+
+                    # 叠加热力图和原图
+                    overlay = cv2.addWeighted(original_img, 0.6, anomaly_map, 0.4, 0)
+
+                    # cv2.imwrite(save_path, anomaly_map)
+                    cv2.imwrite(save_path, overlay)
         else:
             # normalized all image
             pr_px = normalization01(pr_px)
@@ -218,10 +237,24 @@ class MuSc():
                 save_path = os.path.join(str(self.output_dir), category, anomaly_type)
                 os.makedirs(save_path, exist_ok=True)
                 save_path = os.path.join(save_path, img_name)
+
+                # 读取原始图像
+                original_img = cv2.imread(path)
+
                 anomaly_map = pr_px[i].squeeze()
                 anomaly_map *= 255
                 anomaly_map = cv2.applyColorMap(anomaly_map.astype(np.uint8), cv2.COLORMAP_JET)
-                cv2.imwrite(save_path, anomaly_map)
+
+                # 调整热力图尺寸以匹配原始图像
+                h, w = original_img.shape[:2]
+                anomaly_map = cv2.resize(anomaly_map, (w, h))
+
+                # 叠加热力图和原图
+                overlay = cv2.addWeighted(original_img, 0.6, anomaly_map, 0.4, 0)
+
+                # 保存叠加后的图像
+                cv2.imwrite(save_path, overlay)
+                # cv2.imwrite(save_path, anomaly_map)
 
     def make_category_data(self, category):
         """
@@ -230,8 +263,6 @@ class MuSc():
             category: str - 要处理的类别名称
         返回:
             tuple: 包含图像级和像素级指标的元组
-
-
 
         """
         print("Currently processing category:", category)  # 打印当前处理的类别
@@ -337,6 +368,7 @@ class MuSc():
             B, L = anomaly_maps_iter.shape
             H = int(np.sqrt(L))
             anomaly_maps_iter = F.interpolate(anomaly_maps_iter.view(B, 1, H, H),
+                                              # size=self.image_size, mode='bicubic', align_corners=True)
                                               size=self.image_size, mode='bilinear', align_corners=True)
             anomaly_maps = torch.cat((anomaly_maps, anomaly_maps_iter.cpu()), dim=0)
 

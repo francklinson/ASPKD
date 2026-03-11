@@ -23,7 +23,7 @@ class MVTecDataset(torch.utils.data.Dataset):
     def __init__(
             self,
             source,  # 数据来源
-            classname,  # 类别名称
+            class_name,  # 类别名称
             resize=256,  # 调整大小的目标尺寸
             imagesize=224,  # 裁剪后的图像尺寸
             split=DatasetSplit.TRAIN,  # 数据集划分（训练/验证/测试）
@@ -39,12 +39,12 @@ class MVTecDataset(torch.utils.data.Dataset):
         # 基本属性初始化
         self.source = source  # 设置数据来源
         self.split = split  # 设置数据集划分
-        self.classnames_to_use = [classname] if classname is not None else _CLASSNAMES  # 设置要使用的类别
+        self.classnames_to_use = [class_name] if class_name is not None else _CLASSNAMES  # 设置要使用的类别
 
         # 数据处理
         self.imgpaths_per_class, self.data_to_iterate = self.get_image_data()  # 获取图像数据
-        print(self.imgpaths_per_class)
-        print(self.data_to_iterate)
+        # print(self.imgpaths_per_class)
+        # print(self.data_to_iterate)
 
         # 如果需要将数据集划分为多个子集
         if divide_num > 1:
