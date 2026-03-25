@@ -33,12 +33,13 @@ class Config:
         self.model_name = "facebook/hubert-base-ls960"
 
         # 音频处理参数
-        self.sample_rate = 24000  # 大多数模型要求16k采样率
-        self.segment_duration = 10  # 每个片段的时长（秒）
+        self.sample_rate = 16000  # 语音模型通常使用16k采样率
+        self.segment_duration = 3   # 每个片段的时长（秒），确保能处理短时音频
+        self.use_first_segment_only = True  # 每段音频只取第一个片段，确保各说话人样本数一致
 
         # 聚类参数
-        self.n_clusters = 2  # 聚类数量
-        self.outlier_threshold_percentile = 95  # 异常阈值百分位数
+        self.n_clusters = 3  # 聚类数量（对应3个说话人）
+        self.outlier_threshold_percentile = 90  # 异常阈值百分位数
 
         # 特征提取器类型
         self.feature_extractor_type = feature_extractor_type
@@ -46,7 +47,11 @@ class Config:
         # 可视化参数
         self.tsne_perplexity = 30  # 默认perplexity值
         self.tsne_max_iter = 1000
-        self.output_image = f"anomaly_detection_result_{self.feature_extractor_type}.png"
+        # 输出路径设置为 experiment_results 目录
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        results_dir = os.path.join(base_dir, "experiment_results")
+        os.makedirs(results_dir, exist_ok=True)
+        self.output_image = os.path.join(results_dir, f"anomaly_detection_result_{self.feature_extractor_type}.png")
 
 
 class BaseFeatureExtractor(ABC):
@@ -70,7 +75,10 @@ class BaseFeatureExtractor(ABC):
 
 
 class HubertFeatureExtractor(BaseFeatureExtractor):
-    """基于HuBert的音频特征提取器"""
+    """基于HuBert的音频特征提取器 - 使用16kHz采样率"""
+
+    # HuBERT模型使用16kHz
+    SAMPLE_RATE = 16000
 
     def __init__(self, config: Config):
         super().__init__(config)
@@ -80,7 +88,7 @@ class HubertFeatureExtractor(BaseFeatureExtractor):
 
     def _load_model(self) -> None:
         """加载预训练模型"""
-        print(f"Loading model: {self.config.model_name}...")
+        print(f"Loading model: {self.config.model_name} (采样率: {self.SAMPLE_RATE}Hz)...")
         try:
             self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(self.config.model_name)
             self.model = HubertModel.from_pretrained(self.config.model_name).to(self.config.device)
@@ -100,15 +108,15 @@ class HubertFeatureExtractor(BaseFeatureExtractor):
         返回:
             特征数组，形状为 (N_samples, Feature_dim)
         """
-        # 加载音频
+        # 加载音频 - 使用模型特定的采样率
         waveform, orig_sr = librosa.load(
             audio_path,
-            sr=self.config.sample_rate,
+            sr=self.SAMPLE_RATE,
             mono=True
         )
 
         # 计算每个片段的样本数
-        segment_samples = int(self.config.segment_duration * self.config.sample_rate)
+        segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
         features_list = []
 
         # 滑动窗口切分音频
@@ -122,7 +130,7 @@ class HubertFeatureExtractor(BaseFeatureExtractor):
             # 转换为模型输入格式
             inputs = self.feature_extractor(
                 segment,
-                sampling_rate=self.config.sample_rate,
+                sampling_rate=self.SAMPLE_RATE,
                 return_tensors="pt"
             ).input_values.to(self.config.device)
 
@@ -134,11 +142,18 @@ class HubertFeatureExtractor(BaseFeatureExtractor):
             segment_feature = hidden_states.mean(dim=1).squeeze().cpu().numpy()
             features_list.append(segment_feature)
 
+            # 如果配置为只取第一个片段，则跳出循环
+            if self.config.use_first_segment_only:
+                break
+
         return np.array(features_list)
 
 
 class ASTFeatureExtractor(BaseFeatureExtractor):
-    """基于Audio Spectrogram Transformer (AST) 的音频特征提取器"""
+    """基于Audio Spectrogram Transformer (AST) 的音频特征提取器 - 使用16kHz采样率"""
+
+    # AST模型使用16kHz
+    SAMPLE_RATE = 16000
 
     def __init__(self, config: Config):
         super().__init__(config)
@@ -148,7 +163,7 @@ class ASTFeatureExtractor(BaseFeatureExtractor):
 
     def _load_model(self) -> None:
         """加载预训练模型"""
-        print("Loading AST model...")
+        print(f"Loading AST model (采样率: {self.SAMPLE_RATE}Hz)...")
         try:
             model_name = "MIT/ast-finetuned-audioset-10-10-0.4593"
             self.feature_extractor = AutoFeatureExtractor.from_pretrained(model_name)
@@ -162,7 +177,6 @@ class ASTFeatureExtractor(BaseFeatureExtractor):
     def extract_features(self, audio_path: str) -> np.ndarray:
         """
         从音频文件中提取AST特征
-        AST需要输入频谱图，因此采样率通常固定为16000，且输入长度会被处理
 
         参数:
             audio_path: 音频文件路径
@@ -170,12 +184,11 @@ class ASTFeatureExtractor(BaseFeatureExtractor):
         返回:
             特征数组，形状为 (N_samples, Feature_dim)
         """
-        # AST默认使用16000Hz采样率
-        target_sr = 16000
-        waveform, orig_sr = librosa.load(audio_path, sr=target_sr, mono=True)
+        # 加载音频 - 使用模型特定的采样率
+        waveform, orig_sr = librosa.load(audio_path, sr=self.SAMPLE_RATE, mono=True)
 
         # 计算每个片段的样本数
-        segment_samples = int(self.config.segment_duration * target_sr)
+        segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
         features_list = []
 
         # 滑动窗口切分音频
@@ -189,7 +202,7 @@ class ASTFeatureExtractor(BaseFeatureExtractor):
             # 转换为模型输入格式
             inputs = self.feature_extractor(
                 segment,
-                sampling_rate=target_sr,
+                sampling_rate=self.SAMPLE_RATE,
                 return_tensors="pt"
             ).input_values.to(self.config.device)
 
@@ -198,16 +211,21 @@ class ASTFeatureExtractor(BaseFeatureExtractor):
                 hidden_states = self.model(inputs).last_hidden_state
 
             # 对时间维度求平均
-            # AST输出形状通常是 (Batch, Sequence, Hidden_Dim)
             segment_feature = hidden_states.mean(dim=1).squeeze().cpu().numpy()
             features_list.append(segment_feature)
+
+            # 如果配置为只取第一个片段，则跳出循环
+            if self.config.use_first_segment_only:
+                break
 
         return np.array(features_list)
 
 
-
 class MFCCFeatureExtractor(BaseFeatureExtractor):
-    """基于MFCC的音频特征提取器"""
+    """基于MFCC的音频特征提取器 - 使用16kHz采样率（语音标准）"""
+
+    # MFCC通常使用16kHz作为语音处理标准
+    SAMPLE_RATE = 16000
 
     def __init__(self, config: Config):
         super().__init__(config)
@@ -222,15 +240,15 @@ class MFCCFeatureExtractor(BaseFeatureExtractor):
         返回:
             特征数组，形状为 (N_samples, Feature_dim)
         """
-        # 加载音频
+        # 加载音频 - 使用模型特定的采样率
         waveform, orig_sr = librosa.load(
             audio_path,
-            sr=self.config.sample_rate,
+            sr=self.SAMPLE_RATE,
             mono=True
         )
 
         # 计算每个片段的样本数
-        segment_samples = int(self.config.segment_duration * self.config.sample_rate)
+        segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
         features_list = []
 
         # 滑动窗口切分音频
@@ -244,19 +262,26 @@ class MFCCFeatureExtractor(BaseFeatureExtractor):
             # 提取MFCC特征
             mfcc = librosa.feature.mfcc(
                 y=segment,
-                sr=self.config.sample_rate,
-                n_mfcc=13  # 通常使用13个MFCC系数
+                sr=self.SAMPLE_RATE,
+                n_mfcc=40  # 使用40个MFCC系数
             )
 
             # 对时间维度求平均
             segment_feature = np.mean(mfcc, axis=1)
             features_list.append(segment_feature)
 
+            # 如果配置为只取第一个片段，则跳出循环
+            if self.config.use_first_segment_only:
+                break
+
         return np.array(features_list)
 
 
 class MelSpectrogramExtractor(BaseFeatureExtractor):
-    """基于Mel频谱图的音频特征提取器"""
+    """基于Mel频谱图的音频特征提取器 - 使用16kHz采样率"""
+
+    # Mel频谱图通常使用16kHz作为语音处理标准
+    SAMPLE_RATE = 16000
 
     def __init__(self, config: Config):
         super().__init__(config)
@@ -271,15 +296,15 @@ class MelSpectrogramExtractor(BaseFeatureExtractor):
         返回:
             特征数组，形状为 (N_samples, Feature_dim)
         """
-        # 加载音频
+        # 加载音频 - 使用模型特定的采样率
         waveform, orig_sr = librosa.load(
             audio_path,
-            sr=self.config.sample_rate,
+            sr=self.SAMPLE_RATE,
             mono=True
         )
 
         # 计算每个片段的样本数
-        segment_samples = int(self.config.segment_duration * self.config.sample_rate)
+        segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
         features_list = []
 
         # 滑动窗口切分音频
@@ -293,7 +318,7 @@ class MelSpectrogramExtractor(BaseFeatureExtractor):
             # 提取Mel频谱图
             mel_spec = librosa.feature.melspectrogram(
                 y=segment,
-                sr=self.config.sample_rate,
+                sr=self.SAMPLE_RATE,
                 n_mels=128  # Mel频带数量
             )
 
@@ -304,11 +329,18 @@ class MelSpectrogramExtractor(BaseFeatureExtractor):
             segment_feature = np.mean(mel_spec_db, axis=1)
             features_list.append(segment_feature)
 
+            # 如果配置为只取第一个片段，则跳出循环
+            if self.config.use_first_segment_only:
+                break
+
         return np.array(features_list)
 
 
 class MERTFeatureExtractor(BaseFeatureExtractor):
-    """基于MERT的音频特征提取器"""
+    """基于MERT的音频特征提取器 - 使用24kHz采样率（音乐模型）"""
+
+    # MERT模型使用24kHz（针对音乐优化）
+    SAMPLE_RATE = 24000
 
     def __init__(self, config: Config):
         super().__init__(config)
@@ -318,7 +350,7 @@ class MERTFeatureExtractor(BaseFeatureExtractor):
 
     def _load_model(self) -> None:
         """加载预训练模型"""
-        print("Loading MERT model...")
+        print(f"Loading MERT model (采样率: {self.SAMPLE_RATE}Hz)...")
         try:
             # 使用AutoFeatureExtractor和AutoModel加载MERT模型
             model_name = "m-a-p/MERT-v1-330M"
@@ -340,15 +372,15 @@ class MERTFeatureExtractor(BaseFeatureExtractor):
         返回:
             特征数组，形状为 (N_samples, Feature_dim)
         """
-        # 加载音频
+        # 加载音频 - 使用模型特定的采样率
         waveform, orig_sr = librosa.load(
             audio_path,
-            sr=self.config.sample_rate,
+            sr=self.SAMPLE_RATE,
             mono=True
         )
 
         # 计算每个片段的样本数
-        segment_samples = int(self.config.segment_duration * self.config.sample_rate)
+        segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
         features_list = []
 
         # 滑动窗口切分音频
@@ -362,7 +394,7 @@ class MERTFeatureExtractor(BaseFeatureExtractor):
             # 转换为模型输入格式
             inputs = self.feature_extractor(
                 segment,
-                sampling_rate=self.config.sample_rate,
+                sampling_rate=self.SAMPLE_RATE,
                 return_tensors="pt"
             ).input_values.to(self.config.device)
 
@@ -374,11 +406,18 @@ class MERTFeatureExtractor(BaseFeatureExtractor):
             segment_feature = hidden_states.mean(dim=1).squeeze().cpu().numpy()
             features_list.append(segment_feature)
 
+            # 如果配置为只取第一个片段，则跳出循环
+            if self.config.use_first_segment_only:
+                break
+
         return np.array(features_list)
 
 
 class WavLMFeatureExtractor(BaseFeatureExtractor):
-    """基于WavLM的音频特征提取器"""
+    """基于WavLM的音频特征提取器 - 使用16kHz采样率"""
+
+    # WavLM模型使用16kHz
+    SAMPLE_RATE = 16000
 
     def __init__(self, config: Config):
         super().__init__(config)
@@ -388,7 +427,7 @@ class WavLMFeatureExtractor(BaseFeatureExtractor):
 
     def _load_model(self) -> None:
         """加载预训练模型"""
-        print("Loading WavLM model...")
+        print(f"Loading WavLM model (采样率: {self.SAMPLE_RATE}Hz)...")
         try:
             # 使用AutoFeatureExtractor和AutoModel加载WavLM模型
             model_name = "microsoft/wavlm-base"
@@ -410,15 +449,15 @@ class WavLMFeatureExtractor(BaseFeatureExtractor):
         返回:
             特征数组，形状为 (N_samples, Feature_dim)
         """
-        # 加载音频
+        # 加载音频 - 使用模型特定的采样率
         waveform, orig_sr = librosa.load(
             audio_path,
-            sr=self.config.sample_rate,
+            sr=self.SAMPLE_RATE,
             mono=True
         )
 
         # 计算每个片段的样本数
-        segment_samples = int(self.config.segment_duration * self.config.sample_rate)
+        segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
         features_list = []
 
         # 滑动窗口切分音频
@@ -432,7 +471,7 @@ class WavLMFeatureExtractor(BaseFeatureExtractor):
             # 转换为模型输入格式
             inputs = self.feature_extractor(
                 segment,
-                sampling_rate=self.config.sample_rate,
+                sampling_rate=self.SAMPLE_RATE,
                 return_tensors="pt"
             ).input_values.to(self.config.device)
 
@@ -444,11 +483,18 @@ class WavLMFeatureExtractor(BaseFeatureExtractor):
             segment_feature = hidden_states.mean(dim=1).squeeze().cpu().numpy()
             features_list.append(segment_feature)
 
+            # 如果配置为只取第一个片段，则跳出循环
+            if self.config.use_first_segment_only:
+                break
+
         return np.array(features_list)
 
 
 class XLSRWav2Vec2FeatureExtractor(BaseFeatureExtractor):
-    """基于XLSR-Wav2Vec2的音频特征提取器"""
+    """基于XLSR-Wav2Vec2的音频特征提取器 - 使用16kHz采样率"""
+
+    # XLSR-Wav2Vec2模型使用16kHz
+    SAMPLE_RATE = 16000
 
     def __init__(self, config: Config):
         super().__init__(config)
@@ -458,7 +504,7 @@ class XLSRWav2Vec2FeatureExtractor(BaseFeatureExtractor):
 
     def _load_model(self) -> None:
         """加载预训练模型"""
-        print("Loading XLSR-Wav2Vec2 model...")
+        print(f"Loading XLSR-Wav2Vec2 model (采样率: {self.SAMPLE_RATE}Hz)...")
         try:
             # 使用AutoFeatureExtractor和AutoModel加载XLSR-Wav2Vec2模型
             model_name = "facebook/wav2vec2-large-xlsr-53"
@@ -480,15 +526,15 @@ class XLSRWav2Vec2FeatureExtractor(BaseFeatureExtractor):
         返回:
             特征数组，形状为 (N_samples, Feature_dim)
         """
-        # 加载音频
+        # 加载音频 - 使用模型特定的采样率
         waveform, orig_sr = librosa.load(
             audio_path,
-            sr=self.config.sample_rate,
+            sr=self.SAMPLE_RATE,
             mono=True
         )
 
         # 计算每个片段的样本数
-        segment_samples = int(self.config.segment_duration * self.config.sample_rate)
+        segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
         features_list = []
 
         # 滑动窗口切分音频
@@ -502,7 +548,7 @@ class XLSRWav2Vec2FeatureExtractor(BaseFeatureExtractor):
             # 转换为模型输入格式
             inputs = self.feature_extractor(
                 segment,
-                sampling_rate=self.config.sample_rate,
+                sampling_rate=self.SAMPLE_RATE,
                 return_tensors="pt"
             ).input_values.to(self.config.device)
 
@@ -513,6 +559,10 @@ class XLSRWav2Vec2FeatureExtractor(BaseFeatureExtractor):
             # 对时间维度求平均
             segment_feature = hidden_states.mean(dim=1).squeeze().cpu().numpy()
             features_list.append(segment_feature)
+
+            # 如果配置为只取第一个片段，则跳出循环
+            if self.config.use_first_segment_only:
+                break
 
         return np.array(features_list)
 
@@ -557,19 +607,25 @@ class AudioDataLoader:
         self.audio_files = self._get_audio_files()
 
     def _get_audio_files(self) -> List[str]:
-        """获取文件夹中的所有音频文件"""
+        """递归获取文件夹中的所有音频文件（包括子目录）"""
         if not os.path.exists(self.audio_folder):
             os.makedirs(self.audio_folder)
             print(f"提示: 文件夹 '{self.audio_folder}' 不存在。请将你的音频文件放入该文件夹中。")
             return []
 
-        audio_files = [
-            f for f in os.listdir(self.audio_folder)
-            if f.endswith(('.mp3', '.wav', '.flac'))
-        ]
+        audio_files = []
+        for root, dirs, files in os.walk(self.audio_folder):
+            for f in files:
+                if f.endswith(('.mp3', '.wav', '.flac')):
+                    # 返回相对路径，便于后续使用
+                    full_path = os.path.join(root, f)
+                    rel_path = os.path.relpath(full_path, self.audio_folder)
+                    audio_files.append(rel_path)
 
         if not audio_files:
-            print("未找到音频文件。请检查路径。")
+            print(f"未找到音频文件。请检查路径: {self.audio_folder}")
+        else:
+            print(f"找到 {len(audio_files)} 个音频文件")
 
         return audio_files
 
@@ -589,17 +645,20 @@ class AudioDataLoader:
 
         print("Extracting features...")
         for file_name in self.audio_files:
+            # file_name 现在可能是相对路径（包含子目录）
             path = os.path.join(self.audio_folder, file_name)
-            print(f"Processing: {file_name}")
+            # 显示文件名（不含路径）以便阅读
+            display_name = os.path.basename(file_name)
+            print(f"Processing: {display_name}")
 
             try:
                 features = feature_extractor.extract_features(path)
                 if len(features) > 0:
                     all_features.append(features)
-                    file_labels.extend([file_name] * len(features))
+                    file_labels.extend([display_name] * len(features))
                     file_paths.extend([path] * len(features))
             except Exception as e:
-                print(f"Error processing {file_name}: {e}")
+                print(f"Error processing {display_name}: {e}")
 
         if not all_features:
             raise ValueError("未能提取到任何特征。")
@@ -677,48 +736,114 @@ class AnomalyDetector:
 
         return cluster_labels, outlier_mask
 
-    def visualize(self, X: np.ndarray, outlier_mask: np.ndarray) -> None:
+    def visualize(self, X: np.ndarray, outlier_mask: np.ndarray, file_labels: List[str] = None) -> None:
         """
-        可视化结果
+        可视化聚类结果 - 三种说话人用不同颜色，检测到的异常用黑色圆圈标记
 
         参数:
             X: 特征数组
-            outlier_mask: 异常掩码
+            outlier_mask: 异常掩码（检测到的异常）
+            file_labels: 文件标签列表（用于识别说话人）
         """
         print("Generating visualization...")
         X_scaled = self.scaler.transform(X)
         X_tsne = self.tsne.fit_transform(X_scaled)
 
-        plt.figure(figsize=(12, 8))
+        # 创建单图
+        fig, ax = plt.subplots(figsize=(12, 10))
 
-        # 绘制正常点
-        normal_indices = ~outlier_mask
-        plt.scatter(
-            X_tsne[normal_indices, 0], X_tsne[normal_indices, 1],
-            c='blue', label='Normal Segments', alpha=0.5, s=10
+        # 根据文件名识别说话人
+        if file_labels:
+            # 将 file_labels 转换为 numpy 数组以便索引
+            file_labels_arr = np.array(file_labels)
+            
+            # 调试：打印前10个file_labels看看实际格式
+            print(f"  Sample file_labels (first 10): {file_labels[:10]}")
+            print(f"  Total file_labels: {len(file_labels)}")
+            
+            # 检查所有唯一的文件名前缀
+            unique_prefixes = set()
+            for label in file_labels[:50]:  # 检查前50个
+                prefix = label.split('_')[0] + '_' + label.split('_')[1] if '_' in label else label
+                unique_prefixes.add(prefix)
+            print(f"  Unique speaker prefixes found: {unique_prefixes}")
+            
+            # 识别三种说话人 - 检查文件名中是否包含speaker_id
+            speaker_01_mask = np.array(['speaker_01' in label for label in file_labels])
+            speaker_02_mask = np.array(['speaker_02' in label for label in file_labels])
+            speaker_03_mask = np.array(['speaker_03' in label for label in file_labels])
+            
+            # 调试输出
+            print(f"  Speaker 01 samples: {np.sum(speaker_01_mask)}")
+            print(f"  Speaker 02 samples: {np.sum(speaker_02_mask)}")
+            print(f"  Speaker 03 samples: {np.sum(speaker_03_mask)}")
+            
+            # 三种颜色代表三个说话人
+            colors = {
+                'speaker_01': '#E63946',  # 红色
+                'speaker_02': '#457B9D',  # 蓝色
+                'speaker_03': '#2A9D8F'   # 绿色
+            }
+
+            # 绘制每个说话人的样本
+            if np.sum(speaker_01_mask) > 0:
+                ax.scatter(
+                    X_tsne[speaker_01_mask, 0], X_tsne[speaker_01_mask, 1],
+                    c=colors['speaker_01'], label=f'Speaker 01 ({np.sum(speaker_01_mask)})',
+                    alpha=0.6, s=40, edgecolors='white', linewidth=0.5
+                )
+            if np.sum(speaker_02_mask) > 0:
+                ax.scatter(
+                    X_tsne[speaker_02_mask, 0], X_tsne[speaker_02_mask, 1],
+                    c=colors['speaker_02'], label=f'Speaker 02 ({np.sum(speaker_02_mask)})',
+                    alpha=0.6, s=40, edgecolors='white', linewidth=0.5
+                )
+            if np.sum(speaker_03_mask) > 0:
+                ax.scatter(
+                    X_tsne[speaker_03_mask, 0], X_tsne[speaker_03_mask, 1],
+                    c=colors['speaker_03'], label=f'Speaker 03 ({np.sum(speaker_03_mask)})',
+                    alpha=0.6, s=40, edgecolors='white', linewidth=0.5
+                )
+        else:
+            # 如果没有文件名标签，使用聚类标签着色
+            cluster_labels = self.kmeans.predict(X_scaled)
+            ax.scatter(
+                X_tsne[:, 0], X_tsne[:, 1],
+                c=cluster_labels, cmap='tab10', alpha=0.6, s=40,
+                edgecolors='white', linewidth=0.5
+            )
+
+        # 绘制检测到的异常（黑色圆圈标记）
+        if np.sum(outlier_mask) > 0:
+            ax.scatter(
+                X_tsne[outlier_mask, 0], X_tsne[outlier_mask, 1],
+                facecolors='none', edgecolors='black', linewidths=2.5,
+                label=f'Detected Anomalies ({np.sum(outlier_mask)})', s=120
+            )
+
+        # 设置标题和标签
+        ax.set_title(
+            f'Audio Anomaly Detection - {self.config.feature_extractor_type.upper()} + t-SNE\n'
+            f'Total: {len(X)} samples | Detected: {np.sum(outlier_mask)} outliers',
+            fontsize=14, fontweight='bold'
         )
+        ax.set_xlabel("t-SNE Dimension 1", fontsize=12)
+        ax.set_ylabel("t-SNE Dimension 2", fontsize=12)
 
-        # 绘制异常点
-        outlier_indices = outlier_mask
-        plt.scatter(
-            X_tsne[outlier_indices, 0], X_tsne[outlier_indices, 1],
-            c='red', label='Detected Anomalies (Outliers)', alpha=0.8, edgecolors='k', s=50
-        )
+        # 添加图例
+        ax.legend(loc='best', fontsize=10, framealpha=0.9)
 
-        # 添加图例和标题
-        plt.title(
-            f"Audio Anomaly Detection Visualization ({self.config.feature_extractor_type.upper()} + t-SNE)\n"
-            f"Threshold: {self.config.outlier_threshold_percentile}th percentile",
-            fontsize=14
-        )
-        plt.legend()
-        plt.xlabel("t-SNE Dimension 1")
-        plt.ylabel("t-SNE Dimension 2")
-        plt.grid(True, linestyle='--', alpha=0.6)
+        # 添加网格
+        ax.grid(True, linestyle='--', alpha=0.4)
 
-        # 保存图片
-        plt.savefig(self.config.output_image, dpi=300)
+        # 设置背景色
+        ax.set_facecolor('#f8f9fa')
+        fig.patch.set_facecolor('white')
+
+        plt.tight_layout()
+        plt.savefig(self.config.output_image, dpi=300, bbox_inches='tight')
         print(f"Visualization saved to '{self.config.output_image}'")
+        plt.close()
 
 
 class AnomalyReportGenerator:
@@ -753,8 +878,21 @@ def main():
     # 使用工厂创建特征提取器
     feature_extractor = FeatureExtractorFactory.create_extractor(config)
 
-    # 初始化数据加载器
-    audio_folder = "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/原始数据/标记后/auto_test/8k/good"
+    # 初始化数据加载器 - 使用音频数据库目录
+    # 也可以指定原始数据目录: "./raw_audio" 或完整数据库: "./audio_database"
+    import os
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    audio_folder = os.path.join(base_dir, "audio_database")
+    
+    # 如果音频数据库不存在，尝试使用原始数据
+    if not os.path.exists(audio_folder):
+        raw_folder = os.path.join(base_dir, "raw_audio")
+        if os.path.exists(raw_folder):
+            audio_folder = raw_folder
+        else:
+            # 使用默认路径
+            audio_folder = "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/原始数据/标记后/auto_test/8k/good"
+    
     data_loader = AudioDataLoader(audio_folder)
 
     # 加载数据并提取特征
@@ -769,13 +907,40 @@ def main():
     # 预测异常
     _, outlier_mask = detector.predict(X)
 
-    # 可视化结果
-    detector.visualize(X, outlier_mask)
+    # 可视化结果（传入 file_labels 以显示真实标签）
+    detector.visualize(X, outlier_mask, file_labels)
 
-    # 生成报告
+    # 生成详细报告
+    print("\n" + "="*70)
+    print("异常检测分析报告")
+    print("="*70)
+
+    # 统计检测结果与真实标签的对比
+    true_anomaly_mask = np.array(['_anomaly' in label for label in file_labels])
+    true_normal_mask = ~true_anomaly_mask
+
+    # 计算检测准确性
+    correctly_detected_anomalies = np.sum(outlier_mask & true_anomaly_mask)
+    correctly_detected_normal = np.sum(~outlier_mask & true_normal_mask)
+    false_positives = np.sum(outlier_mask & true_normal_mask)  # 正常被误判为异常
+    false_negatives = np.sum(~outlier_mask & true_anomaly_mask)  # 异常被误判为正常
+
+    print(f"\n检测结果统计:")
+    print(f"  总样本数: {len(X)}")
+    print(f"  真实正常样本: {np.sum(true_normal_mask)}")
+    print(f"  真实异常样本: {np.sum(true_anomaly_mask)}")
+    print(f"  检测到异常: {np.sum(outlier_mask)}")
+    print(f"\n检测准确性:")
+    print(f"  正确检测异常: {correctly_detected_anomalies}/{np.sum(true_anomaly_mask)} "
+          f"({correctly_detected_anomalies/np.sum(true_anomaly_mask)*100:.1f}%)")
+    print(f"  正确识别正常: {correctly_detected_normal}/{np.sum(true_normal_mask)} "
+          f"({correctly_detected_normal/np.sum(true_normal_mask)*100:.1f}%)")
+    print(f"  误报 (正常→异常): {false_positives}")
+    print(f"  漏报 (异常→正常): {false_negatives}")
+
     AnomalyReportGenerator.generate_report(file_labels, outlier_mask)
 
-    print(f"Detected {np.sum(outlier_mask)} potential outlier segments out of {len(X)}.")
+    print(f"\nDetected {np.sum(outlier_mask)} potential outlier segments out of {len(X)}.")
 
 
 if __name__ == "__main__":
