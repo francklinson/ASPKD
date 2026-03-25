@@ -60,6 +60,21 @@ class BaseFeatureExtractor(ABC):
     def __init__(self, config: Config):
         self.config = config
 
+    def _preprocess(self, audio: np.ndarray, sr: int, top_db: float = 30) -> np.ndarray:
+        """
+        音频预处理：去除开头和结尾的静音区域
+
+        参数:
+            audio: 原始音频数组
+            sr: 采样率
+            top_db: 静音阈值（低于该值视为静音），默认30dB
+
+        返回:
+            去除首尾静音后的音频数组
+        """
+        trimmed, _ = librosa.effects.trim(audio, top_db=top_db)
+        return trimmed
+
     @abstractmethod
     def extract_features(self, audio_path: str) -> np.ndarray:
         """
@@ -114,6 +129,9 @@ class HubertFeatureExtractor(BaseFeatureExtractor):
             sr=self.SAMPLE_RATE,
             mono=True
         )
+
+        # 去除首尾静音
+        waveform = self._preprocess(waveform, self.SAMPLE_RATE)
 
         # 计算每个片段的样本数
         segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
@@ -187,6 +205,9 @@ class ASTFeatureExtractor(BaseFeatureExtractor):
         # 加载音频 - 使用模型特定的采样率
         waveform, orig_sr = librosa.load(audio_path, sr=self.SAMPLE_RATE, mono=True)
 
+        # 去除首尾静音
+        waveform = self._preprocess(waveform, self.SAMPLE_RATE)
+
         # 计算每个片段的样本数
         segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
         features_list = []
@@ -247,6 +268,9 @@ class MFCCFeatureExtractor(BaseFeatureExtractor):
             mono=True
         )
 
+        # 去除首尾静音
+        waveform = self._preprocess(waveform, self.SAMPLE_RATE)
+
         # 计算每个片段的样本数
         segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
         features_list = []
@@ -302,6 +326,9 @@ class MelSpectrogramExtractor(BaseFeatureExtractor):
             sr=self.SAMPLE_RATE,
             mono=True
         )
+
+        # 去除首尾静音
+        waveform = self._preprocess(waveform, self.SAMPLE_RATE)
 
         # 计算每个片段的样本数
         segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
@@ -378,6 +405,9 @@ class MERTFeatureExtractor(BaseFeatureExtractor):
             sr=self.SAMPLE_RATE,
             mono=True
         )
+
+        # 去除首尾静音
+        waveform = self._preprocess(waveform, self.SAMPLE_RATE)
 
         # 计算每个片段的样本数
         segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
@@ -456,6 +486,9 @@ class WavLMFeatureExtractor(BaseFeatureExtractor):
             mono=True
         )
 
+        # 去除首尾静音
+        waveform = self._preprocess(waveform, self.SAMPLE_RATE)
+
         # 计算每个片段的样本数
         segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)
         features_list = []
@@ -532,6 +565,9 @@ class XLSRWav2Vec2FeatureExtractor(BaseFeatureExtractor):
             sr=self.SAMPLE_RATE,
             mono=True
         )
+
+        # 去除首尾静音
+        waveform = self._preprocess(waveform, self.SAMPLE_RATE)
 
         # 计算每个片段的样本数
         segment_samples = int(self.config.segment_duration * self.SAMPLE_RATE)

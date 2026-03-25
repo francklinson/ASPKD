@@ -554,7 +554,7 @@ def generate_report(
 
 def create_ui():
     """创建Gradio界面"""
-    with gr.Blocks(title="音频异常检测") as demo:
+    with gr.Blocks(title="音频聚类与异常检测") as audio_app:
         gr.Markdown("""
         # 🎵 音频异常检测与聚类可视化
 
@@ -629,7 +629,7 @@ def create_ui():
             outputs=[plot_output, report_output, log_output]
         )
 
-    return demo
+    return audio_app
 
 
 if __name__ == "__main__":

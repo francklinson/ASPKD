@@ -152,6 +152,9 @@ def create_audio_database():
         # 加载原始音频
         audio, sr = librosa.load(raw_file, sr=16000)
 
+        # 去除首尾静音
+        audio, _ = librosa.effects.trim(audio, top_db=30)
+
         print(f"\n{'='*70}")
         print(f"处理 {raw_file.name}:")
         print(f"{'='*70}")
