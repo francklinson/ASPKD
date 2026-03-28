@@ -22,6 +22,10 @@ ASD_for_SPK/
 ├── data_prepocessing.py           # 音频预处理模块(核心)
 ├── draw_roc.py                    # ROC曲线绘制工具
 ├── check_env.py                   # 环境检测脚本
+├── asd_gui_app.py                 # Web GUI应用程序
+├── config/                        # 配置文件目录
+│   ├── asd_gui_config.yaml        # GUI配置文件
+│   └── config_load.py             # 配置加载工具
 ├── ADer/                          # ADer异常检测框架
 ├── Anomalib/                      # Anomalib异常检测库
 ├── BaseASD/                       # 基础自编码器系列
@@ -102,11 +106,13 @@ ASD_for_SPK/
 
 ---
 
-## 数据预处理流程
+## 核心功能模块
+
+### 1. 音频预处理模块 (`data_prepocessing.py`)
 
 音频异常检测的核心是将音频信号转换为适合深度学习模型处理的图像形式。
 
-### 1. 音频定位 (`data_prepocessing.py`)
+#### 1.1 音频定位算法
 
 使用**MFCC + DTW**算法在完整音频中定位目标测试片段：
 
@@ -124,10 +130,18 @@ preprocessor.process_audio(
 ```
 
 **定位算法对比**：
-- **mfcc_dtw**: 基于MFCC特征和DTW动态时间规整，精度高(推荐)
-- **corr**: 基于互相关，速度快但精度较低
 
-### 2. 时频图生成
+| 算法 | 原理 | 特点 |
+|------|------|------|
+| **mfcc_dtw** | MFCC特征 + DTW动态时间规整 | 精度高，推荐用于生产环境 |
+| **corr** | 互相关算法 | 速度快但精度较低，适用于快速原型验证 |
+
+**MFCC+DTW定位流程**：
+1. **粗筛**：使用MFCC特征和DTW在整个音频中快速定位候选区域
+2. **精筛**：在粗筛结果前后1秒范围内，使用更大MFCC维度和更小步长精细搜索
+3. **输出**：返回最佳匹配位置的时间戳
+
+#### 1.2 时频图生成
 
 将音频片段转换为对数幅度频谱图(Log-frequency Spectrogram)：
 
@@ -144,6 +158,11 @@ def plot_spectrogram(audio_path, output_path, offset=0.0, duration=None):
     # 保存为图像(600×600)
     plt.imsave(output_path, DB)
 ```
+
+**输出格式**：
+- 图像尺寸：600×600像素
+- 格式：PNG
+- 颜色：灰度/彩色频谱图
 
 ---
 
@@ -227,6 +246,84 @@ result = dae.judge_is_normal("path/to/audio.wav")
 
 ---
 
+## Web GUI功能
+
+项目提供了基于Gradio的交互式Web界面 (`asd_gui_app.py`)。
+
+### 启动Web服务
+
+```bash
+python asd_gui_app.py
+```
+
+服务默认运行在 `http://0.0.0.0:8002`
+
+### 功能特性
+
+| 功能模块 | 说明 |
+|----------|------|
+| **文件上传** | 支持批量上传WAV格式音频文件 |
+| **算法选择** | 支持Dinomaly系列算法(DINOV2/DINOV3, SMALL/LARGE) |
+| **实时日志** | 显示音频预处理、模型推理等处理进度 |
+| **结果展示** | 检测结果表格（文件名/异常分数/状态） |
+| **热力图可视化** | 展示异常定位热力图，支持点击查看 |
+| **结果导出** | Excel报告 + ZIP压缩包（含热力图和原图） |
+| **交互功能** | 点击表格行可自动定位到对应热力图 |
+
+### 使用流程
+
+1. 上传一个或多个WAV格式音频文件
+2. 选择异常检测算法（默认Dinomaly_DINOV3_SMALL）
+3. 点击"开始异常检测"按钮
+4. 等待处理完成，查看检测结果表格和热力图
+5. 下载ZIP文件获取完整报告
+
+---
+
+## 配置管理
+
+项目使用YAML配置文件 (`config/asd_gui_config.yaml`) 集中管理参数：
+
+```yaml
+# 参考音频文件
+ref_file: ref/渡口片段10s.wav
+
+# 示例音频文件
+example_audio_file: ref/asd_src_audio.wav
+
+# 图像输出目录
+pic_output_dir: slice
+
+# 模型检查点路径
+model_ckpts:
+  dinomaly:
+    dinov2:
+      small: /path/to/dinov2_small.pth
+    dinov3:
+      small: /path/to/dinov3_small.pth
+
+# 异常检测阈值
+model_threshold:
+  dinomaly:
+    dinov2:
+      small: 0.02
+    dinov3:
+      small: 0.033
+
+# Web服务配置
+server:
+  server_name: 0.0.0.0
+  port: 8002
+  share: False
+  inbrowser: True
+```
+
+**配置修改方式**：
+1. 直接编辑 `config/asd_gui_config.yaml` 文件
+2. 重启服务后配置自动生效
+
+---
+
 ## 数据集格式
 
 项目使用类似MVTec AD的数据集结构：
@@ -279,6 +376,21 @@ data/spk/
 3. **模块化的设计**：各算法独立封装，易于扩展和替换
 4. **工业级应用**：针对扬声器质检场景优化
 5. **完善的评估体系**：支持多种指标和可视化
+6. **Web交互界面**：提供友好的可视化操作界面
+
+---
+
+## 开发计划
+
+### 近期优化目标
+
+| 序号 | 任务 | 优先级 | 状态 |
+|------|------|--------|------|
+| 1 | 统一各检测算法的调用接口 | 高 | 待完成 |
+| 2 | 优化项目文件结构，统一存放算法模块 | 高 | 待完成 |
+| 3 | 增加目录监控功能：定期监测指定目录下新增音频文件 | 中 | 待完成 |
+| 4 | 主动检测并输出结果到Web界面（新增Tab页） | 中 | 待完成 |
+| 5 | 音频定位算法升级：使用SHAZAM算法替代MFCC+DTW | 低 | 待完成 |
 
 ---
 
