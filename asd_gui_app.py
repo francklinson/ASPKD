@@ -1,5 +1,6 @@
 import gc
 import os
+import sys
 import tempfile
 import time
 import zipfile
@@ -7,6 +8,9 @@ from datetime import datetime
 from typing import List, Dict
 import torch
 import torch.cuda as cuda
+
+# 添加 Dinomaly 目录到 Python 路径
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Dinomaly'))
 
 import gradio as gr
 import pandas as pd
@@ -28,7 +32,7 @@ class LogManager:
         self.log_messages = ""
         self.max_rows = max_rows  # 最大行数
 
-    def generate_log(self,msg):
+    def generate_log(self, msg):
         """
         给日志打时间戳，截断到最大行数
         """
@@ -197,9 +201,6 @@ class AlgorithmManager:
     # 算法映射字典
 
 
-
-
-
 def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress()):
     """
     主处理函数
@@ -225,7 +226,19 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress())
     """
     [1]预处理音频处理成图像
     """
-    picture_file_dict = p.process_audio_multi_thread(audio_files, save_dir=param["pic_output_dir"])
+    try:
+        picture_file_dict = p.process_audio(audio_files, save_dir=param["pic_output_dir"])
+    except Exception as e:
+        yield from lm.update_log_and_action(f"音频预处理失败: {str(e)}",
+                                            None, gr.update(interactive=True))
+        return None
+
+    # 检查返回值是否为空
+    if picture_file_dict is None:
+        yield from lm.update_log_and_action("音频预处理返回空结果，请检查音频文件格式",
+                                            None, gr.update(interactive=True))
+        return None
+
     # return str(picture_file_dict), None
     yield from lm.update_log("完成目标音频搜索和切分！！")
     # print("预处理后的数据:", picture_file_dict)
@@ -238,12 +251,23 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress())
     # 处理每个音频文件
     # 拿到的是字典，改成list
     picture_file_list = []
+
+    # 检查 picture_file_dict 是否为字典类型
+    if not isinstance(picture_file_dict, dict):
+        yield from lm.update_log_and_action(f"预处理结果格式错误，期望dict类型，实际为{type(picture_file_dict)}",
+                                            None, gr.update(interactive=True))
+        return None
+
     for k, v in picture_file_dict.items():
-        if v["dk"]:
+        # 检查 v 是否为字典类型
+        if not isinstance(v, dict):
+            print(f"警告: 文件 {k} 的处理结果格式错误: {type(v)}")
+            continue
+        if v.get("dk"):
             picture_file_list.append(v["dk"])
-        if v["qzgy"]:
+        if v.get("qzgy"):
             picture_file_list.append(v["qzgy"])
-        if not v["dk"] and not v["qzgy"]:
+        if not v.get("dk") and not v.get("qzgy"):
             print(f"No match music sample found in {k}")
 
     # 确保输入非空
@@ -290,37 +314,39 @@ with gr.Blocks(title="音频异常检测工具") as demo:
     gr.Markdown("# 🎵 音频异常检测工具")
     gr.Markdown("上传WAV格式音频文件进行异常检测，支持批量处理")
 
-    # 添加示例音频下载区域
+    # 参考音频区域
     gr.Markdown("## 📁 参考音频文件")
-    gr.Markdown("点击下方链接下载示例音频文件用于测试（渡口+青藏高原片段）：")
-    gr.Markdown("目前仅适用于使用该标准音频得到的测试音频，其余功能请静候开发!")
-    # 示例音频文件路径
-    example_audio_file = param["example_audio_file"]
+    gr.Markdown("点击下方链接下载示例音频文件用于测试（渡口+青藏高原片段）")
+    gr.Markdown("💡 目前仅适用于使用该标准音频得到的测试音频，其余功能请静候开发!")
 
+    example_audio_file = param["example_audio_file"]
     gr.Audio(
         label="示例音频试听",
         value=example_audio_file,
-        type="filepath"
+        type="filepath",
+        elem_classes=["audio-player"]
     )
+
+    gr.Markdown("---")
 
     with gr.Row():
         with gr.Column():
             audio_inputs = gr.Files(
                 file_count="multiple",
                 file_types=[".wav"],
-                label="上传音频文件 (支持批量上传)"
+                label="📤 上传音频文件"
             )
 
             algorithm_dropdown = gr.Dropdown(
                 choices=AlgorithmManager.algorithms,
                 value=AlgorithmManager.algorithms[0],
-                label="选择异常检测算法"
+                label="🔧 选择异常检测算法"
             )
 
-            run_button = gr.Button("开始异常检测", variant="primary")
+            run_button = gr.Button("🚀 开始异常检测", variant="primary")
 
         with gr.Column():
-            output_text = gr.Textbox(label="处理状态", max_lines=9, interactive=True, autoscroll=True)
+            output_text = gr.Textbox(label="📊 处理状态", max_lines=9, interactive=True, autoscroll=True)
             download_output = gr.File(label="📥 下载结果文件", file_count="single")
 
     run_button.click(
@@ -346,4 +372,5 @@ if __name__ == "__main__":
         server_port=param["server"]["port"],  # 指定端口
         share=param["server"]["share"],  # 不创建公共链接
         inbrowser=param["server"]["inbrowser"]
+        # 使用 Gradio 默认主题，不设置 theme 参数
     )

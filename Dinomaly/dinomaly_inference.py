@@ -9,6 +9,8 @@ import torch.nn as nn
 from PIL import Image
 from torch.nn import functional as F
 import pandas as pd
+import yaml
+
 from .dataset import get_data_transforms, PredictDataset
 from .dinov3.hub.backbones import load_dinov3_model
 from .models import vit_encoder
@@ -19,53 +21,41 @@ from .utils import get_gaussian_kernel, cal_anomaly_maps, visualize_when_predict
 
 class ModelConfig:
     """
-    模型配置类，统一管理不同模型的配置参数
+    模型配置类，从YAML配置文件加载不同模型的配置参数
     """
-    # DINOV3的encoder写死在这里
-    DINOV3_CONFIGS = {
-        'small': {
-            'target_layers': [2, 3, 4, 5, 6, 7, 8, 9],
-            'encoder_name': 'dinov3_vits16',
-            'encoder_weight': "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/pre_trained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
-            'embed_dim': 384,
-            'num_heads': 6
-        },
-        'base': {
-            'target_layers': [2, 3, 4, 5, 6, 7, 8, 9],
-            'encoder_name': 'dinov3_vitb16',
-            'encoder_weight': "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/pre_trained/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth",
-            'embed_dim': 768,
-            'num_heads': 12
-        },
-        'large': {
-            'target_layers': [4, 6, 8, 10, 12, 14, 16, 18],
-            'encoder_name': 'dinov3_vitl16',
-            'encoder_weight': "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/pre_trained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
-            'embed_dim': 1024,
-            'num_heads': 16
-        }
-    }
-    # DINOV2的encoder是在系统路径里读取的，配置环境变量 DINOMALY_ENCODER_DIR
-    DINOV2_CONFIGS = {
-        'small': {
-            'encoder_name': "dinov2reg_vit_small_14",
-            'target_layers': [2, 3, 4, 5, 6, 7, 8, 9],
-            'embed_dim': 384,
-            'num_heads': 6
-        },
-        'base': {
-            'encoder_name': "dinov2reg_vit_base_14",
-            'target_layers': [2, 3, 4, 5, 6, 7, 8, 9],
-            'embed_dim': 768,
-            'num_heads': 12
-        },
-        'large': {
-            'encoder_name': "dinov2reg_vit_large_14",
-            'target_layers': [4, 6, 8, 10, 12, 14, 16, 18],
-            'embed_dim': 1024,
-            'num_heads': 16
-        }
-    }
+    _config = None
+    
+    @classmethod
+    def _load_config(cls):
+        """加载YAML配置文件"""
+        if cls._config is None:
+            # 获取项目根目录
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            config_path = os.path.join(project_root, 'config', 'asd_gui_config.yaml')
+            
+            with open(config_path, 'r', encoding='utf-8') as f:
+                cls._config = yaml.safe_load(f)
+        return cls._config
+    
+    @classmethod
+    def get_dinov2_config(cls, model_size: str) -> Dict:
+        """获取DINOv2配置"""
+        config = cls._load_config()
+        arch_config = config['model_architectures']['dinov2'][model_size].copy()
+        return arch_config
+    
+    @classmethod
+    def get_dinov3_config(cls, model_size: str) -> Dict:
+        """获取DINOv3配置"""
+        config = cls._load_config()
+        arch_config = config['model_architectures']['dinov3'][model_size].copy()
+        # 拼接完整的权重路径
+        weights_dir = config['model_architectures']['dinov3']['weights_dir']
+        arch_config['encoder_weight'] = os.path.join(
+            weights_dir, 
+            arch_config['encoder_weight']
+        )
+        return arch_config
 
 
 class DinomalyBaseInferencer(ABC):
@@ -225,7 +215,7 @@ class DinomalyDinoV2Inference(DinomalyBaseInferencer):
 
     def _load_model(self, model_path: str) -> nn.Module:
         """加载DINOv2模型"""
-        config = ModelConfig.DINOV2_CONFIGS[self.model_size]
+        config = ModelConfig.get_dinov2_config(self.model_size)
 
         encoder = vit_encoder.load(config['encoder_name'])
 
@@ -275,7 +265,7 @@ class DinomalyDinoV3Inference(DinomalyBaseInferencer):
 
     def _load_model(self, model_path: str) -> nn.Module:
         """加载DINOv3模型"""
-        config = ModelConfig.DINOV3_CONFIGS[self.model_size]
+        config = ModelConfig.get_dinov3_config(self.model_size)
 
         encoder = load_dinov3_model(
             config['encoder_name'],

@@ -316,9 +316,10 @@ class Preprocessor:
         图片保存到 save_dir/picture/ 目录
         音频保存到 save_dir/audio/ 目录
         Args:
-            file_list:
-            save_dir:
+            file_list: 音频文件路径列表
+            save_dir: 保存目录
         Returns:
+            dict: 处理结果字典，格式为 {原始音频路径: {"dk": 图片路径, "qzgy": 图片路径}}
         """
         # 检查输入数据类型正确，分别为文件夹和音频文件
         if not isinstance(file_list, list) or len(file_list) == 0:
@@ -332,6 +333,9 @@ class Preprocessor:
         audio_dir = os.path.join(save_dir, 'audio')
         os.makedirs(pic_dir, exist_ok=True)
         os.makedirs(audio_dir, exist_ok=True)
+
+        # 初始化结果字典
+        result_dict = {}
 
         # 遍历音频目录中的所有音频文件
         for i in trange(len(file_list)):
@@ -361,6 +365,16 @@ class Preprocessor:
                                          duration=slice_duration)
                         print(f"保存图像到: {pic_output_path}")
                         self.src_audio_gen_pic_map[_file] = '{}.png'.format(new_file_name)
+
+                        # 记录到结果字典
+                        if _file not in result_dict:
+                            result_dict[_file] = {"dk": None, "qzgy": None}
+                        # 根据参考音频类型判断是dk还是qzgy
+                        if "qzgy" in self.ref_file.lower() or "青藏高原" in self.ref_file:
+                            result_dict[_file]["qzgy"] = pic_output_path
+                        else:
+                            result_dict[_file]["dk"] = pic_output_path
+
                     except Exception as e:
                         print(f"Data transform failed! Error: {e} \nPlease check file:{_file}")
                         continue
@@ -384,6 +398,8 @@ class Preprocessor:
         # 保存对应关系到文件中
         with open(self.src_audio_gen_pic_map_file, 'w', encoding="utf-8") as f:
             json.dump(self.src_audio_gen_pic_map, f, ensure_ascii=False, indent=4)
+
+        return result_dict
 
 
 if __name__ == '__main__':
