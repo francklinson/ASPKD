@@ -1,0 +1,133 @@
+# 算法统一配置文件
+# 所有检测算法的配置、模型路径、阈值等在此管理
+
+# 算法通用配置
+algorithms:
+  dinomaly_dinov3_small:
+    name: "Dinomaly DINOv3 Small"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.033
+      
+  dinomaly_dinov3_large:
+    name: "Dinomaly DINOv3 Large"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.033
+      
+  dinomaly_dinov2_small:
+    name: "Dinomaly DINOv2 Small"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.02
+
+  # ADer系列
+  mambaad:
+    name: "MambaAD"
+    type: "state_space_model"
+    thresholds:
+      default: 0.5
+      
+  invad:
+    name: "InVad"
+    type: "generative"
+    thresholds:
+      default: 0.5
+      
+  vitad:
+    name: "ViTAD"
+    type: "transformer"
+    thresholds:
+      default: 0.5
+      
+  unad:
+    name: "UniAD"
+    type: "unified"
+    thresholds:
+      default: 0.5
+      
+  cflow:
+    name: "CFlow"
+    type: "flow_based"
+    thresholds:
+      default: 0.5
+      
+  pyramidflow:
+    name: "PyramidFlow"
+    type: "flow_based"
+    thresholds:
+      default: 0.5
+      
+  simplenet:
+    name: "SimpleNet"
+    type: "feature_learning"
+    thresholds:
+      default: 0.5
+
+  # Anomalib系列
+  patchcore:
+    name: "PatchCore"
+    type: "feature_embedding"
+    thresholds:
+      default: 0.5
+      
+  efficient_ad:
+    name: "EfficientAd"
+    type: "lightweight"
+    thresholds:
+      default: 0.5
+      
+  padim:
+    name: "PaDiM"
+    type: "feature_embedding"
+    thresholds:
+      default: 0.5
+
+  # BaseASD系列
+  denseae:
+    name: "DenseAE"
+    type: "autoencoder"
+    thresholds:
+      default: 0.5
+      
+  cae:
+    name: "CAE"
+    type: "autoencoder"
+    thresholds:
+      default: 0.5
+      
+  vae:
+    name: "VAE"
+    type: "autoencoder"
+    thresholds:
+      default: 0.5
+
+# 模型权重路径配置
+models:
+  dinomaly:
+    dinov3_small: "algorithms/Dinomaly/saved_results/dinomaly_dinov3_small_dk_qzgy_epoch_1000_Sat Mar 28 22:35:13 2026.pth"
+    dinov3_large: null
+    dinov2_small: "algorithms/Dinomaly/saved_results/dinomaly_dinov2_small_dk_qzgy_epoch_1000_Sat Mar 28 22:42:01 2026.pth"
+    dinov2_large: null
+    
+  mambaad:
+    default: "algorithms/ADer/ckpts/mambaad_best.pth"
+    
+  patchcore:
+    default: "algorithms/Anomalib/ckpts/patchcore_best.pth"
+
+# 推理配置
+inference:
+  device: "auto"  # auto, cuda, cpu
+  batch_size: 1
+  num_workers: 4
+  
+# 预处理配置
+preprocessing:
+  ref_file: "ref/渡口片段10s.wav"
+  split_method: "mfcc_dtw"  # mfcc_dtw, corr
+  output_size: [600, 600]
+  sample_rate: 22050
