@@ -10,6 +10,71 @@
 
 ## 项目架构
 
+### 新架构：统一接口层 (推荐)
+
+```
+ASD_for_SPK/
+├── core/                          # ⭐ 核心接口层
+│   ├── base_detector.py           # 统一接口基类
+│   ├── algorithm_registry.py      # 算法注册表
+│   └── config_manager.py          # 配置管理器
+│
+├── algorithms/                    # ⭐ 算法适配器层
+│   ├── factory.py                 # 工厂函数
+│   ├── dinomaly_adapter.py        # Dinomaly适配器
+│   ├── ader_adapter.py            # ADer适配器
+│   ├── anomalib_adapter.py        # Anomalib适配器
+│   └── baseasd_adapter.py         # BaseASD适配器
+│
+├── config/
+│   └── algorithms.yaml            # ⭐ 算法统一配置
+│
+├── asd_gui_app_unified.py         # ⭐ 统一接口版GUI
+├── run_unified_gui.py             # ⭐ GUI启动脚本
+├── unified_example.py             # ⭐ 使用示例
+│
+└── [原有算法库保持不动] ...
+```
+
+### 快速开始（统一接口）
+
+```bash
+# 1. 启动新版GUI
+python run_unified_gui.py
+
+# 2. 或使用完整命令
+python run_unified_gui.py --port 8002
+
+# 3. 检查环境
+python run_unified_gui.py --check
+
+# 4. 列出可用算法
+python run_unified_gui.py --list
+```
+
+### 代码中使用统一接口
+
+```python
+from algorithms import create_detector
+
+# 创建检测器
+detector = create_detector("dinomaly_dinov3_small")
+detector.load_model()
+
+# 推理
+result = detector.predict("image.png")
+print(f"异常: {result.is_anomaly}, 分数: {result.anomaly_score}")
+
+# 释放资源
+detector.release()
+```
+
+**详细文档**: [UNIFIED_ARCHITECTURE.md](UNIFIED_ARCHITECTURE.md)
+
+---
+
+### 传统架构（保持兼容）
+
 ```
 ASD_for_SPK/
 ├── data/                          # 数据集目录
@@ -22,7 +87,7 @@ ASD_for_SPK/
 ├── data_prepocessing.py           # 音频预处理模块(核心)
 ├── draw_roc.py                    # ROC曲线绘制工具
 ├── check_env.py                   # 环境检测脚本
-├── asd_gui_app.py                 # Web GUI应用程序
+├── asd_gui_app.py                 # Web GUI应用程序(旧版)
 ├── config/                        # 配置文件目录
 │   ├── asd_gui_config.yaml        # GUI配置文件
 │   └── config_load.py             # 配置加载工具

@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import time
 from errno import ELOOP
@@ -8,6 +9,10 @@ from pathlib import Path
 import librosa
 import numpy as np
 from sklearn import metrics
+
+# 添加 algorithms 目录到路径
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'algorithms'))
+
 from Anomalib.data import MVTecAD
 from Anomalib.models import Dinomaly
 from Anomalib.engine import Engine

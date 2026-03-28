@@ -6,11 +6,12 @@ import time
 import zipfile
 from datetime import datetime
 from typing import List, Dict
+
+# 添加 algorithms 目录到 Python 路径（使 Dinomaly 作为完整包导入）
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'algorithms'))
+
 import torch
 import torch.cuda as cuda
-
-# 添加 Dinomaly 目录到 Python 路径
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Dinomaly'))
 
 import gradio as gr
 import pandas as pd
@@ -19,7 +20,15 @@ from config.config_load import yaml_load
 # 加载配置文件
 param = yaml_load()
 
-from Dinomaly.dinomaly_inference import DinomalyDinoV3Inference, DinomalyDinoV2Inference
+# 延迟导入 Dinomaly，确保 sys.path 已正确设置
+# 注意：sys.path 已包含 algorithms，所以使用 Dinomaly.xxx 完整包路径
+try:
+    from Dinomaly.dinomaly_inference import DinomalyDinoV3Inference, DinomalyDinoV2Inference
+except ImportError as e:
+    print(f"[错误] 无法导入 Dinomaly 模块: {e}")
+    print(f"[调试] sys.path: {sys.path}")
+    raise
+
 from data_prepocessing import Preprocessor
 
 
@@ -313,9 +322,21 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress())
     # 为Gallery准备带caption的数据 (image_path, caption) - 只显示热力图
     gallery_data = []
     for img_path in save_img_path_list:
-        # 从文件名提取caption
-        caption = os.path.splitext(os.path.basename(img_path))[0].replace('_heatmap', '')
-        gallery_data.append((img_path, caption))
+        # 检查文件是否存在
+        if os.path.exists(img_path):
+            # 从文件名提取caption
+            caption = os.path.splitext(os.path.basename(img_path))[0].replace('_heatmap', '')
+            gallery_data.append((img_path, caption))
+        else:
+            print(f"警告: 热力图文件不存在: {img_path}")
+
+    print(f"调试: gallery_data 数量: {len(gallery_data)}")
+    print(f"调试: df_results 行数: {len(df_results)}")
+    print(f"调试: save_img_path_list 数量: {len(save_img_path_list)}")
+
+    # 确保gallery_data不为空，如果为空则提供一个提示
+    if not gallery_data:
+        print("警告: gallery_data为空，没有热力图可显示")
 
     # 更新日志并返回最终结果 - 显示结果区域
     lm.generate_log(f"处理完成! 共处理 {len(results)} 个文件，请查看下方结果!")

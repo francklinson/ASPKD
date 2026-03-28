@@ -6,11 +6,11 @@ pic_output_dir: slice
 model_ckpts:
   dinomaly:
     dinov2:
-      small: /home/zhouchenghao/PycharmProjects/ASD_for_SPK/Dinomaly/saved_results/dinomaly_dinov2_small_dk_qzgy_epoch_1000_Sat Mar 28 22:42:01 2026.pth
+      small: /home/zhouchenghao/PycharmProjects/ASD_for_SPK/algorithms/Dinomaly/saved_results/dinomaly_dinov2_small_dk_qzgy_epoch_1000_Sat Mar 28 22:42:01 2026.pth
       base:
       large:
     dinov3:
-      small: /home/zhouchenghao/PycharmProjects/ASD_for_SPK/Dinomaly/saved_results/dinomaly_dinov3_small_dk_qzgy_epoch_1000_Sat Mar 28 22:35:13 2026.pth
+      small: /home/zhouchenghao/PycharmProjects/ASD_for_SPK/algorithms/Dinomaly/saved_results/dinomaly_dinov3_small_dk_qzgy_epoch_1000_Sat Mar 28 22:35:13 2026.pth
       large:
 
 model_threshold:
@@ -27,7 +27,7 @@ model_threshold:
 # 模型架构配置
 model_architectures:
   dinov2:
-    weights_dir: /home/zhouchenghao/PycharmProjects/ASD_for_SPK/Dinomaly/weights  # DINOv2权重自动下载到此目录
+    weights_dir: /home/zhouchenghao/PycharmProjects/ASD_for_SPK/algorithms/Dinomaly/weights  # DINOv2权重自动下载到此目录
     small:
       encoder_name: "dinov2reg_vit_small_14"
       target_layers: [2, 3, 4, 5, 6, 7, 8, 9]
@@ -44,7 +44,7 @@ model_architectures:
       embed_dim: 1024
       num_heads: 16
   dinov3:
-    weights_dir: /home/zhouchenghao/PycharmProjects/ASD_for_SPK/Dinomaly/weights
+    weights_dir: /home/zhouchenghao/PycharmProjects/ASD_for_SPK/algorithms/Dinomaly/weights
     small:
       encoder_name: "dinov3_vits16"
       encoder_weight: "dinov3_vits16_pretrain_lvd1689m-08c60483.pth"
@@ -72,5 +72,5 @@ server:
 
 # 环境变量
 environments:
-    DINOMALY_ENCODER_DIR: /home/zhouchenghao/PycharmProjects/ASD_for_SPK/Dinomaly/weights
+    DINOMALY_ENCODER_DIR: /home/zhouchenghao/PycharmProjects/ASD_for_SPK/algorithms/Dinomaly/weights
     CUDA_VISIBLE_DEVICES: 0

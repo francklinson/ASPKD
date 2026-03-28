@@ -1,3 +1,9 @@
+import sys
+import os
+
+# 添加 algorithms 目录到路径
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'algorithms'))
+
 from BaseASD import DenseAEInterface
 from BaseASD import CAEInterface
 from BaseASD import VAEInterface
