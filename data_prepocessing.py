@@ -10,6 +10,7 @@ import librosa
 import librosa.display
 import matplotlib.pyplot as plt
 import numpy as np
+import soundfile as sf
 from dtw import dtw
 from tqdm import tqdm, trange
 
@@ -312,6 +313,8 @@ class Preprocessor:
     def process_audio(self, file_list, save_dir):
         """
         处理file_list中的所有音频文件，并保存到save_dir文件夹下
+        图片保存到 save_dir/picture/ 目录
+        音频保存到 save_dir/audio/ 目录
         Args:
             file_list:
             save_dir:
@@ -324,9 +327,11 @@ class Preprocessor:
         if not os.path.isfile(self.ref_file):
             raise ValueError("目标片段音频文件不存在")
 
-        # 检查slice文件夹是否存在
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+        # 创建picture和audio子目录
+        pic_dir = os.path.join(save_dir, 'picture')
+        audio_dir = os.path.join(save_dir, 'audio')
+        os.makedirs(pic_dir, exist_ok=True)
+        os.makedirs(audio_dir, exist_ok=True)
 
         # 遍历音频目录中的所有音频文件
         for i in trange(len(file_list)):
@@ -345,15 +350,32 @@ class Preprocessor:
                     print(f"找到片段起始位置(秒): {found_position}")
                     # 提取目标片段
                     new_file_name = secrets.token_hex(16)
-                    # 保存文件
-                    output_path = os.path.join(save_dir, f'{new_file_name}.png')
+
+                    # 计算切片时长
+                    slice_duration = min(10.0, self.target_segment_duration)
+
+                    # 保存图片到picture目录
+                    pic_output_path = os.path.join(pic_dir, f'{new_file_name}.png')
                     try:
-                        plot_spectrogram(_file, output_path, offset=found_position,
-                                         duration=min(10.0, self.target_segment_duration))
-                        print(f"保存图像到: {output_path}")
+                        plot_spectrogram(_file, pic_output_path, offset=found_position,
+                                         duration=slice_duration)
+                        print(f"保存图像到: {pic_output_path}")
                         self.src_audio_gen_pic_map[_file] = '{}.png'.format(new_file_name)
                     except Exception as e:
                         print(f"Data transform failed! Error: {e} \nPlease check file:{_file}")
+                        continue
+
+                    # 保存音频切片到audio目录
+                    audio_output_path = os.path.join(audio_dir, f'{new_file_name}.wav')
+                    try:
+                        # 加载音频切片
+                        y_slice, sr_slice = librosa.load(_file, offset=found_position,
+                                                         duration=slice_duration, sr=22050)
+                        # 保存音频文件
+                        sf.write(audio_output_path, y_slice, sr_slice)
+                        print(f"保存音频到: {audio_output_path}")
+                    except Exception as e:
+                        print(f"Audio save failed! Error: {e} \nPlease check file:{_file}")
                 else:
                     print("未找到指定片段")
             else:
@@ -375,7 +397,7 @@ if __name__ == '__main__':
 
     # batch
     predict_file_list = list()
-    predict_dir = "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/原始数据/歌曲"
+    predict_dir = "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/原始数据/歌曲/TL-SPK3A20PG 1.0"
     for root, dirs, files in os.walk(predict_dir):
         for file in files:
             if file.endswith(".wav"):

@@ -26,21 +26,21 @@ class ModelConfig:
         'small': {
             'target_layers': [2, 3, 4, 5, 6, 7, 8, 9],
             'encoder_name': 'dinov3_vits16',
-            'encoder_weight': "/mnt/test/scripts/asd_for_spk/Dinomaly/weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
+            'encoder_weight': "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/pre_trained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
             'embed_dim': 384,
             'num_heads': 6
         },
         'base': {
             'target_layers': [2, 3, 4, 5, 6, 7, 8, 9],
             'encoder_name': 'dinov3_vitb16',
-            'encoder_weight': "/mnt/test/scripts/asd_for_spk/Dinomaly/weights/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth",
+            'encoder_weight': "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/pre_trained/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth",
             'embed_dim': 768,
             'num_heads': 12
         },
         'large': {
             'target_layers': [4, 6, 8, 10, 12, 14, 16, 18],
             'encoder_name': 'dinov3_vitl16',
-            'encoder_weight': "/mnt/test/scripts/asd_for_spk/Dinomaly/weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
+            'encoder_weight': "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/pre_trained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
             'embed_dim': 1024,
             'num_heads': 16
         }
