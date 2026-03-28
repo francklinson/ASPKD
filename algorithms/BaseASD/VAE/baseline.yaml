@@ -1,0 +1,19 @@
+# 超参数配置
+data_path_dev: C:\data\音频素材\异音检测\dev_data
+data_path_eval: C:\data\音频素材\异音检测\eval_data
+
+# 变量设置
+EPOCH_MAX: 100
+block: LSTM  # GRU , LSTM 可选
+optimizer: Adam  # SGD , Adam 可选
+dropout: 0
+latent_length: 30
+batch_size: 309  # 309  340
+input_size: 640
+hidden1: 128
+hidden2: 128
+hidden3: 64
+hidden4: 64
+learning_rate: 0.00001
+
+anomaly_threshold: 14

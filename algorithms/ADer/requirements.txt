@@ -1,0 +1,113 @@
+absl-py @ file:///croot/absl-py_1714140470852/work
+accimage @ file:///home/conda/feedstock_root/build_artifacts/accimage_1667381978780/work
+ADEval==1.1.0
+annotated-types==0.7.0
+Brotli @ file:///croot/brotli-split_1736182456865/work
+brotlicffi @ file:///croot/brotlicffi_1736182461069/work
+causal-conv1d @ file:///home/zhouchenghao/%E4%B8%8B%E8%BD%BD/causal_conv1d-1.5.0%2Bcu118torch2.1cxx11abiFALSE-cp310-cp310-linux_x86_64.whl#sha256=a693a398f7733f533678aac3a97320658b34593da52c557145c76b3bb9aebb62
+certifi==2022.12.7
+cffi @ file:///croot/cffi_1736182485317/work
+charset-normalizer==2.1.1
+contourpy @ file:///croot/contourpy_1732540045555/work
+cycler @ file:///tmp/build/80754af9/cycler_1637851556182/work
+deepspeed==0.17.3
+einops==0.8.1
+faiss-gpu==1.7.2
+filelock @ file:///croot/filelock_1744281381737/work
+fonttools @ file:///croot/fonttools_1737039080035/work
+FrEIA==0.2
+fsspec==2025.7.0
+fvcore==0.1.5.post20221221
+geomloss==0.2.6
+gmpy2 @ file:///croot/gmpy2_1738085463648/work
+grpcio @ file:///croot/grpc-split_1742490263735/work
+hf-xet==1.1.5
+hjson==3.1.0
+huggingface-hub==0.34.3
+idna==3.4
+imageio @ file:///croot/imageio_1738159938990/work
+imgaug @ file:///home/conda/feedstock_root/build_artifacts/imgaug_1640909786103/work
+iopath==0.1.10
+Jinja2 @ file:///croot/jinja2_1741710844255/work
+joblib @ file:///croot/joblib_1718217211762/work
+kiwisolver @ file:///croot/kiwisolver_1737039087198/work
+lazy_loader @ file:///croot/lazy_loader_1718176737906/work
+llvmlite @ file:///croot/llvmlite_1741209858218/work
+mamba-ssm @ file:///home/zhouchenghao/%E4%B8%8B%E8%BD%BD/mamba_ssm-2.0.3%2Bcu118torch2.1cxx11abiFALSE-cp310-cp310-linux_x86_64.whl#sha256=994921074165bb1531966211fe472402c9a4bbe94fe3aae4e3aac42ddd2a2f50
+Markdown @ file:///croot/markdown_1746114451035/work
+MarkupSafe @ file:///croot/markupsafe_1738584038848/work
+matplotlib==3.10.0
+mkl-service==2.4.0
+mkl_fft @ file:///io/mkl313/mkl_fft_1730824109137/work
+mkl_random @ file:///io/mkl313/mkl_random_1730823916628/work
+mmdet==2.25.3
+mpmath @ file:///croot/mpmath_1690848262763/work
+msgpack==1.1.1
+networkx @ file:///croot/networkx_1737039604450/work
+ninja==1.11.1.4
+numba @ file:///home/conda/feedstock_root/build_artifacts/numba_1749491273169/work
+numpy @ file:///croot/numpy_and_numpy_base_1708638617955/work/dist/numpy-1.26.4-cp310-cp310-linux_x86_64.whl#sha256=d8cd837ed43e87f77e6efaa08e8de927ca030a1c9c5d04624432d6fb9a74a5ee
+numpy-hilbert-curve==1.0.1
+nvidia-cublas-cu12==12.6.4.1
+nvidia-cuda-cupti-cu12==12.6.80
+nvidia-cuda-nvrtc-cu12==12.6.77
+nvidia-cuda-runtime-cu12==12.6.77
+nvidia-cudnn-cu12==9.5.1.17
+nvidia-cufft-cu12==11.3.0.4
+nvidia-cufile-cu12==1.11.1.6
+nvidia-curand-cu12==10.3.7.77
+nvidia-cusolver-cu12==11.7.1.2
+nvidia-cusparse-cu12==12.5.4.2
+nvidia-cusparselt-cu12==0.6.3
+nvidia-ml-py==12.575.51
+nvidia-nccl-cu12==2.26.2
+nvidia-nvjitlink-cu12==12.6.85
+nvidia-nvtx-cu12==12.6.77
+opencv-python==4.10.0
+opencv-python-headless==4.10.0
+packaging @ file:///croot/packaging_1753775359799/work
+pillow @ file:///croot/pillow_1752524526621/work
+portalocker==3.2.0
+protobuf==3.20.1
+psutil==7.0.0
+py-cpuinfo==9.0.0
+pycocotools==2.0.10
+pycparser @ file:///tmp/build/80754af9/pycparser_1636541352034/work
+pydantic==2.11.7
+pydantic_core==2.33.2
+pyparsing @ file:///croot/pyparsing_1731445506121/work
+PySocks @ file:///home/builder/ci_310/pysocks_1640793678128/work
+python-dateutil @ file:///croot/python-dateutil_1716495738603/work
+PyYAML @ file:///croot/pyyaml_1728657952215/work
+pyzorder==0.0.2
+regex==2025.7.31
+requests==2.28.1
+safetensors==0.5.3
+scikit-image @ file:///croot/scikit-image_1750419472910/work
+scikit-learn @ file:///croot/scikit-learn_1753427383173/work
+scipy @ file:///croot/scipy_1747238027288/work/dist/scipy-1.15.3-cp310-cp310-linux_x86_64.whl#sha256=4055d6b52bbbfc19594ac7c25008889945de175e153afc0935b6415716fa348e
+shapely @ file:///croot/shapely_1734445883981/work
+six @ file:///croot/six_1744271502820/work
+sympy @ file:///croot/sympy_1738108488918/work
+tabulate==0.9.0
+tensorboard @ file:///croot/tensorboard_1742506702034/work/tensorboard-2.19.0-py3-none-any.whl#sha256=5e71b98663a641a7ce8a6e70b0be8e1a4c0c45d48760b076383ac4755c35b9a0
+tensorboard_data_server @ file:///croot/tensorboard-data-server_1724172556187/work/tensorboard_data_server-0.7.0-py3-none-manylinux2014_x86_64.whl#sha256=4428d660733184391dab7b6b6a953467b614b984df0cc1baf3d8c5d3d4ecf29d
+tensorboardX @ file:///croot/tensorboardx_1722369114844/work
+termcolor==3.1.0
+terminaltables==3.1.10
+threadpoolctl @ file:///croot/threadpoolctl_1719407800858/work
+tifffile @ file:///croot/tifffile_1741164537642/work
+timm==0.8.15.dev0
+tokenizers==0.21.4
+torch==2.1.2+cu118
+torchaudio==2.1.2+cu118
+torchvision==0.16.2+cu118
+tqdm==4.67.1
+transformers==4.54.1
+triton==2.1.0
+typing-inspection==0.4.1
+typing_extensions @ file:///croot/typing_extensions_1734714854207/work
+unicodedata2 @ file:///croot/unicodedata2_1736541023050/work
+urllib3==1.26.13
+Werkzeug @ file:///croot/werkzeug_1737448706492/work
+yacs==0.1.8

@@ -1,0 +1,40 @@
+# 超参数配置文件
+# 修改此文件以适应数据集和模型
+
+dev_directory: C:\data\音频素材\异音检测\dev_data
+eval_directory: C:\data\音频素材\异音检测\eval_data
+model_directory: ./model
+result_directory: ./result
+scalers_directory: ./scalers
+features_directory: ./features
+result_file: result.csv
+
+max_fpr: 0.1
+
+stream:
+  frame_length: 16000
+  hop_length: 16000
+
+step: 3
+anomaly_threshold: 21
+feature:
+  n_mels: 128
+  frames: 5
+  n_fft: 1024
+  hop_length: 512
+  power: 1.0
+
+autoencoder:
+  latentDim: 40
+  shape0: 32
+
+fit:
+  compile:
+    optimizer: adam
+    loss: mean_squared_error
+  epochs: 100
+  batch_size: 64
+  shuffle: True
+  validation_split: 0.1
+  verbose: 1
+

@@ -1,0 +1,166 @@
+Begin DinomalyDinov3 model train!!!
+iter [46/20000], loss:0.2122
+iter [92/20000], loss:0.0517
+iter [138/20000], loss:0.0366
+iter [184/20000], loss:0.0291
+iter [230/20000], loss:0.0269
+iter [276/20000], loss:0.0233
+iter [322/20000], loss:0.0216
+iter [368/20000], loss:0.0203
+iter [414/20000], loss:0.0206
+iter [460/20000], loss:0.0182
+iter [506/20000], loss:0.0179
+iter [552/20000], loss:0.0164
+iter [598/20000], loss:0.0158
+iter [644/20000], loss:0.0156
+iter [690/20000], loss:0.0147
+iter [736/20000], loss:0.0152
+iter [782/20000], loss:0.0144
+iter [828/20000], loss:0.0152
+iter [874/20000], loss:0.0140
+iter [920/20000], loss:0.0136
+iter [966/20000], loss:0.0138
+Begin model eval!!!
+dk: I-Auroc:1.0000, I-AP:1.0000, I-F1:1.0000
+qzgy: I-Auroc:0.9909, I-AP:0.9444, I-F1:0.9091
+Mean: I-Auroc:0.9955, I-AP:0.9722, I-F1:0.9545
+Visualization done!
+iter [1012/20000], loss:0.0135
+iter [1058/20000], loss:0.0132
+iter [1104/20000], loss:0.0136
+iter [1150/20000], loss:0.0131
+iter [1196/20000], loss:0.0128
+iter [1242/20000], loss:0.0127
+iter [1288/20000], loss:0.0128
+iter [1334/20000], loss:0.0125
+iter [1380/20000], loss:0.0124
+iter [1426/20000], loss:0.0124
+iter [1472/20000], loss:0.0122
+iter [1518/20000], loss:0.0122
+iter [1564/20000], loss:0.0119
+iter [1610/20000], loss:0.0122
+iter [1656/20000], loss:0.0118
+iter [1702/20000], loss:0.0118
+iter [1748/20000], loss:0.0117
+iter [1794/20000], loss:0.0116
+iter [1840/20000], loss:0.0115
+iter [1886/20000], loss:0.0114
+iter [1932/20000], loss:0.0115
+iter [1978/20000], loss:0.0113
+Begin model eval!!!
+dk: I-Auroc:1.0000, I-AP:1.0000, I-F1:1.0000
+qzgy: I-Auroc:0.9939, I-AP:0.9583, I-F1:0.9091
+Mean: I-Auroc:0.9970, I-AP:0.9792, I-F1:0.9545
+Visualization done!
+iter [2024/20000], loss:0.0113
+iter [2070/20000], loss:0.0114
+iter [2116/20000], loss:0.0111
+iter [2162/20000], loss:0.0113
+iter [2208/20000], loss:0.0111
+iter [2254/20000], loss:0.0109
+iter [2300/20000], loss:0.0109
+iter [2346/20000], loss:0.0109
+iter [2392/20000], loss:0.0107
+iter [2438/20000], loss:0.0107
+iter [2484/20000], loss:0.0106
+iter [2530/20000], loss:0.0106
+iter [2576/20000], loss:0.0108
+iter [2622/20000], loss:0.0109
+iter [2668/20000], loss:0.0106
+iter [2714/20000], loss:0.0105
+iter [2760/20000], loss:0.0104
+iter [2806/20000], loss:0.0104
+iter [2852/20000], loss:0.0103
+iter [2898/20000], loss:0.0104
+iter [2944/20000], loss:0.0104
+iter [2990/20000], loss:0.0103
+Begin model eval!!!
+dk: I-Auroc:1.0000, I-AP:1.0000, I-F1:1.0000
+qzgy: I-Auroc:0.9970, I-AP:0.9762, I-F1:0.9231
+Mean: I-Auroc:0.9985, I-AP:0.9881, I-F1:0.9615
+Visualization done!
+iter [3036/20000], loss:0.0103
+iter [3082/20000], loss:0.0102
+iter [3128/20000], loss:0.0103
+Using device: cuda:0
+Begin DinomalyDinov3 model train!!!
+iter [46/1000], loss:0.2122
+iter [92/1000], loss:0.0517
+iter [138/1000], loss:0.0366
+iter [184/1000], loss:0.0289
+iter [230/1000], loss:0.0271
+iter [276/1000], loss:0.0229
+iter [322/1000], loss:0.0216
+iter [368/1000], loss:0.0208
+iter [414/1000], loss:0.0196
+iter [460/1000], loss:0.0180
+iter [506/1000], loss:0.0173
+iter [552/1000], loss:0.0166
+iter [598/1000], loss:0.0159
+iter [644/1000], loss:0.0157
+iter [690/1000], loss:0.0152
+iter [736/1000], loss:0.0150
+iter [782/1000], loss:0.0147
+iter [828/1000], loss:0.0145
+iter [874/1000], loss:0.0144
+iter [920/1000], loss:0.0143
+iter [966/1000], loss:0.0142
+Begin model eval!!!
+dk: I-Auroc:1.0000, I-AP:1.0000, I-F1:1.0000
+qzgy: I-Auroc:0.9909, I-AP:0.9444, I-F1:0.9091
+Mean: I-Auroc:0.9955, I-AP:0.9722, I-F1:0.9545
+Visualization done!
+iter [1000/1000], loss:0.0142
+Model saved to ./saved_results/dinomaly_dinov3_small_dk_qzgy_epoch_1000_Sat Mar 28 22:35:13 2026.pth!
+Using device: cuda:0
+Begin DinomalyDinov2 model train!!!
+iter [23/1000], loss:0.5019
+iter [46/1000], loss:0.2365
+iter [69/1000], loss:0.1558
+iter [92/1000], loss:0.1178
+iter [115/1000], loss:0.0962
+iter [138/1000], loss:0.0795
+iter [161/1000], loss:0.0681
+iter [184/1000], loss:0.0613
+iter [207/1000], loss:0.0555
+iter [230/1000], loss:0.0509
+iter [253/1000], loss:0.0462
+iter [276/1000], loss:0.0429
+iter [299/1000], loss:0.0403
+iter [322/1000], loss:0.0377
+iter [345/1000], loss:0.0372
+iter [368/1000], loss:0.0345
+iter [391/1000], loss:0.0333
+iter [414/1000], loss:0.0321
+iter [437/1000], loss:0.0314
+iter [460/1000], loss:0.0305
+iter [483/1000], loss:0.0298
+iter [506/1000], loss:0.0290
+iter [529/1000], loss:0.0286
+iter [552/1000], loss:0.0280
+iter [575/1000], loss:0.0274
+iter [598/1000], loss:0.0271
+iter [621/1000], loss:0.0268
+iter [644/1000], loss:0.0264
+iter [667/1000], loss:0.0260
+iter [690/1000], loss:0.0258
+iter [713/1000], loss:0.0255
+iter [736/1000], loss:0.0254
+iter [759/1000], loss:0.0252
+iter [782/1000], loss:0.0251
+iter [805/1000], loss:0.0249
+iter [828/1000], loss:0.0249
+iter [851/1000], loss:0.0247
+iter [874/1000], loss:0.0246
+iter [897/1000], loss:0.0245
+iter [920/1000], loss:0.0245
+iter [943/1000], loss:0.0245
+iter [966/1000], loss:0.0244
+iter [989/1000], loss:0.0244
+Begin model eval!!!
+dk: I-Auroc:1.0000, I-AP:1.0000, I-F1:1.0000
+qzgy: I-Auroc:1.0000, I-AP:1.0000, I-F1:1.0000
+Mean: I-Auroc:1.0000, I-AP:1.0000, I-F1:1.0000
+Visualization done!
+iter [1000/1000], loss:0.0246
+Model saved to ./saved_results/dinomaly_dinov2_small_dk_qzgy_epoch_1000_Sat Mar 28 22:42:01 2026.pth!

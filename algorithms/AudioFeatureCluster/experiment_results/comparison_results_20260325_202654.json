@@ -1,0 +1,44 @@
+{
+  "hubert": {
+    "extractor_type": "hubert",
+    "status": "failed",
+    "error": "未能提取到任何特征。",
+    "elapsed_time": 2.7043185234069824
+  },
+  "mfcc": {
+    "extractor_type": "mfcc",
+    "status": "failed",
+    "error": "未能提取到任何特征。",
+    "elapsed_time": 0.0001671314239501953
+  },
+  "mel": {
+    "extractor_type": "mel",
+    "status": "failed",
+    "error": "未能提取到任何特征。",
+    "elapsed_time": 9.322166442871094e-05
+  },
+  "mert": {
+    "extractor_type": "mert",
+    "status": "failed",
+    "error": "未能提取到任何特征。",
+    "elapsed_time": 2.5729851722717285
+  },
+  "wavlm": {
+    "extractor_type": "wavlm",
+    "status": "failed",
+    "error": "未能提取到任何特征。",
+    "elapsed_time": 3.3740856647491455
+  },
+  "xlsr-wav2vec2": {
+    "extractor_type": "xlsr-wav2vec2",
+    "status": "failed",
+    "error": "未能提取到任何特征。",
+    "elapsed_time": 2.5916004180908203
+  },
+  "ast": {
+    "extractor_type": "ast",
+    "status": "failed",
+    "error": "未能提取到任何特征。",
+    "elapsed_time": 2.3029046058654785
+  }
+}
