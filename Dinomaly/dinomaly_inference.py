@@ -139,7 +139,8 @@ class DinomalyBaseInferencer(ABC):
                 dataloader=pred_dataloader,
                 device=self.device,
                 _class_="predict",
-                save_name=visualize_save_dir
+                save_name=visualize_save_dir,
+                overlay_on_image=True  # 热力图叠加原图显示
             )
             print(f"Visualization done!! Saved to ./visualize/{visualize_save_dir}")
         pred_res_dict = dict()

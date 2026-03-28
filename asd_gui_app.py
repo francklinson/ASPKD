@@ -47,16 +47,18 @@ class LogManager:
     def update_log(self, msg):
         """
         更新日志
+        返回: (output_text, results_section, results_table, heatmap_gallery, download_output, run_button)
         """
         self.generate_log(msg)
-        yield self.log_messages, None, gr.update(interactive=False)
+        yield self.log_messages, gr.update(visible=False), None, None, None, gr.update(interactive=False)
 
-    def update_log_and_action(self, msg, download_output_action, run_button_action):
+    def update_log_and_action(self, msg, run_button_action):
         """
         更新日志，同时传递GUI控件响应
+        返回: (output_text, results_section, results_table, heatmap_gallery, download_output, run_button)
         """
         self.generate_log(msg)
-        yield self.log_messages, download_output_action, run_button_action
+        yield self.log_messages, gr.update(visible=False), None, None, None, run_button_action
 
 
 class Export:
@@ -205,7 +207,7 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress())
     """
     主处理函数
     输入：待处理的音频列表、选择的算法
-    返回：处理状态文本，以及返回的结果（压缩包格式）
+    返回：(output_text, results_section, results_table, heatmap_gallery, download_output, run_button)
     """
     # 音频预处理类对象
     # 为了防止多用户使用时的数据污染，放到回调函数里
@@ -216,9 +218,8 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress())
     print("输入参数", audio_files, algorithm_choice, progress)
 
     if not audio_files:
-        yield from lm.update_log_and_action("请上传至少一个音频文件",
-                                            None, gr.update(interactive=True))
-        return None
+        yield from lm.update_log_and_action("请上传至少一个音频文件", gr.update(interactive=True))
+        return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
 
     # 只有到实际执行的时候才更新一下算法，避免来回选择算法的时候反复加载模型
     am.update_algorithm(algorithm_choice)
@@ -229,15 +230,13 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress())
     try:
         picture_file_dict = p.process_audio(audio_files, save_dir=param["pic_output_dir"])
     except Exception as e:
-        yield from lm.update_log_and_action(f"音频预处理失败: {str(e)}",
-                                            None, gr.update(interactive=True))
-        return None
+        yield from lm.update_log_and_action(f"音频预处理失败: {str(e)}", gr.update(interactive=True))
+        return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
 
     # 检查返回值是否为空
     if picture_file_dict is None:
-        yield from lm.update_log_and_action("音频预处理返回空结果，请检查音频文件格式",
-                                            None, gr.update(interactive=True))
-        return None
+        yield from lm.update_log_and_action("音频预处理返回空结果，请检查音频文件格式", gr.update(interactive=True))
+        return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
 
     # return str(picture_file_dict), None
     yield from lm.update_log("完成目标音频搜索和切分！！")
@@ -255,8 +254,8 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress())
     # 检查 picture_file_dict 是否为字典类型
     if not isinstance(picture_file_dict, dict):
         yield from lm.update_log_and_action(f"预处理结果格式错误，期望dict类型，实际为{type(picture_file_dict)}",
-                                            None, gr.update(interactive=True))
-        return None
+                                            gr.update(interactive=True))
+        return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
 
     for k, v in picture_file_dict.items():
         # 检查 v 是否为字典类型
@@ -272,10 +271,8 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress())
 
     # 确保输入非空
     if not picture_file_list:
-        yield from lm.update_log_and_action("上传的素材中没有找到目标音频，请检查!",
-                                            None, gr.update(interactive=True))
-
-        return "", None, gr.update(interactive=True)
+        yield from lm.update_log_and_action("上传的素材中没有找到目标音频，请检查!", gr.update(interactive=True))
+        return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
 
     # 执行预测
     pred_res_dict, save_img_path_list = am.inferencer.predict(picture_file_list)
@@ -292,6 +289,14 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress())
     for k, v in pred_res_dict.items():
         results.append({"filename": k, "anomaly_score": v[0], "is_anomaly": v[1]})
 
+    # 创建DataFrame用于展示
+    df_results = pd.DataFrame(results)
+    # 添加状态列用于颜色标记
+    df_results['状态'] = df_results['is_anomaly'].apply(lambda x: '异常' if x == 1 else '正常')
+    # 重新排序列
+    df_results = df_results[['filename', 'anomaly_score', 'is_anomaly', '状态']]
+    df_results.columns = ['文件名', '异常分数', '是否异常', '状态']
+
     temp_dir = tempfile.mkdtemp()
 
     # 创建Excel报告
@@ -301,12 +306,20 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, progress=gr.Progress())
     zip_path = os.path.join(temp_dir,
                             f'asd_results_{am.algorithm_chosen}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip')
 
-    # 打包输出结果
-    save_img_path_list.extend(picture_file_list)
-    zip_path = Export.create_zip_with_results(zip_path, excel_path, save_img_path_list)
-    yield from lm.update_log_and_action(f"处理完成! 共处理 {len(results)} 个文件，请点击下方链接下载结果!", zip_path,
-                                        gr.update(interactive=True))
-    return "", None, gr.update(interactive=True)
+    # 打包输出结果 - ZIP中包含热力图 + 原图
+    images_for_zip = save_img_path_list + picture_file_list
+    zip_path = Export.create_zip_with_results(zip_path, excel_path, images_for_zip)
+
+    # 为Gallery准备带caption的数据 (image_path, caption) - 只显示热力图
+    gallery_data = []
+    for img_path in save_img_path_list:
+        # 从文件名提取caption
+        caption = os.path.splitext(os.path.basename(img_path))[0].replace('_heatmap', '')
+        gallery_data.append((img_path, caption))
+
+    # 更新日志并返回最终结果 - 显示结果区域
+    lm.generate_log(f"处理完成! 共处理 {len(results)} 个文件，请查看下方结果!")
+    yield lm.log_messages, gr.update(visible=True), df_results, gallery_data, zip_path, gr.update(interactive=True)
 
 
 # Gradio界面定义
@@ -349,21 +362,85 @@ with gr.Blocks(title="音频异常检测工具") as demo:
             output_text = gr.Textbox(label="📊 处理状态", max_lines=9, interactive=True, autoscroll=True)
             download_output = gr.File(label="📥 下载结果文件", file_count="single")
 
-    run_button.click(
-        fn=run_asd_btn_func,
-        inputs=[audio_inputs, algorithm_dropdown],
-        outputs=[output_text, download_output, run_button],
-        queue=True
-    )
+    # 检测结果展示区域 - 初始隐藏
+    results_section = gr.Column(visible=False)
+    with results_section:
+        gr.Markdown("---")
+        gr.Markdown("## 📊 检测结果展示")
+        gr.Markdown("💡 提示: 点击表格中的文件名可在下方热力图中定位")
 
+        with gr.Row():
+            # 结果表格
+            results_table = gr.DataFrame(
+                label="检测结果明细 (点击文件名定位热力图)",
+                headers=["文件名", "异常分数", "是否异常", "状态"],
+                interactive=False,
+                wrap=True
+            )
+
+        with gr.Row():
+            # 热力图画廊 - 使用caption显示文件名
+            heatmap_gallery = gr.Gallery(
+                label="全部异常热力图 (点击表格行可定位到对应热力图)",
+                show_label=True,
+                elem_id="heatmap_gallery",
+                columns=4,
+                rows=2,
+                height="auto",
+                object_fit="contain",
+                preview=True
+            )
+
+    gr.Markdown("---")
     gr.Markdown("### 使用说明")
     gr.Markdown("""
     1. 点击"上传音频文件"按钮选择一个或多个WAV格式的音频文件
     2. 从下拉菜单中选择要使用的异常检测算法
     3. 点击"开始异常检测"按钮开始处理
-    4. 处理完成后会显示状态信息，并提供结果文件下载
-    5. 下载的ZIP文件包含Excel报告和热力图图像
+    4. 处理完成后会显示状态信息，检测结果表格和热力图会在下方展示
+    5. 点击表格中的文件名可在下方热力图画廊中定位到对应图像
+    6. 可下载ZIP文件包含Excel报告和所有热力图图像
     """)
+
+    # 绑定按钮事件
+    run_button.click(
+        fn=run_asd_btn_func,
+        inputs=[audio_inputs, algorithm_dropdown],
+        outputs=[output_text, results_section, results_table, heatmap_gallery, download_output, run_button],
+        queue=True
+    )
+
+    def on_select_row(evt: gr.SelectData, gallery_data):
+        """
+        处理表格行选择事件
+        evt.index: 选中的行索引
+        evt.row_value: 选中的行数据
+        返回: 将Gallery的selected_index设置为对应位置
+        """
+        if evt.index is None or not gallery_data:
+            return gr.update()
+
+        # 获取选中的文件名
+        selected_filename = evt.row_value[0] if isinstance(evt.row_value, (list, tuple)) else None
+        if not selected_filename:
+            return gr.update()
+
+        # 在gallery_data中查找匹配的热力图索引
+        # gallery_data格式: [(img_path, caption), ...]
+        for idx, (img_path, caption) in enumerate(gallery_data):
+            # 检查caption或文件名是否匹配
+            if caption == selected_filename or selected_filename in caption or caption in selected_filename:
+                # 返回Gallery更新，设置selected_index
+                return gr.update(selected_index=idx)
+
+        return gr.update()
+
+    # 绑定表格选择事件
+    results_table.select(
+        fn=on_select_row,
+        inputs=[heatmap_gallery],
+        outputs=[heatmap_gallery]
+    )
 
 # 启动应用
 if __name__ == "__main__":

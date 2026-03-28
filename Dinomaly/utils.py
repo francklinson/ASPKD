@@ -1035,7 +1035,7 @@ def visualize(model, dataloader, device, _class_='None', save_name='save'):
     return
 
 
-def visualize_when_predict(model, dataloader, device, _class_='None', save_name='save'):
+def visualize_when_predict(model, dataloader, device, _class_='None', save_name='save', overlay_on_image=True):
     """
     可视化模型预测结果并保存图像，在预测阶段使用，没有gt和label
 
@@ -1045,6 +1045,7 @@ def visualize_when_predict(model, dataloader, device, _class_='None', save_name=
         device: 计算设备 (CPU/GPU)
         _class_: 数据类别，默认为'None'
         save_name: 保存结果的目录名，默认为'save'
+        overlay_on_image: 是否将热力图叠加到原图上，True为叠加，False为只显示热力图
 
     """
     model.eval()  # 将模型设置为评估模式
@@ -1068,30 +1069,34 @@ def visualize_when_predict(model, dataloader, device, _class_='None', save_name=
                 heatmap = min_max_norm(anomaly_map[i, 0].cpu().numpy())
                 heatmap = cvt2heatmap(heatmap * 255)
 
-                # 处理原始图像
-                im = img[i].permute(1, 2, 0).cpu().numpy()  # 调整维度并转到CPU
-                im = im * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])  # 反标准化
-                im = (im * 255).astype('uint8')  # 转换为8位整数
-                im = im[:, :, ::-1]  # BGR转RGB
-                # 将热力图叠加到原始图像上
-                hm_on_img = show_cam_on_image(im, heatmap)
+                # 获取文件名（用于在图像上标记）
+                name = os.path.splitext(os.path.basename(img_path[i]))[0]
+
+                if overlay_on_image:
+                    # 处理原始图像
+                    im = img[i].permute(1, 2, 0).cpu().numpy()  # 调整维度并转到CPU
+                    im = im * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])  # 反标准化
+                    im = (im * 255).astype('uint8')  # 转换为8位整数
+                    im = im[:, :, ::-1]  # BGR转RGB
+                    # 将热力图叠加到原始图像上
+                    display_img = show_cam_on_image(im, heatmap)
+                else:
+                    # 只使用热力图
+                    display_img = heatmap
+
+
 
                 # 创建类别保存目录
                 save_dir_class = os.path.join(save_dir, str(_class_))
                 if not os.path.exists(save_dir_class):
                     os.mkdir(save_dir_class)
-                # 生成文件名
-                # name = img_path[i].split(os.sep)[-1].replace('.png', '')
-                name = os.path.splitext(os.path.basename(img_path[i]))[0]
 
-                # 保存原始图像、热力图和真实掩码
-                # cv2.imwrite(save_dir_class + os.sep + name + '_img.png', im)
+                # 保存图像
                 save_img_path = os.path.join(save_dir_class, name + '_heatmap.png')
                 print("save img to ", save_img_path)
 
                 # 注意处理中文字符异常问题
-                # cv2.imwrite(save_img_path, hm_on_img)
-                cv2.imencode('.png', hm_on_img)[1].tofile(save_img_path)
+                cv2.imencode('.png', display_img)[1].tofile(save_img_path)
 
                 save_img_path_list.append(save_img_path)
     return save_img_path_list
