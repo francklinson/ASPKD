@@ -1,6 +1,6 @@
-# TODO 测试外部调用ader
+# -*- coding: utf-8 -*-
+# ADer用法示例
 
 from ADer import MambaAD, ViTAD, InVad, DiAD, UniAD, CFlow,PyramidFLow,SimpleNet
-# simplenet还没泡通
-m = UniAD()
-m.test()
+m = SimpleNet()
+m.train()

@@ -1,8 +1,8 @@
-from BaseASD.DenseAE.DenseAE_interface import DenseAEInterface
-from BaseASD.ConvolutionalAE.CAE_interface import CAEInterface
-from BaseASD.VAE.VAE_interface import VAEInterface
-from BaseASD.AEGAN.AeGan_interface import AEGANInterface
-from BaseASD.DifferNet.DifferNet_interface import DifferNetInterface
+from BaseASD import DenseAEInterface
+from BaseASD import CAEInterface
+from BaseASD import VAEInterface
+from BaseASD import AEGANInterface
+from BaseASD import DifferNetInterface
 
 if __name__ == '__main__':
     d = DenseAEInterface()

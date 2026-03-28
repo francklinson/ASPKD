@@ -9,7 +9,7 @@ import librosa
 import numpy as np
 from sklearn import metrics
 from Anomalib.data import MVTecAD
-from Anomalib.models import Dinomaly, Patchcore
+from Anomalib.models import Dinomaly
 from Anomalib.engine import Engine
 from Anomalib.data import PredictDataset
 from Anomalib.visualization import ImageVisualizer
@@ -40,14 +40,13 @@ Image Models:
 """
 
 # 定义数据集模块
-datamodule = MVTecAD(root="data/spk", category="dk", train_batch_size=16, eval_batch_size=16)
+datamodule = MVTecAD(root="data/spk", category="qzgy_22050", train_batch_size=16, eval_batch_size=16)
 
 # 定义检测模型
-# model = Dinomaly()
-model = Patchcore()
+model = Dinomaly()
 
 # 定义训练引擎
-engine = Engine(max_epochs=1000)
+engine = Engine(max_epochs=50)
 
 
 class ModelTest:
@@ -311,18 +310,18 @@ def train():
 if __name__ == '__main__':
     t1 = time.time()
 
-    train()
-    # mt = ModelTest(
-    #     ckpt_path="/home/zhouchenghao/PycharmProjects/ASD_for_SPK/results/Patchcore/MVTecAD/dk/v0/weights/lightning/model.ckpt"
-    # )
-    # mp = ModelPredict(
-    #     ckpt_path="/home/zhouchenghao/PycharmProjects/ASD_for_SPK/results/Patchcore/MVTecAD/dk/v0/weights/lightning/model.ckpt",
-    #     ref_file="ref/渡口片段10s.wav")
-    #
+    # train()
+    mt = ModelTest(
+        ckpt_path="model_ckpts/dinomaly_qzgy_22050_e1000.ckpt"
+    )
+    mp = ModelPredict(
+        ckpt_path="model_ckpts/dinomaly_qzgy_22050_e1000.ckpt",
+        ref_file="ref/青藏高原片段.wav")
+
     # t = mt.model_batch_test()
 
-    # p = mp.predict(predict_file=r"/home/zhouchenghao/PycharmProjects/ASD_for_SPK/data/spk/dk/test/bad")
-    # print(p)
+    p = mp.predict(predict_file=r"E:\异音检测\raw\手动录制\2\3200WG\N32\split\bad\bad")
+    print(p)
 
     t2 = time.time()
     print("程序运行时间：", t2 - t1)
