@@ -375,7 +375,7 @@ if __name__ == '__main__':
 
     # batch
     predict_file_list = list()
-    predict_dir = r"原始数据/标记后/manual_record/250721/SPK3200/N32/split/good"
+    predict_dir = "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/原始数据/歌曲"
     for root, dirs, files in os.walk(predict_dir):
         for file in files:
             if file.endswith(".wav"):
@@ -384,4 +384,4 @@ if __name__ == '__main__':
         file_list=predict_file_list,
         save_dir="slice")
 
-    generate_ghost_ground_truth()
+    # generate_ghost_ground_truth()
