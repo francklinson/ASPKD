@@ -63,6 +63,13 @@ def plot_ghost_ground_truth():
 
     # 保存为png
     plt.imsave('all_black.png', ghost_data)
+    # 等待1s
+    time.sleep(1)
+    # 转换为灰度图
+    convert_to_gray()
+    # 检查是否生成幽灵数据,有没有ghost.png
+    if not os.path.exists('ghost.png'):
+        raise FileNotFoundError("ghost.png not generated successfully!!! check the code!!!")
 
 
 def convert_to_gray():
@@ -81,7 +88,7 @@ def generate_ghost_ground_truth():
     生成幽灵 ground truth数据
     Returns:
     """
-    test_dir_list = ["data/spk/qzgy","data/spk/dk"]
+    test_dir_list = ["data/spk/qzgy", "data/spk/dk"]
     for test_dir in test_dir_list:
         for root, dirs, files in os.walk(os.path.join(test_dir, 'test')):
             # 只处理bad文件夹
