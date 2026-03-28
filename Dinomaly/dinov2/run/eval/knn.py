@@ -2,9 +2,9 @@ import logging
 import os
 import sys
 
-from dinov2.eval.knn import get_args_parser as get_knn_args_parser
-from dinov2.logging import setup_logging
-from dinov2.run.submit import get_args_parser, submit_jobs
+from ...eval.knn import get_args_parser as get_knn_args_parser
+from ...logging import setup_logging
+from ...run.submit import get_args_parser, submit_jobs
 
 logger = logging.getLogger("dinov2")
 

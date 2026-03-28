@@ -1,7 +1,8 @@
 import timm  # noqa
+import os
 import torchvision.models as models  # noqa
-import models.backbone.vision_transformer as vits
-import models.backbone.dino_vision_transformer as dino_vits
+from MuSc.models.backbone import vision_transformer as vits
+from MuSc.models.backbone import dino_vision_transformer as dino_vits
 import torch
 
 _BACKBONES = {
@@ -53,22 +54,13 @@ _BACKBONES = {
 }
 
 
-def load(name):
+def load(name, model_cache_dir=None):
     url = []
     patch_size = 8
-    if name == "dino_deitsmall16":
-        url = "dino_deitsmall16_pretrain/dino_deitsmall16_pretrain.pth"
-        patch_size = 16
-    elif name == "dino_deitsmall8_300ep":
-        url = "dino_deitsmall8_300ep_pretrain/dino_deitsmall8_300ep_pretrain.pth"  # model used for visualizations in our paper
-    elif name == "dino_vitbase16":
+    assert name in ["dino_vitbase16","dinov2_vitb14","dinov2_vitl14"]
+    if name == "dino_vitbase16":
         url = "dino_vitbase16_pretrain/dino_vitbase16_pretrain.pth"
         patch_size = 16
-    elif name == "dino_vitbase8":
-        url = "dino_vitbase8_pretrain/dino_vitbase8_pretrain.pth"
-    elif name == "dinov2_vits14":
-        url = "dinov2_vits14/dinov2_vits14_pretrain.pth"
-        patch_size = 14
     elif name == "dinov2_vitb14":
         url = "dinov2_vitb14/dinov2_vitb14_pretrain.pth"
         patch_size = 14
@@ -84,14 +76,17 @@ def load(name):
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         # build model
         # vit_tiny, vit_small, vit_base, patch_size=8, 16
+        model_func = vits.__dict__.get('vit_base')
+        if model_func is None:
+            raise ValueError(f'Unsupported backbone: {name}')
         model = vits.__dict__['vit_base'](patch_size=patch_size, num_classes=0)
         for p in model.parameters():
             p.requires_grad = False
         model.eval()
         model.to(device)
 
-        state_dict = torch.hub.load_state_dict_from_url(url="https://dl.fbaipublicfiles.com/dino/" + url)
+        state_dict = torch.hub.load_state_dict_from_url(url="https://dl.fbaipublicfiles.com/dino/" + url,
+                                                        model_dir=model_cache_dir)
         model.load_state_dict(state_dict, strict=True)
         return model
-    print("model_url:", url)
     return eval(_BACKBONES[name])

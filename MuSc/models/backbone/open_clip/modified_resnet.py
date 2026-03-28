@@ -181,6 +181,8 @@ class ModifiedResNet(nn.Module):
         out_tokens = []
         x_blocks = [x_1, x_2, x_3, x_4]
         for i in out_blocks:
+            if not 1 <= i <= len(x_blocks):
+                raise ValueError(f'Invalid block index {i}, must be between 1 and {len(x_blocks)}')
             out_tokens.append(x_blocks[i - 1])
 
         return x, out_tokens

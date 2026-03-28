@@ -7,6 +7,9 @@ import config as c
 import torch
 
 def get_anomaly_score(model, image_path, transforms):
+    """
+    使用模型获取异常分数
+    """
     img = Image.open(image_path).convert('RGB')
     transformed_imgs = torch.stack([tf(img) for tf in transforms])
     z = model(transformed_imgs)
@@ -15,6 +18,9 @@ def get_anomaly_score(model, image_path, transforms):
     return anomaly_score
 
 def evaluate(model_name, image_folder, fixed_transforms=True):
+    """
+    使用模型评估图像异常情况
+    """
     model = load_model(model_name)
     files = listdir(image_folder)
 

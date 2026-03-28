@@ -1,6 +1,5 @@
 import glob
 import importlib
-
 from ADer.util.registry import Registry
 LOSS = Registry('Loss')
 

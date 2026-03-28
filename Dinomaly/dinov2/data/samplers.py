@@ -6,7 +6,7 @@ import numpy as np  # 导入NumPy库，用于科学计算
 import torch  # 导入PyTorch库，用于深度学习
 from torch.utils.data.sampler import Sampler  # 导入PyTorch的采样器基类
 
-import dinov2.distributed as distributed  # 导入分布式训练相关模块
+from ..distributed import Distributed  # 导入分布式训练相关模块
 
 
 class EpochSampler(Sampler):
@@ -34,8 +34,8 @@ class EpochSampler(Sampler):
         self._sample_count = sample_count  # 存储每次采样的数量
         self._shuffle = shuffle  # 存储是否打乱的标志
         self._seed = seed  # 存储随机种子
-        self._start = distributed.get_global_rank() if start is None else start  # 设置起始索引
-        self._step = distributed.get_global_size() if step is None else step  # 设置采样步长
+        self._start = Distributed.get_global_rank() if start is None else start  # 设置起始索引
+        self._step = Distributed.get_global_size() if step is None else step  # 设置采样步长
         self._epoch = 0  # 初始化轮次为0
 
     def __iter__(self):
@@ -116,8 +116,8 @@ class InfiniteSampler(Sampler):
         self._sample_count = sample_count  # 存储样本总数
         self._seed = seed  # 存储随机种子
         self._shuffle = shuffle  # 存储是否打乱的标志
-        self._start = distributed.get_global_rank() if start is None else start  # 设置起始索引
-        self._step = distributed.get_global_size() if step is None else step  # 设置步长
+        self._start = Distributed.get_global_rank() if start is None else start  # 设置起始索引
+        self._step = Distributed.get_global_size() if step is None else step  # 设置步长
         self._advance = advance  # 存储额外跳过的样本数
 
     def __iter__(self):
@@ -200,8 +200,8 @@ class ShardedInfiniteSampler(Sampler):
         self._sample_count = sample_count
         self._seed = seed
         self._shuffle = shuffle
-        self._start = distributed.get_global_rank() if start is None else start
-        self._step = distributed.get_global_size() if step is None else step
+        self._start = Distributed.get_global_rank() if start is None else start
+        self._step = Distributed.get_global_size() if step is None else step
         self._advance = advance
         self._iter_count = 0
         self._shuffle_tensor_slice_fn = (

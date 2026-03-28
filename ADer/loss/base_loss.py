@@ -52,7 +52,8 @@ class CosLoss(nn.Module):
         loss = 0
         for in1, in2 in zip(input1, input2):
             if self.flat:
-                loss += (1 - self.cos_sim(in1.contiguous().view(in1.shape[0], -1), in2.contiguous().view(in2.shape[0], -1))).mean() * self.lam
+                loss += (1 - self.cos_sim(in1.contiguous().view(in1.shape[0], -1),
+                                          in2.contiguous().view(in2.shape[0], -1))).mean() * self.lam
             else:
                 loss += (1 - self.cos_sim(in1.contiguous(), in2.contiguous())).mean() * self.lam
         return loss / len(input1) if self.avg else loss
@@ -175,8 +176,8 @@ class FocalLoss(nn.Module):
 
 
 def gaussian(window_size, sigma):
-    gauss = torch.Tensor([exp(-(x - window_size//2)**2/float(2*sigma**2)) for x in range(window_size)])
-    return gauss/gauss.sum()
+    gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
+    return gauss / gauss.sum()
 
 
 def create_window(window_size, channel=1):
@@ -201,7 +202,7 @@ def ssim(img1, img2, window_size=11, window=None, size_average=True, full=False,
     else:
         l = val_range
 
-    padd = window_size//2
+    padd = window_size // 2
     (_, channel, height, width) = img1.size()
     if window is None:
         real_size = min(window_size, height, width)
@@ -250,6 +251,7 @@ class SSIMLoss(torch.nn.Module):
         self.window = create_window(window_size).cuda()
 
         self.lam = lam
+
     def forward(self, img1, img2):
         (_, channel, _, _) = img1.size()
 
@@ -260,9 +262,11 @@ class SSIMLoss(torch.nn.Module):
             self.window = window
             self.channel = channel
 
-        s_score, ssim_map = ssim(img1, img2, window=window, window_size=self.window_size, size_average=self.size_average)
+        s_score, ssim_map = ssim(img1, img2, window=window, window_size=self.window_size,
+                                 size_average=self.size_average)
         loss = (1.0 - s_score) * self.lam
         return loss
+
 
 @LOSS.register_module
 class FFTLoss(nn.Module):
@@ -302,6 +306,7 @@ class CSUMLoss(nn.Module):
             loss += torch.sum(instance) / (h * w) * self.lam
         return loss
 
+
 @LOSS.register_module
 class FFocalLoss(nn.Module):
     def __init__(self, lam=1, alpha=-1, gamma=4, reduction="mean"):
@@ -316,18 +321,19 @@ class FFocalLoss(nn.Module):
         targets = targets.float()
         ce_loss = F.binary_cross_entropy(inputs, targets, reduction="none")
         p_t = inputs * targets + (1 - inputs) * (1 - targets)
-        loss = ce_loss * ((1 - p_t) **  self.gamma)
+        loss = ce_loss * ((1 - p_t) ** self.gamma)
 
-        if  self.alpha >= 0:
-            alpha_t =  self.alpha * targets + (1 -  self.alpha) * (1 - targets)
+        if self.alpha >= 0:
+            alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
             loss = alpha_t * loss
 
-        if  self.reduction == "mean":
+        if self.reduction == "mean":
             loss = loss.mean() * self.lam
-        elif  self.reduction == "sum":
+        elif self.reduction == "sum":
             loss = loss.sum() * self.lam
 
         return loss
+
 
 @LOSS.register_module
 class SegmentCELoss(nn.Module):
@@ -337,7 +343,7 @@ class SegmentCELoss(nn.Module):
         self.weight = weight
 
     def forward(self, mask, pred):
-        bsz,_,h,w=pred.size()
+        bsz, _, h, w = pred.size()
         pred = pred.view(bsz, 2, -1)
         mask = mask.view(bsz, -1).long()
-        return self.criterion(pred,mask)
+        return self.criterion(pred, mask)

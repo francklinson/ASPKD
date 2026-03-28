@@ -23,8 +23,6 @@ except:
 from timm.layers.norm_act import convert_sync_batchnorm as TIMMSyncBN
 from timm.utils import dispatch_clip_grad
 
-# from . import TRAINER
-
 
 # @TRAINER.register_module
 class BaseTrainer():
@@ -41,8 +39,9 @@ class BaseTrainer():
         self.net.eval()
         log_msg(self.logger, f"==> Load checkpoint: {cfg.model.kwargs['checkpoint_path']}") if cfg.model.kwargs[
             'checkpoint_path'] else None
-        # 打印网络参数
-        # print_networks([self.net], torch.randn(self.cfg.fvcore_b, self.cfg.fvcore_c, self.cfg.size, self.cfg.size).cuda(), self.logger) if self.cfg.fvcore_is else None
+        print_networks([self.net],
+                       torch.randn(self.cfg.fvcore_b, self.cfg.fvcore_c, self.cfg.size, self.cfg.size).cuda(),
+                       self.logger) if self.cfg.fvcore_is else None
         self.dist_BN = cfg.trainer.dist_BN
         if cfg.dist and cfg.trainer.sync_BN != 'none':
             self.dist_BN = ''
@@ -236,8 +235,6 @@ class BaseTrainer():
         """
         pass
 
-
-
     def save_checkpoint(self):
         if self.master:
             checkpoint_info = {'net': trans_state_dict(self.net.state_dict(), dist=False),
@@ -265,4 +262,3 @@ class BaseTrainer():
             self.inference()
         else:
             raise NotImplementedError
-

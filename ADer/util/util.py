@@ -13,6 +13,7 @@ def t2np(tensor):
     '''pytorch tensor -> numpy array'''
     return tensor.cpu().data.numpy() if tensor is not None else None
 
+
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
@@ -33,14 +34,15 @@ def run_pre(cfg):
         s_times = 0
         while True:
             os.system('nvidia-smi -q -d Memory | grep -A4 GPU | grep Used > tmp')
-            memory_used = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
-            if memory_used[0] < 3000:
-                os.system('rm tmp')
-                break
-            else:
-                s_times += 1
-                time.sleep(1)
-                print('\rWaiting for {} s'.format(s_times), end='')
+            with  open('tmp', 'r') as f:
+                memory_used = [int(x.split()[2]) for x in f.readlines()]
+                if memory_used[0] < 3000:
+                    os.system('rm tmp')
+                    break
+                else:
+                    s_times += 1
+                    time.sleep(1)
+                    print('\rWaiting for {} s'.format(s_times), end='')
 
 
 def makedirs(dirs, exist_ok=False):
@@ -83,7 +85,8 @@ def init_checkpoint(cfg):
                 idx += 1
             cfg.logdir = '{}/{}'.format(cfg.trainer.checkpoint, logdir)
             os.makedirs(cfg.logdir, exist_ok=True)
-            shutil.copy(f"{cfg.cfg_path.replace('.', '/')}.py", '{}/{}.py'.format(cfg.logdir, cfg.cfg_path.split('.')[-1]))
+            shutil.copy(f"{cfg.cfg_path.replace('.', '/')}.py",
+                        '{}/{}.py'.format(cfg.logdir, cfg.cfg_path.split('.')[-1]))
         else:
             cfg.logdir = None
         cfg.trainer.iter, cfg.trainer.epoch = 0, 0
@@ -121,11 +124,12 @@ def log_cfg(cfg):
     for k, v in cfg_dict.items():
         if k in exclude_keys:
             continue
-        cfg_str += ('{' + ':<{}'.format(key_max_length) + '} : {' + ':<{}'.format(key_max_length) + '}').format(k, str(v))
+        cfg_str += ('{' + ':<{}'.format(key_max_length) + '} : {' + ':<{}'.format(key_max_length) + '}').format(k,
+                                                                                                                str(v))
         cfg_str += '\n'
     cfg_str = cfg_str.strip()
     cfg.cfg_dict, cfg.cfg_str = cfg_dict, cfg_str
-    # log_msg(cfg.logger, f'==> ********** cfg ********** \n{cfg.cfg_str}')
+    log_msg(cfg.logger, f'==> ********** cfg ********** \n{cfg.cfg_str}')
 
 
 def get_logger(cfg, mode='a+'):
@@ -140,8 +144,7 @@ def get_logger(cfg, mode='a+'):
 
 
 def start_show(logger):
-    if logger is not None:
-        logger.info('==> Start Show')
+    logger.info('==> Start show')
 
 
 def able(ret, mark=False, default=None):
@@ -188,7 +191,8 @@ class ProgressMeter(object):
         self.default_prefix = default_prefix
 
     def get_msg(self, iter, iter_full, epoch=None, epoch_full=None, prefix=None):
-        entries = [self.iter_fmtstr_iter.format(prefix if prefix else self.default_prefix, iter / iter_full * 100, iter, iter_full, epoch, epoch_full)]
+        entries = [self.iter_fmtstr_iter.format(prefix if prefix else self.default_prefix, iter / iter_full * 100, iter,
+                                                iter_full, epoch, epoch_full)]
         if epoch:
             entries += [self.iter_fmtstr_batch.format(epoch, epoch_full)]
         for meter in self.meters.values():
@@ -223,7 +227,9 @@ def accuracy(output, target, topk=(1,)):
     pred = pred.t()
     correct = pred.eq(target.reshape(1, -1).expand_as(pred))
     return [correct[:k].reshape(-1).float().sum(0) * 100. / batch_size for k in topk], [
-        correct[:k].reshape(-1).float().sum(0) for k in topk] + [batch_size]
+                                                                                           correct[:k].reshape(
+                                                                                               -1).float().sum(0) for k
+                                                                                           in topk] + [batch_size]
 
 
 def get_timepc():

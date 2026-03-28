@@ -1,5 +1,8 @@
-'''This Code is based on the FrEIA Framework, source: https://github.com/VLL-HD/FrEIA
-It is a assembly of the necessary modules/functions from FrEIA that are needed for our purposes.'''
+"""
+This Code is based on the FrEIA Framework, source: https://github.com/VLL-HD/FrEIA
+It is a assembly of the necessary modules/functions from FrEIA that are needed for our purposes.
+
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -19,11 +22,13 @@ class dummy_data:
         return self.dims
 
 
-class F_fully_connected(nn.Module):
-    '''Fully connected tranformation, not reversible, but used below.'''
+class FFullyConnected(nn.Module):
+    """
+    Fully connected tranformation, not reversible, but used below.
+    """
 
     def __init__(self, size_in, size, internal_size=None, dropout=0.0):
-        super(F_fully_connected, self).__init__()
+        super(FFullyConnected, self).__init__()
         if not internal_size:
             internal_size = 2 * size
 
@@ -50,11 +55,13 @@ class F_fully_connected(nn.Module):
         return out
 
 
-class permute_layer(nn.Module):
-    '''permutes input vector in a random but fixed way'''
+class PermuteLayer(nn.Module):
+    """
+    permutes input vector in a random but fixed way
+    """
 
     def __init__(self, dims_in, seed):
-        super(permute_layer, self).__init__()
+        super(PermuteLayer, self).__init__()
         self.in_channels = dims_in[0][0]
 
         np.random.seed(seed)
@@ -83,10 +90,10 @@ class permute_layer(nn.Module):
         return input_dims
 
 
-class glow_coupling_layer(nn.Module):
-    def __init__(self, dims_in, F_class=F_fully_connected, F_args={},
+class GlowCouplingLayer(nn.Module):
+    def __init__(self, dims_in, F_class=FFullyConnected, F_args={},
                  clamp=5.):
-        super(glow_coupling_layer, self).__init__()
+        super(GlowCouplingLayer, self).__init__()
         channels = dims_in[0][0]
         self.ndims = len(dims_in[0])
 
@@ -165,8 +172,9 @@ class glow_coupling_layer(nn.Module):
 
 
 class Node:
-    '''The Node class represents one transformation in the graph, with an
-    arbitrary number of in- and outputs.'''
+    """
+    The Node class represents one transformation in the graph, with an arbitrary number of in- and outputs.
+    """
 
     def __init__(self, inputs, module_type, module_args, name=None):
         self.inputs = inputs
@@ -187,10 +195,11 @@ class Node:
             exec('self.out{0} = (self, {0})'.format(i))
 
     def build_modules(self, verbose=VERBOSE):
-        ''' Returns a list with the dimension of each output of this node,
+        """
+        Returns a list with the dimension of each output of this node,
         recursively calling build_modules of the nodes connected to the input.
         Use this information to initialize the pytorch nn.Module of this node.
-        '''
+        """
 
         if not self.input_dims:  # Only do it if this hasn't been computed yet
             self.input_dims = [n.build_modules(verbose=verbose)[c]
@@ -214,13 +223,13 @@ class Node:
         return self.output_dims
 
     def run_forward(self, op_list):
-        '''Determine the order of operations needed to reach this node. Calls
+        """
+        Determine the order of operations needed to reach this node. Calls
         run_forward of parent nodes recursively. Each operation is appended to
         the global list op_list, in the form (node ID, input variable IDs,
-        output variable IDs)'''
-
+        output variable IDs)
+        """
         if not self.computed:
-
             # Compute all nodes which provide inputs, filter out the
             # channels you need
             self.input_vars = []
@@ -238,9 +247,11 @@ class Node:
         return self.computed
 
     def run_backward(self, op_list):
-        '''See run_forward, this is the same, only for the reverse computation.
+        """
+        See run_forward, this is the same, only for the reverse computation.
         Need to call run_forward first, otherwise this function will not
-        work'''
+        work
+        """
 
         assert len(self.outputs) > 0, "Call run_forward first"
         if not self.computed_rev:
@@ -261,8 +272,10 @@ class Node:
 
 
 class InputNode(Node):
-    '''Special type of node that represents the input data of the whole net (or
-    ouput when running reverse)'''
+    """
+    Special type of node that represents the input data of the whole net (or
+    ouput when running reverse)
+    """
 
     def __init__(self, *dims, name='node'):
         self.name = name
@@ -282,8 +295,10 @@ class InputNode(Node):
 
 
 class OutputNode(Node):
-    '''Special type of node that represents the output of the whole net (of the
-    input when running in reverse)'''
+    """
+    Special type of node that represents the output of the whole net (of the
+    input when running in reverse)
+    """
 
     class dummy(nn.Module):
 
@@ -296,7 +311,8 @@ class OutputNode(Node):
         def output_dims(*args):
             return args
 
-    def __init__(self, inputs, name='node'):
+    def __init__(self, inputs, module_type, module_args, name='node'):
+        super().__init__(inputs, module_type, module_args, name)
         self.module_type, self.module_args = self.dummy, {}
         self.output_dims = []
         self.inputs = inputs
@@ -313,14 +329,18 @@ class OutputNode(Node):
 
 
 class ReversibleGraphNet(nn.Module):
-    '''This class represents the invertible net itself. It is a subclass of
+    """
+    This class represents the invertible net itself. It is a subclass of
     torch.nn.Module and supports the same methods. The forward method has an
-    additional option 'rev', whith which the net can be computed in reverse.'''
+    additional option 'rev', whith which the net can be computed in reverse.
+    """
 
     def __init__(self, node_list, ind_in=None, ind_out=None, verbose=False):
-        '''node_list should be a list of all nodes involved, and ind_in,
+        """
+        node_list should be a list of all nodes involved, and ind_in,
         ind_out are the indexes of the special nodes InputNode and OutputNode
-        in this list.'''
+        in this list.
+        """
         super(ReversibleGraphNet, self).__init__()
 
         # Gather lists of input and output nodes
@@ -376,8 +396,10 @@ class ReversibleGraphNet(nn.Module):
         self.indexed_ops_rev = self.ops_to_indexed(ops_rev)
 
     def ops_to_indexed(self, ops):
-        '''Helper function to translate the list of variables (origin ID, channel),
-        to variable IDs.'''
+        """
+        Helper function to translate the list of variables (origin ID, channel),
+        to variable IDs.
+        """
         result = []
 
         for o in ops:
@@ -407,7 +429,9 @@ class ReversibleGraphNet(nn.Module):
         return result
 
     def forward(self, x, rev=False):
-        '''Forward or backward computation of the whole net.'''
+        """
+        Forward or backward computation of the whole net.
+        """
         if rev:
             use_list = self.indexed_ops_rev
             input_vars, output_vars = self.return_vars, self.input_vars
@@ -449,7 +473,9 @@ class ReversibleGraphNet(nn.Module):
             return out
 
     def jacobian(self, x=None, rev=False, run_forward=True):
-        '''Compute the jacobian determinant of the whole net.'''
+        """
+        Compute the jacobian determinant of the whole net.
+        """
         jacobian = 0
 
         if rev:

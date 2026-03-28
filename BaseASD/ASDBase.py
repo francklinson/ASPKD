@@ -15,17 +15,16 @@ class AnomalySoundDetectionBase(object):
         """
         检查输入的音频文件格式是否正确
         """
+        if input_file_path is None:
+            raise ValueError('input_file_path cannot be None')
         if not os.path.exists(input_file_path):
-            print("file not found!!: {}".format(input_file_path))
-            sys.exit(-1)
+            raise FileNotFoundError(f'File {input_file_path} not found.')
         # 确定是文件
         if not os.path.isfile(input_file_path):
-            print("not file!!: {}".format(input_file_path))
-            sys.exit(-1)
+            raise RuntimeError(f'{input_file_path} is not a file.')
         # 检查文件格式，只支持wav
         if not input_file_path.lower().endswith(".wav"):
-            print("file not wav!!: {}".format(input_file_path))
-            sys.exit(-1)
+            raise RuntimeError(f'{input_file_path} is not a wav file.')
 
     def predict(self, input_file_path):
         raise NotImplementedError("Need to implement predict function !!!")

@@ -5,20 +5,15 @@ from pathlib import Path
 from typing import List, Optional
 
 import submitit
-
-from dinov2.utils.cluster import (
-    get_slurm_executor_parameters,
-    get_slurm_partition,
-    get_user_checkpoint_path,
-)
+from ..utils.cluster import get_slurm_executor_parameters, get_slurm_partition, get_user_checkpoint_path
 
 logger = logging.getLogger("dinov2")
 
 
 def get_args_parser(
-    description: Optional[str] = None,
-    parents: Optional[List[argparse.ArgumentParser]] = None,
-    add_help: bool = True,
+        description: Optional[str] = None,
+        parents: Optional[List[argparse.ArgumentParser]] = None,
+        add_help: bool = True,
 ) -> argparse.ArgumentParser:
     parents = parents or []
     slurm_partition = get_slurm_partition()

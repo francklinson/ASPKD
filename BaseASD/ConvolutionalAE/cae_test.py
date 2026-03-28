@@ -122,7 +122,7 @@ def _test_file_list_generator(target_dir,
 
 if __name__ == "__main__":
     mode = "development"
-    target = "swp"
+    target = "spk"
     if mode is None:
         sys.exit(-1)
 

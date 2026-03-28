@@ -11,6 +11,7 @@ from .version import __version__
 
 try:
     from huggingface_hub import hf_hub_download
+
     hf_hub_download = partial(hf_hub_download, library_name="open_clip", library_version=__version__)
     _has_hf_hub = True
 except ImportError:
@@ -200,7 +201,6 @@ _coca_VITL14 = dict(
     mscoco_finetuned_laion2b_s13b_b90k=_pcfg(hf_hub='laion/mscoco_finetuned_CoCa-ViT-L-14-laion2B-s13B-b90k/')
 )
 
-
 _PRETRAINED = {
     "RN50": _RN50,
     "RN50-quickgelu": _RN50_quickgelu,
@@ -306,7 +306,8 @@ def download_pretrained_from_url(
             if hashlib.sha256(open(download_target, "rb").read()).hexdigest().startswith(expected_sha256):
                 return download_target
             else:
-                warnings.warn(f"{download_target} exists, but the SHA256 checksum does not match; re-downloading the file")
+                warnings.warn(
+                    f"{download_target} exists, but the SHA256 checksum does not match; re-downloading the file")
         else:
             return download_target
 
@@ -320,7 +321,8 @@ def download_pretrained_from_url(
                 output.write(buffer)
                 loop.update(len(buffer))
 
-    if expected_sha256 and not hashlib.sha256(open(download_target, "rb").read()).hexdigest().startswith(expected_sha256):
+    if expected_sha256 and not hashlib.sha256(open(download_target, "rb").read()).hexdigest().startswith(
+            expected_sha256):
         raise RuntimeError(f"Model has been downloaded but the SHA256 checksum does not not match")
 
     return download_target

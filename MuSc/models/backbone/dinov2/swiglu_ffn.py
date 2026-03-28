@@ -12,13 +12,13 @@ import torch.nn.functional as F
 
 class SwiGLUFFN(nn.Module):
     def __init__(
-            self,
-            in_features: int,
-            hidden_features: Optional[int] = None,
-            out_features: Optional[int] = None,
-            act_layer: Callable[..., nn.Module] = None,
-            drop: float = 0.0,
-            bias: bool = True,
+        self,
+        in_features: int,
+        hidden_features: Optional[int] = None,
+        out_features: Optional[int] = None,
+        act_layer: Callable[..., nn.Module] = None,
+        drop: float = 0.0,
+        bias: bool = True,
     ) -> None:
         super().__init__()
         out_features = out_features or in_features
@@ -44,13 +44,13 @@ except ImportError:
 
 class SwiGLUFFNFused(SwiGLU):
     def __init__(
-            self,
-            in_features: int,
-            hidden_features: Optional[int] = None,
-            out_features: Optional[int] = None,
-            act_layer: Callable[..., nn.Module] = None,
-            drop: float = 0.0,
-            bias: bool = True,
+        self,
+        in_features: int,
+        hidden_features: Optional[int] = None,
+        out_features: Optional[int] = None,
+        act_layer: Callable[..., nn.Module] = None,
+        drop: float = 0.0,
+        bias: bool = True,
     ) -> None:
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features

@@ -10,17 +10,17 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
-import BaseASD.AEGAN.emb_distance as EDIS
-from BaseASD.AEGAN.aegan_net import Discriminator, AEDC
-from BaseASD.AEGAN.datasets import SegSet, ClipSet
-from BaseASD.ASDBase import AnomalySoundDetectionBase
+import AnomalySoundDetection.BaseASD.AEGAN.emb_distance as EDIS
+from AnomalySoundDetection.BaseASD.AEGAN.aegan_net import Discriminator, AEDC
+from AnomalySoundDetection.BaseASD.AEGAN.datasets import SegSet, ClipSet
+from AnomalySoundDetection.BaseASD.ASDBase import AnomalySoundDetectionBase
 
 
 class AEGANInterface(AnomalySoundDetectionBase):
     def __init__(self):
         super(AEGANInterface, self).__init__()
         self.param = None
-        with open('BaseASD/AEGAN/config.yaml', encoding='utf-8') as fp:
+        with open('AnomalySoundDetection/BaseASD/AEGAN/config.yaml', encoding='utf-8') as fp:
             self.param = yaml.safe_load(fp)
         self.device = None
         if torch.cuda.is_available():
@@ -44,7 +44,7 @@ class AEGANInterface(AnomalySoundDetectionBase):
         """
         self.netD = Discriminator(self.param)
         self.netG = AEDC(self.param)
-        self.pth_file = torch.load(r"BaseASD/AEGAN/model/spk.pth", map_location=torch.device('cpu'), weights_only=False)
+        self.pth_file = torch.load(r"AnomalySoundDetection/AEGAN/model/spk.pth", map_location=torch.device('cpu'), weights_only=False)
         self.netD.load_state_dict(self.pth_file['netD'])
         self.netG.load_state_dict(self.pth_file['netG'])
         self.netD.to(self.device)
@@ -77,7 +77,7 @@ class AEGANInterface(AnomalySoundDetectionBase):
         mt = "spk"
         self.check_file_path(file_path)
         # 测试只使用一个文件，因此把测试文件挪到dataset/devdata/spk/test目录下，命名为anomaly_id_01_00000000.wav
-        self.param["dataset_dir"] = 'BaseASD/AEGAN/dataset'
+        self.param["dataset_dir"] = 'AnomalySoundDetection/AEGAN/dataset'
         target_dir = os.path.join(self.param["dataset_dir"], 'dev_data', mt, 'test')
         # 复制文件
         shutil.copy(file_path, target_dir)
@@ -101,7 +101,8 @@ class AEGANInterface(AnomalySoundDetectionBase):
         y_true_all, y_score_all = self.gan_test(te_ld, train_embs)
 
         # 计算完成后删除文件
-        os.remove(new_file_path)
+        if os.path.exists(new_file_path):
+            os.remove(new_file_path)
         return y_true_all, y_score_all
 
     def get_d_aver_emb(self, netD, train_set, device):

@@ -1,3 +1,6 @@
+"""
+定位缺陷位置
+"""
 import numpy as np
 from torch.autograd import Variable
 import config as c

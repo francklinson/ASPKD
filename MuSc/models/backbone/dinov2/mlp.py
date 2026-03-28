@@ -16,13 +16,13 @@ from torch import Tensor, nn
 
 class Mlp(nn.Module):
     def __init__(
-            self,
-            in_features: int,
-            hidden_features: Optional[int] = None,
-            out_features: Optional[int] = None,
-            act_layer: Callable[..., nn.Module] = nn.GELU,
-            drop: float = 0.0,
-            bias: bool = True,
+        self,
+        in_features: int,
+        hidden_features: Optional[int] = None,
+        out_features: Optional[int] = None,
+        act_layer: Callable[..., nn.Module] = nn.GELU,
+        drop: float = 0.0,
+        bias: bool = True,
     ) -> None:
         super().__init__()
         out_features = out_features or in_features

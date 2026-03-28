@@ -1,10 +1,9 @@
 import os
 import torch
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torchvision.transforms.functional import rotate
-import BaseASD.DifferNet.config as c
-from BaseASD.DifferNet.multi_transform_loader import ImageFolderMultiTransform
+import AnomalySoundDetection.BaseASD.DifferNet.config as c
+from AnomalySoundDetection.BaseASD.DifferNet.multi_transform_loader import ImageFolderMultiTransform
 
 
 def get_random_transforms():
@@ -36,17 +35,21 @@ def get_fixed_transforms(degrees):
 
 
 def t2np(tensor):
-    '''pytorch tensor -> numpy array'''
+    """
+    pytorch tensor -> numpy array
+    """
     return tensor.cpu().data.numpy() if tensor is not None else None
 
 
 def get_loss(z, jac):
-    '''check equation 4 of the paper why this makes sense - oh and just ignore the scaling here'''
+    """
+    check equation 4 of the paper why this makes sense - oh and just ignore the scaling here
+    """
     return torch.mean(0.5 * torch.sum(z ** 2, dim=(1,)) - jac) / z.shape[1]
 
 
 def load_datasets(dataset_path, class_name):
-    '''
+    """
     Expected folder/file format to find anomalies of class <class_name> from dataset location <dataset_path>:
 
     train data:
@@ -77,7 +80,7 @@ def load_datasets(dataset_path, class_name):
             dataset_path/class_name/test/curved/wont_make_a_difference_if_you_put_all_anomalies_in_one_class.png
             dataset_path/class_name/test/curved/but_this_code_is_practicable_for_the_mvtec_dataset.png
             [...]
-    '''
+    """
 
     def target_transform(target):
         return class_perm[target]
@@ -123,7 +126,7 @@ def load_datasets(dataset_path, class_name):
 
 def load_eval_dataset(dataset_path, class_name):
     """
-
+    Expected folder/file format to find anomalies of class <class_name> from dataset location <dataset_path>:
     """
     # data_dir_eval = os.path.join(dataset_path, class_name, 'eval')
     transform_train = get_random_transforms()
@@ -133,6 +136,9 @@ def load_eval_dataset(dataset_path, class_name):
 
 
 def make_dataloaders(trainset, testset):
+    """
+    构造dataloader
+    """
     trainloader = torch.utils.data.DataLoader(trainset, pin_memory=True, batch_size=c.batch_size, shuffle=True,
                                               drop_last=False)
     testloader = torch.utils.data.DataLoader(testset, pin_memory=True, batch_size=c.batch_size_test, shuffle=True,
@@ -141,7 +147,9 @@ def make_dataloaders(trainset, testset):
 
 
 def preprocess_batch(data):
-    '''move data to device and reshape image'''
+    """
+    move data to device and reshape image
+    """
     inputs, labels = data
     inputs, labels = inputs.to(c.device), labels.to(c.device)
     inputs = inputs.view(-1, *inputs.shape[-3:])

@@ -160,7 +160,7 @@ if __name__ == "__main__":
     # "evaluation": mode == False
     # mode, target = com.command_line_chk()
     mode = "development"
-    target = "swp"
+    target = "spk"
     if mode is None:
         sys.exit(-1)
 

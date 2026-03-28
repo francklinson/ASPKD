@@ -3,7 +3,7 @@ from typing import Callable, List, Optional
 import torch
 from torch import Tensor, nn
 
-from dinov3.utils import cat_keep_shapes, uncat_with_shapes
+from ..utils import cat_keep_shapes, uncat_with_shapes
 
 from .attention import CausalSelfAttention, SelfAttention
 from .ffn_layers import Mlp

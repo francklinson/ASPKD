@@ -150,18 +150,22 @@ class PredictDataset(torch.utils.data.Dataset):
         """
         img_to_pre_paths = []  # 用于存储待处理的图片路径列表
 
-        # 判断输入是单个文件
-        if os.path.isfile(input_img_pth):
-            img_to_pre_paths = [input_img_pth]  # 如果是单个文件，将其放入列表中
-        # 判断输入是目录
-        elif os.path.isdir(input_img_pth):
-            # 获取目录中所有.png、.JPG和.bmp格式的图片路径
-            img_to_pre_paths = glob.glob(os.path.join(input_img_pth, "*.png")) + \
-                               glob.glob(os.path.join(input_img_pth, "*.JPG")) + \
-                               glob.glob(os.path.join(input_img_pth, "*.bmp"))
         # 判断输入是列表
-        elif isinstance(input_img_pth, list):
+        if isinstance(input_img_pth, list):
             img_to_pre_paths = input_img_pth  # 如果是列表，直接使用
+
+        # 判断输入是单个文件
+        elif isinstance(input_img_pth, str):
+            if os.path.isfile(input_img_pth):
+                img_to_pre_paths = [input_img_pth]  # 如果是单个文件，将其放入列表中
+            # 判断输入是目录
+            elif os.path.isdir(input_img_pth):
+                # 获取目录中所有.png、.JPG和.bmp格式的图片路径
+                img_to_pre_paths = glob.glob(os.path.join(input_img_pth, "*.png")) + \
+                                   glob.glob(os.path.join(input_img_pth, "*.JPG")) + \
+                                   glob.glob(os.path.join(input_img_pth, "*.bmp")) + \
+                                   glob.glob(os.path.join(input_img_pth, "*.jpg")) + \
+                                   glob.glob(os.path.join(input_img_pth, "*.jpeg"))
         else:
             raise ValueError("input_img_pth should be a file path or a directory path!")  # 输入类型不符合要求时抛出异常
 
@@ -458,9 +462,10 @@ class MiniDataset(torch.utils.data.Dataset):
         try:
             img_path, label = self.img_paths[idx], self.labels[idx]
             img = Image.open(img_path).convert('RGB')
-        except:
+        except (FileNotFoundError, OSError) as e:
             img_path, label = self.img_paths[idx - 1], self.labels[idx - 1]
             img = Image.open(img_path).convert('RGB')
+            print(f'Error loading {img_path}: {e}')
         img = self.transform(img)
 
         return img, label

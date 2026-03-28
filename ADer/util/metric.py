@@ -156,7 +156,6 @@ class Evaluator(object):
                 print('predict pr_sp_mean', pr_sp_mean)
                 # draw_roc(gt_labels,pr_sp_mean)
 
-
             if metric.startswith('mAUROC_sp_max'):
                 auroc_sp = roc_auc_score(gt_sp, pr_sp_max)
                 metric_results[metric] = auroc_sp

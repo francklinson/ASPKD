@@ -36,7 +36,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_realnet):
 
 		# ==> data
 		self.data.type = 'Realnet'
-		self.data.root = 'data/mvtec'
+		self.data.root = 'data/spk'
 		self.data.meta = 'meta.json'
 		self.data.cls_names = []
 

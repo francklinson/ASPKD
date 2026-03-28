@@ -12,14 +12,14 @@ from torch.nn.utils import weight_norm
 
 class DINOHead(nn.Module):
     def __init__(
-            self,
-            in_dim,
-            out_dim,
-            use_bn=False,
-            nlayers=3,
-            hidden_dim=2048,
-            bottleneck_dim=256,
-            mlp_bias=True,
+        self,
+        in_dim,
+        out_dim,
+        use_bn=False,
+        nlayers=3,
+        hidden_dim=2048,
+        bottleneck_dim=256,
+        mlp_bias=True,
     ):
         super().__init__()
         nlayers = max(nlayers, 1)

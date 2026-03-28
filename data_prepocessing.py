@@ -81,7 +81,7 @@ def generate_ghost_ground_truth():
     生成幽灵 ground truth数据
     Returns:
     """
-    test_dir_list = ["data/spk/qzgy","data/spk/dk","data/spk/N32","data/spk/IP","data/spk/INF","data/spk/TRY"]
+    test_dir_list = ["data/spk/qzgy","data/spk/dk"]
     for test_dir in test_dir_list:
         for root, dirs, files in os.walk(os.path.join(test_dir, 'test')):
             # 只处理bad文件夹
@@ -361,20 +361,20 @@ if __name__ == '__main__':
     # plot_ghost_ground_truth()
     # convert_to_gray()
 
-    # p = Preprocessor(ref_file="ref/渡口片段10s.wav")
-    # # p = Preprocessor(ref_file="ref/青藏高原片段_10s.wav")
-    # # single
-    # # predict_file_list = [r"E:\异音检测\raw\手动录制\2\201P\TRY\split\bad\1.wav"]
-    #
-    # # batch
-    # predict_file_list = list()
-    # predict_dir = r"原始数据/标记后/manual_record/250721/SPK3200/N32/split/good"
-    # for root, dirs, files in os.walk(predict_dir):
-    #     for file in files:
-    #         if file.endswith(".wav"):
-    #             predict_file_list.append(os.path.join(root, file))
-    # p.process_audio(
-    #     file_list=predict_file_list,
-    #     save_dir="slice")
-    #
+    p = Preprocessor(ref_file="ref/渡口片段10s.wav")
+    # p = Preprocessor(ref_file="ref/青藏高原片段_10s.wav")
+    # single
+    # predict_file_list = [r"E:\异音检测\raw\手动录制\2\201P\TRY\split\bad\1.wav"]
+
+    # batch
+    predict_file_list = list()
+    predict_dir = r"原始数据/标记后/manual_record/250721/SPK3200/N32/split/good"
+    for root, dirs, files in os.walk(predict_dir):
+        for file in files:
+            if file.endswith(".wav"):
+                predict_file_list.append(os.path.join(root, file))
+    p.process_audio(
+        file_list=predict_file_list,
+        save_dir="slice")
+
     generate_ghost_ground_truth()

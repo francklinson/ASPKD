@@ -2,8 +2,8 @@ import glob
 import importlib
 import torch
 from torch.utils.data.distributed import DistributedSampler
-
 from ADer.util.registry import Registry
+from ADer.data.utils import get_transforms
 from timm.data.distributed_sampler import RepeatAugSampler
 
 TRANSFORMS = Registry('Transforms')
@@ -12,8 +12,6 @@ DATA = Registry('Data')
 files = glob.glob('ADer/data/[!_]*.py')
 for file in files:
     model_lib = importlib.import_module(file.split('.')[0].replace('/', '.'))
-
-from ADer.data.utils import get_transforms
 
 
 def get_dataset(cfg):

@@ -6,8 +6,8 @@ import torch
 import torch.nn.init
 from torch import Tensor, nn
 
-from dinov3.layers import LayerScale, Mlp, PatchEmbed, RMSNorm, RopePositionEmbedding, SelfAttentionBlock, SwiGLUFFN
-from dinov3.utils import named_apply
+from ..layers import LayerScale, Mlp, PatchEmbed, RMSNorm, RopePositionEmbedding, SelfAttentionBlock, SwiGLUFFN
+from ..utils import named_apply
 
 # 创建日志记录器
 logger = logging.getLogger("dinov3")

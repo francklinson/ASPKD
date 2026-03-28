@@ -9,11 +9,9 @@ import torch
 import torch.nn.functional as F
 import tqdm
 from torch.utils.tensorboard import SummaryWriter
-
 import copy
 from typing import List
 import scipy.ndimage as ndimage
-
 # import metrics
 # from utils import plot_segmentation_images
 from ADer.model import get_model
@@ -114,7 +112,7 @@ class RescaleSegmentor:
                 interpolated_features = []
                 for i_subbatch in range(int(features.shape[0] / subbatch_size + 1)):
                     subfeatures = features[i_subbatch * subbatch_size:(i_subbatch + 1) * subbatch_size]
-                    subfeatures = subfeatures.unsuqeeze(0) if len(subfeatures.shape) == 3 else subfeatures
+                    subfeatures = subfeatures.unsqueeze(0) if len(subfeatures.shape) == 3 else subfeatures
                     subfeatures = F.interpolate(
                         subfeatures, size=self.target_size, mode="bilinear", align_corners=False
                     )
@@ -297,7 +295,7 @@ class TBWrapper:
 
 
 class SimpleNet(torch.nn.Module):
-    def __init__(self, backbone,layers_to_extract_from=('layer2','layer3'),input_shape=(3,256,256),
+    def __init__(self, backbone, layers_to_extract_from=('layer2', 'layer3'), input_shape=(3, 256, 256),
                  pretrain_embed_dimension=1536,  # 1536
                  target_embed_dimension=1536,  # 1536
                  patchsize=3,  # 3
@@ -331,7 +329,7 @@ class SimpleNet(torch.nn.Module):
         feature_aggregator = NetworkFeatureAggregator(
             self.backbone, self.layers_to_extract_from, train_backbone)
         feature_dimensions = feature_aggregator.feature_dimensions(input_shape)
-        self.forward_modules["feature_aggregator"] =  feature_aggregator
+        self.forward_modules["feature_aggregator"] = feature_aggregator
 
         preprocessing = Preprocessing(
             feature_dimensions, pretrain_embed_dimension
@@ -397,7 +395,7 @@ class SimpleNet(torch.nn.Module):
             true_feats = self._embed(img, evaluation=False)[0]
 
         noise_idxs = torch.randint(0, self.mix_noise, torch.Size([true_feats.shape[0]]))
-        noise_one_hot = torch.nn.functional.one_hot(noise_idxs, num_classes=self.mix_noise).cuda() # (N, K)
+        noise_one_hot = torch.nn.functional.one_hot(noise_idxs, num_classes=self.mix_noise).cuda()  # (N, K)
         noise = torch.stack([
             torch.normal(0, self.noise_std * 1.1 ** (k), true_feats.shape)
             for k in range(self.mix_noise)], dim=1).cuda()  # (N, K, C)
@@ -802,9 +800,6 @@ class SimpleNet(torch.nn.Module):
             preds = np.stack(masks)
         return image_scores, preds
 
-
-
-
     @staticmethod
     def _params_file(filepath, prepend=""):
         return os.path.join(filepath, prepend + "params.pkl")
@@ -928,7 +923,8 @@ class SIMPLENET(torch.nn.Module):
         # self.net_proj = Projection(1536)
         # self.net_disc = Discriminator(in_planes=1536)
         self.model_backbone = get_model(model_backbone)
-        self.net_simplenet = SimpleNet(self.model_backbone,  layers_to_extract_from=layers_to_extract_from, input_shape=input_size)
+        self.net_simplenet = SimpleNet(self.model_backbone, layers_to_extract_from=layers_to_extract_from,
+                                       input_shape=input_size)
         # self.frozen_layers = ['net_backbone']
         self.frozen_layers = ['forward_modules']
 
@@ -949,7 +945,6 @@ class SIMPLENET(torch.nn.Module):
     def forward(self, imgs):
         true_loss, fake_loss = self.net_simplenet(imgs)
         return true_loss, fake_loss
-
 
 
 @MODEL.register_module

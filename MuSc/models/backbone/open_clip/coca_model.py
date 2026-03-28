@@ -137,7 +137,7 @@ class CoCa(nn.Module):
         return image_latent
 
     def _encode_text(self, text, normalize=True, embed_cls=True):
-        text = text[:, :-1] if embed_cls else text  # make space for CLS token
+        text = text[:, :-1] if embed_cls else text # make space for CLS token
         text_latent, token_emb = self.text(text)
         text_latent = F.normalize(text_latent, dim=-1) if normalize else text_latent
         return text_latent, token_emb
@@ -171,24 +171,24 @@ class CoCa(nn.Module):
         }
 
     def generate(
-            self,
-            image,
-            text=None,
-            seq_len=30,
-            max_seq_len=77,
-            temperature=1.,
-            generation_type="beam_search",
-            top_p=0.1,  # keep tokens in the 1 - top_p quantile
-            top_k=1,  # keeps the top_k most probable tokens
-            pad_token_id=None,
-            eos_token_id=None,
-            sot_token_id=None,
-            num_beams=6,
-            num_beam_groups=3,
-            min_seq_len=5,
-            stopping_criteria=None,
-            repetition_penalty=1.0,
-            fixed_output_length=False  # if True output.shape == (batch_size, seq_len)
+        self,
+        image,
+        text=None,
+        seq_len=30,
+        max_seq_len=77,
+        temperature=1.,
+        generation_type="beam_search",
+        top_p=0.1,  # keep tokens in the 1 - top_p quantile
+        top_k=1,  # keeps the top_k most probable tokens
+        pad_token_id=None,
+        eos_token_id=None,
+        sot_token_id=None,
+        num_beams=6,
+        num_beam_groups=3,
+        min_seq_len=5,
+        stopping_criteria=None,
+        repetition_penalty=1.0,
+        fixed_output_length=False # if True output.shape == (batch_size, seq_len)
     ):
         # taking many ideas and components from HuggingFace GenerationMixin
         # https://huggingface.co/docs/transformers/main/en/main_classes/text_generation
@@ -217,7 +217,7 @@ class CoCa(nn.Module):
 
             if generation_type == "beam_search":
                 output = self._generate_beamsearch(
-                    image_inputs=image,
+                    image_inputs = image,
                     pad_token_id=pad_token_id,
                     eos_token_id=eos_token_id,
                     sot_token_id=sot_token_id,
@@ -229,8 +229,7 @@ class CoCa(nn.Module):
                 )
                 if fixed_output_length and output.shape[1] < seq_len:
                     return torch.cat(
-                        (output, torch.ones(output.shape[0], seq_len - output.shape[1], device=device,
-                                            dtype=output.dtype) * self.pad_id),
+                        (output, torch.ones(output.shape[0], seq_len-output.shape[1], device=device, dtype=output.dtype) * self.pad_id),
                         dim=1
                     )
                 return output
@@ -263,8 +262,7 @@ class CoCa(nn.Module):
             while True:
                 x = out[:, -max_seq_len:]
                 cur_len = x.shape[1]
-                logits = self(image, x, image_latent=image_latent, image_embs=image_embs, embed_cls=False)["logits"][
-                    :, -1]
+                logits = self(image, x, image_latent=image_latent, image_embs=image_embs, embed_cls=False)["logits"][:, -1]
                 mask = (out[:, -1] == eos_token_id) | (out[:, -1] == pad_token_id)
                 sample = torch.ones((out.shape[0], 1), device=device, dtype=torch.long) * pad_token_id
 
@@ -420,8 +418,7 @@ class CoCa(nn.Module):
                 # (beam_idx // group_size) -> batch_idx
                 # (beam_idx % group_size) -> offset of idx inside the group
                 reordering_indices[batch_group_indices] = (
-                        num_beams * torch.div(beam_idx, group_size, rounding_mode="floor") + group_start_idx + (
-                            beam_idx % group_size)
+                    num_beams * torch.div(beam_idx, group_size, rounding_mode="floor") + group_start_idx + (beam_idx % group_size)
                 )
 
             input_ids = torch.cat([input_ids, current_tokens.unsqueeze(-1)], dim=-1)

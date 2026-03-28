@@ -625,5 +625,5 @@ def load_dinov3_model(model_name, layers_to_extract_from, weight_type=None, pret
     if pretrained_weight_path is not None:
         state_dict = torch.load(pretrained_weight_path, map_location="cpu")
         res = model.load_state_dict(state_dict, strict=True)
-        print(res)
+        # print(res)
     return model

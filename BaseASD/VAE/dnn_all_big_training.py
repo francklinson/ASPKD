@@ -58,9 +58,9 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data as data
 from sklearn import mixture
-from BaseASD.VAE.data import *
-from BaseASD.VAE.model import Autoencoder
-from BaseASD.VAE.common import yaml_load
+from AnomalySoundDetection.BaseASD.VAE.data import *
+from AnomalySoundDetection.BaseASD.VAE.model import Autoencoder
+from AnomalySoundDetection.BaseASD.VAE.common import yaml_load
 
 if torch.cuda.is_available:
     device = "cuda:0"
@@ -163,7 +163,7 @@ def calculation_latent(ty_pe, ID, data_path_train, data_path_test):
     optimizer.zero_grad()
     gmm = mixture.GaussianMixture()
     # 初始给一个大值
-    min_test_loss  = np.inf
+    min_test_loss = np.inf
     min_running_loss = np.inf
     for epoch in range(EPOCH_MAX):
         for phase in ['train', 'val', 'test']:
@@ -236,19 +236,19 @@ def calculation_latent(ty_pe, ID, data_path_train, data_path_test):
             # os.mkdir('clustering/' + ty_pe + '/epoch/' + str(epoch))  # 逐级创建
             os.makedirs('clustering/' + ty_pe + '/epoch/' + str(epoch))  # 一次创建到底
 
-        # np.save('clustering/' + ty_pe + '/epoch/' + str(epoch) + '/all_traning_latent' + ID, all_traning_latent)
-        # all_traning_latent = np.load('clustering/' + ty_pe + '/epoch/' + str(epoch) +
-        #                              '/all_traning_latent' + ID + '.npy')
-        # print('all_traning_latent.shape:', all_traning_latent.shape)
+        np.save('clustering/' + ty_pe + '/epoch/' + str(epoch) + '/all_traning_latent' + ID, all_traning_latent)
+        all_traning_latent = np.load('clustering/' + ty_pe + '/epoch/' + str(epoch) +
+                                     '/all_traning_latent' + ID + '.npy')
+        print('all_traning_latent.shape:', all_traning_latent.shape)
 
-        # np.save('clustering/' + ty_pe + '/epoch/' + str(epoch) + '/all_val_latent' + ID, all_val_latent)
-        # all_val_latent = np.load('clustering/' + ty_pe + '/epoch/' + str(epoch) + '/all_val_latent' + ID + '.npy')
-        # print('all_val_latent.shape:', all_val_latent.shape)
+        np.save('clustering/' + ty_pe + '/epoch/' + str(epoch) + '/all_val_latent' + ID, all_val_latent)
+        all_val_latent = np.load('clustering/' + ty_pe + '/epoch/' + str(epoch) + '/all_val_latent' + ID + '.npy')
+        print('all_val_latent.shape:', all_val_latent.shape)
 
-        # np.save('clustering/' + ty_pe + '/epoch/' + str(epoch) + '/all_test_latent' + ID, all_test_latent)
-        # all_test_latent = np.load('clustering/' + ty_pe + '/epoch/' + str(epoch) +
-        #                           '/all_test_latent' + ID + '.npy')
-        # print('all_test_latent.shape:', all_test_latent.shape)
+        np.save('clustering/' + ty_pe + '/epoch/' + str(epoch) + '/all_test_latent' + ID, all_test_latent)
+        all_test_latent = np.load('clustering/' + ty_pe + '/epoch/' + str(epoch) +
+                                  '/all_test_latent' + ID + '.npy')
+        print('all_test_latent.shape:', all_test_latent.shape)
 
         all_traning_latent = all_traning_latent.reshape(-1, 30)
         gmm.fit(all_traning_latent)
@@ -278,16 +278,16 @@ def calculation_latent(ty_pe, ID, data_path_train, data_path_test):
               % (epoch, float(running_loss), float(test_loss), float(kl_loss)))
 
         # 如果loss有减小，保存模型
-        if epoch % 5 ==0 :
+        if epoch % 5 == 0:
             if running_loss < min_running_loss and test_loss < min_test_loss:
                 min_running_loss = running_loss
                 min_test_loss = test_loss
-                torch.save(autoencoder.state_dict(), 'clustering/' + ty_pe + '/epoch/' + str(epoch) + '/autoencoder_' + ID + '.pth')
+                torch.save(autoencoder.state_dict(),
+                           'clustering/' + ty_pe + '/epoch/' + str(epoch) + '/autoencoder_' + ID + '.pth')
                 print('Model saved!')
 
 
-
 if __name__ == '__main__':
-    for ID in ['id_01']:
-        calculation_latent('swp', ID, data_path_dev, data_path_dev)
+    for ID in ['id_01', 'id_02', 'id_03', 'id_04']:
+        calculation_latent('spk', ID, data_path_dev, data_path_dev)
     print('Good Luck')

@@ -1,10 +1,10 @@
 import torch
 import torchvision.transforms as transforms
 from torchvision.datasets import DatasetFolder
-from torchvision.datasets.folder import make_dataset, pil_loader, default_loader, IMG_EXTENSIONS
+from torchvision.datasets.folder import make_dataset, default_loader, IMG_EXTENSIONS
 from torchvision.transforms.functional import rotate
 
-import BaseASD.DifferNet.config as c
+import AnomalySoundDetection.BaseASD.DifferNet.config as c
 
 
 def fixed_rotation(self, sample, degrees):
@@ -21,7 +21,8 @@ def fixed_rotation(self, sample, degrees):
 
 
 class DatasetFolderMultiTransform(DatasetFolder):
-    """Adapts class DatasetFolder of PyTorch in a way that one sample is transformed several times.
+    """
+    Adapts class DatasetFolder of PyTorch in a way that one sample is transformed several times.
     Args:
         n_transforms (int): number of transformations per sample
         all others: see torchvision.datasets.DatasetFolder
@@ -59,7 +60,8 @@ class DatasetFolderMultiTransform(DatasetFolder):
 
 
 class ImageFolderMultiTransform(DatasetFolderMultiTransform):
-    """Adapts class ImageFolder of PyTorch in a way that one sample can be transformed several times.
+    """
+    Adapts class ImageFolder of PyTorch in a way that one sample can be transformed several times.
     Args:
         n_transforms (int): number of transformations per sample
         all others: see ImageFolder

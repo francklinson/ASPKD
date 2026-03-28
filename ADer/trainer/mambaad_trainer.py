@@ -4,8 +4,15 @@ import shutil
 import time
 import tabulate
 import torch
+from ADer.util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
+from ADer.util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
+from ADer.util.net import get_loss_scaler, get_autocast, distribute_bn
+from ADer.optim.scheduler import get_scheduler
+from ADer.model import get_model
+from ADer.optim import get_optim
+from ADer.loss import get_loss_terms
+from ADer.util.metric import get_evaluator
 import numpy as np
-
 try:
     from apex import amp
     from apex.parallel import DistributedDataParallel as ApexDDP
@@ -16,14 +23,6 @@ except:
 from ._base_trainer import BaseTrainer
 from . import TRAINER
 from ADer.util.vis import vis_rgb_gt_amp
-from ADer.util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
-from ADer.util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
-from ADer.util.net import get_loss_scaler, get_autocast, distribute_bn
-from ADer.optim.scheduler import get_scheduler
-from ADer.model import get_model
-from ADer.optim import get_optim
-from ADer.loss import get_loss_terms
-from ADer.util.metric import get_evaluator
 
 
 @TRAINER.register_module
@@ -258,7 +257,7 @@ class MAMBAADTrainer(BaseTrainer):
                     cls_name_collector.append(test_data['cls_name'][idx])
                     anomaly_collector.append(test_data['anomaly'][idx])
                     img_path_collector.append(test_data['img_path'][idx])
-                    print("Inferencing: ", img_path_collector[-1])
+                    print("Inferencing: ",img_path_collector[-1])
             if not any_inf:
                 continue
             # 把new_test_data['img']、new_test_data['img_mask']、new_test_data['anomaly']都转成tensor数据

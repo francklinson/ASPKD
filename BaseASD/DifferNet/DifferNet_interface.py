@@ -1,14 +1,14 @@
 """
-外部调用接口，基于evaluate.py改写
+外部调用接口，基于differnet_evaluate.py改写
 """
 import librosa
 import numpy as np
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-from BaseASD.ASDBase import AnomalySoundDetectionBase
-from BaseASD.DifferNet.utils import *
-from BaseASD.DifferNet.model import load_weights
-from BaseASD.DifferNet.model import DifferNet
+from AnomalySoundDetection.BaseASD.ASDBase import AnomalySoundDetectionBase
+from AnomalySoundDetection.BaseASD.DifferNet.utils import *
+from AnomalySoundDetection.BaseASD.DifferNet.model import load_weights
+from AnomalySoundDetection.BaseASD.DifferNet.model import DifferNet
 from PIL import Image
 
 
@@ -19,7 +19,7 @@ class DifferNetInterface(AnomalySoundDetectionBase):
         self.model_name = model_name
         self.load_model()
         self.anomaly_threshold = 1
-        self.eval_dir = os.path.join("BaseASD", "DifferNet", "eval", self.model_name)
+        self.eval_dir = os.path.join("AnomalySoundDetection", "DifferNet", "eval", self.model_name)
         # 清空eval文件夹，删除已有文件
         self.clear_eval_dir()
 

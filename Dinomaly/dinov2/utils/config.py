@@ -4,10 +4,10 @@ import os
 
 from omegaconf import OmegaConf
 
-import dinov2.distributed as distributed
-from dinov2.configs import dinov2_default_config
-from dinov2.logging import setup_logging
-from dinov2.utils import utils
+from ..distributed import Distributed
+from ..configs import dinov2_default_config
+from ..logging import setup_logging
+from ..utils import utils
 
 logger = logging.getLogger("dinov2")
 
@@ -16,7 +16,7 @@ def apply_scaling_rules_to_cfg(cfg):  # to fix
     if cfg.optim.scaling_rule == "sqrt_wrt_1024":
         base_lr = cfg.optim.base_lr
         cfg.optim.lr = base_lr
-        cfg.optim.lr *= math.sqrt(cfg.train.batch_size_per_gpu * distributed.get_global_size() / 1024.0)
+        cfg.optim.lr *= math.sqrt(cfg.train.batch_size_per_gpu * Distributed.get_global_size() / 1024.0)
         logger.info(f"sqrt scaling learning rate; base: {base_lr}, new: {cfg.optim.lr}")
     else:
         raise NotImplementedError
@@ -41,9 +41,9 @@ def get_cfg_from_args(args):
 
 
 def default_setup(args):
-    distributed.enable(overwrite=True)
+    Distributed.enable(overwrite=True)
     seed = getattr(args, "seed", 0)
-    rank = distributed.get_global_rank()
+    rank = Distributed.get_global_rank()
 
     global logger
     setup_logging(output=args.output_dir, level=logging.INFO)

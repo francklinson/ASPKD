@@ -18,7 +18,8 @@ import torch.nn as nn
 import torch.utils.checkpoint
 from torch.nn.init import trunc_normal_
 
-from models.backbone.dinov2 import Mlp, PatchEmbed, SwiGLUFFNFused, MemEffAttention, NestedTensorBlock as Block
+from MuSc.models.backbone.dinov2 import Mlp, PatchEmbed, SwiGLUFFNFused, MemEffAttention, NestedTensorBlock as Block
+
 
 logger = logging.getLogger("dinov2")
 
@@ -43,25 +44,25 @@ class BlockChunk(nn.ModuleList):
 
 class DinoVisionTransformer(nn.Module):
     def __init__(
-            self,
-            img_size=224,
-            patch_size=16,
-            in_chans=3,
-            embed_dim=768,
-            depth=12,
-            num_heads=12,
-            mlp_ratio=4.0,
-            qkv_bias=True,
-            ffn_bias=True,
-            proj_bias=True,
-            drop_path_rate=0.0,
-            drop_path_uniform=False,
-            init_values=None,  # for layerscale: None or 0 => no layerscale
-            embed_layer=PatchEmbed,
-            act_layer=nn.GELU,
-            block_fn=Block,
-            ffn_layer="mlp",
-            block_chunks=1,
+        self,
+        img_size=224,
+        patch_size=16,
+        in_chans=3,
+        embed_dim=768,
+        depth=12,
+        num_heads=12,
+        mlp_ratio=4.0,
+        qkv_bias=True,
+        ffn_bias=True,
+        proj_bias=True,
+        drop_path_rate=0.0,
+        drop_path_uniform=False,
+        init_values=None,  # for layerscale: None or 0 => no layerscale
+        embed_layer=PatchEmbed,
+        act_layer=nn.GELU,
+        block_fn=Block,
+        ffn_layer="mlp",
+        block_chunks=1,
     ):
         """
         Args:
@@ -143,7 +144,7 @@ class DinoVisionTransformer(nn.Module):
             chunksize = depth // block_chunks
             for i in range(0, depth, chunksize):
                 # this is to keep the block index consistent if we chunk the block list
-                chunked_blocks.append([nn.Identity()] * i + blocks_list[i: i + chunksize])
+                chunked_blocks.append([nn.Identity()] * i + blocks_list[i : i + chunksize])
             self.blocks = nn.ModuleList([BlockChunk(p) for p in chunked_blocks])
         else:
             self.chunked_blocks = False
@@ -248,7 +249,8 @@ class DinoVisionTransformer(nn.Module):
 
     def _get_intermediate_layers_chunked(self, x, n=1):
         x = self.prepare_tokens_with_masks(x)
-        output, i, total_block_len = [], 0, len(self.blocks[-1])
+        total_block_len = len(self.blocks[-1]) if self.blocks else 0
+        output, i = [], 0
         # If n is an int, take the n last blocks. If it's a list, take them
         blocks_to_take = range(total_block_len - n, total_block_len) if isinstance(n, int) else n
         for block_chunk in self.blocks:
@@ -261,12 +263,12 @@ class DinoVisionTransformer(nn.Module):
         return output
 
     def get_intermediate_layers(
-            self,
-            x: torch.Tensor,
-            n: Union[int, Sequence] = 1,  # Layers or n last layers to take
-            reshape: bool = False,
-            return_class_token: bool = False,
-            norm=True,
+        self,
+        x: torch.Tensor,
+        n: Union[int, Sequence] = 1,  # Layers or n last layers to take
+        reshape: bool = False,
+        return_class_token: bool = False,
+        norm=True,
     ) -> Tuple[Union[torch.Tensor, Tuple[torch.Tensor]]]:
         if self.chunked_blocks:
             outputs = self._get_intermediate_layers_chunked(x, n)

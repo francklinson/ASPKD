@@ -11,15 +11,15 @@ from typing import Any, Dict, Optional, Tuple, Union
 import torch
 
 from .constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
-from .model import CLIP, CustomTextCLIP, convert_weights_to_lp, convert_to_custom_text_state_dict, \
+from .model import CLIP, CustomTextCLIP, convert_weights_to_lp, convert_to_custom_text_state_dict,\
     resize_pos_embed, get_cast_dtype
 from .coca_model import CoCa
 from .loss import ClipLoss, DistillClipLoss, CoCaLoss
 from .openai import load_openai_model
-from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrained, list_pretrained_tags_by_model, \
-    download_pretrained_from_hf
+from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrained, list_pretrained_tags_by_model, download_pretrained_from_hf
 from .transform import image_transform, AugmentationCfg
 from .tokenizer import HFTokenizer, tokenize
+
 
 HF_HUB_PREFIX = 'hf-hub:'
 _MODEL_CONFIG_PATHS = [Path(__file__).parent / f"model_configs/"]
@@ -242,7 +242,6 @@ def create_model(
             pretrained_cfg = get_pretrained_cfg(model_name, pretrained)
             if pretrained_cfg:
                 checkpoint_path = download_pretrained(pretrained_cfg, cache_dir=cache_dir)
-                print(checkpoint_path)
             elif os.path.exists(pretrained):
                 checkpoint_path = pretrained
 

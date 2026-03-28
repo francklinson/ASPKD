@@ -9,13 +9,13 @@ from typing import List, Optional
 import torch
 from torch.nn.functional import one_hot, softmax
 
-import dinov2.distributed as distributed
-from dinov2.data import SamplerType, make_data_loader, make_dataset
-from dinov2.data.transforms import make_classification_eval_transform
-from dinov2.eval.metrics import AccuracyAveraging, build_topk_accuracy_metric
-from dinov2.eval.setup import get_args_parser as get_setup_args_parser
-from dinov2.eval.setup import setup_and_build_model
-from dinov2.eval.utils import ModelWithNormalize, evaluate, extract_features
+from  ..distributed import Distributed
+from ..data import SamplerType, make_data_loader, make_dataset
+from ..data.transforms import make_classification_eval_transform
+from ..eval.metrics import AccuracyAveraging, build_topk_accuracy_metric
+from ..eval.setup import get_args_parser as get_setup_args_parser
+from ..eval.setup import setup_and_build_model
+from ..eval.utils import ModelWithNormalize, evaluate, extract_features
 
 logger = logging.getLogger("dinov2")
 
@@ -103,8 +103,8 @@ class KnnModule(torch.nn.Module):
     def __init__(self, train_features, train_labels, nb_knn, T, device, num_classes=1000):
         super().__init__()
 
-        self.global_rank = distributed.get_global_rank()
-        self.global_size = distributed.get_global_size()
+        self.global_rank = Distributed.get_global_rank()
+        self.global_size = Distributed.get_global_size()
 
         self.device = device
         self.train_features_rank_T = train_features.chunk(self.global_size)[self.global_rank].T.to(self.device)
@@ -352,7 +352,7 @@ def eval_knn_with_model(
         )
 
     results_dict = {}
-    if distributed.is_main_process():
+    if Distributed.is_main_process():
         for knn_ in results_dict_knn.keys():
             top1 = results_dict_knn[knn_]["top-1"].item() * 100.0
             top5 = results_dict_knn[knn_]["top-5"].item() * 100.0
@@ -365,7 +365,7 @@ def eval_knn_with_model(
         for k, v in results_dict.items():
             f.write(json.dumps({k: v}) + "\n")
 
-    if distributed.is_enabled():
+    if Distributed.is_enabled():
         torch.distributed.barrier()
     return results_dict
 

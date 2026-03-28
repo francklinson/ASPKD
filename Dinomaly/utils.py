@@ -3,7 +3,7 @@ import os
 import pickle
 from functools import partial
 from statistics import mean
-
+import secrets
 import cv2
 import numpy as np
 import pandas as pd
@@ -16,6 +16,14 @@ from sklearn.metrics import roc_auc_score, precision_recall_curve, \
     average_precision_score
 from torch.nn import functional as F
 from torch.optim.lr_scheduler import _LRScheduler
+
+import random
+import string
+
+
+def generate_random_string(length=4):
+    letters = string.ascii_letters + string.digits  # 字母和数字
+    return ''.join(random.choice(letters) for _ in range(length))
 
 
 def modify_grad(x, inds, factor=0.):
@@ -1026,6 +1034,7 @@ def visualize(model, dataloader, device, _class_='None', save_name='save'):
                 cv2.imwrite(save_dir_class + '/' + name + '_gt.png', mask)
     return
 
+
 def visualize_when_predict(model, dataloader, device, _class_='None', save_name='save'):
     """
     可视化模型预测结果并保存图像，在预测阶段使用，没有gt和label
@@ -1045,6 +1054,7 @@ def visualize_when_predict(model, dataloader, device, _class_='None', save_name=
     gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(device)  # 获取高斯核并移动到指定设备
 
     with torch.no_grad():  # 禁用梯度计算
+        save_img_path_list = []
         for img, img_path in dataloader:  # 遍历数据加载器
             img = img.to(device)  # 将图像移动到指定设备
             output = model(img)  # 获取模型输出
@@ -1071,11 +1081,20 @@ def visualize_when_predict(model, dataloader, device, _class_='None', save_name=
                 if not os.path.exists(save_dir_class):
                     os.mkdir(save_dir_class)
                 # 生成文件名
-                name = img_path[i].split(os.sep)[-1].replace('.png', '')
+                # name = img_path[i].split(os.sep)[-1].replace('.png', '')
+                name = os.path.splitext(os.path.basename(img_path[i]))[0]
+
                 # 保存原始图像、热力图和真实掩码
-                cv2.imwrite(save_dir_class + os.sep + name + '_img.png', im)
-                cv2.imwrite(save_dir_class + os.sep + name + '_cam.png', hm_on_img)
-    return
+                # cv2.imwrite(save_dir_class + os.sep + name + '_img.png', im)
+                save_img_path = os.path.join(save_dir_class, name + '_heatmap.png')
+                print("save img to ", save_img_path)
+
+                # 注意处理中文字符异常问题
+                # cv2.imwrite(save_img_path, hm_on_img)
+                cv2.imencode('.png', hm_on_img)[1].tofile(save_img_path)
+
+                save_img_path_list.append(save_img_path)
+    return save_img_path_list
 
 
 def visualize_noseg(model, dataloader, device, _class_='None', save_name='save'):
@@ -1116,7 +1135,8 @@ def visualize_noseg(model, dataloader, device, _class_='None', save_name='save')
             if not os.path.exists(save_dir_class):  # 如果目录不存在，则创建
                 os.mkdir(save_dir_class)
             # 从图像路径中提取名称，用于保存文件
-            name = img_path[0].split('/')[-2] + '_' + img_path[0].split('/')[-1].replace('.png', '')
+            # name = img_path[0].split('/')[-2] + '_' + img_path[0].split('/')[-1].replace('.png', '')
+            name = os.path.splitext(os.path.basename(img_path))[0]
             # 保存热力图和叠加热力图的图像
             cv2.imwrite(save_dir_class + '/' + name + '_seg.png', heatmap)
             cv2.imwrite(save_dir_class + '/' + name + '_cam.png', hm_on_img)

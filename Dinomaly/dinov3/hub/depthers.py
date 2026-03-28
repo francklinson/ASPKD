@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Optional, Tuple
 
 import torch
-from dinov3.eval.dense.depth.models import build_depther
+from ..eval.dense.depth.models import build_depther
 from urllib.parse import urlparse
 from pathlib import Path
 

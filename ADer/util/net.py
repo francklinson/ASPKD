@@ -11,12 +11,10 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import math
 import time
-
 try:
     from collections.abc import Iterable
 except ImportError:
     from collections import Iterable
-
 from timm.utils.agc import adaptive_clip_grad
 from ADer.util.util import log_msg
 from fvcore.nn import FlopCountAnalysis, flop_count_table

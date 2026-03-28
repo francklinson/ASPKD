@@ -1,8 +1,5 @@
 """
-This is the repo which contains the original code to the WACV 2021 paper
-"Same Same But DifferNet: Semi-Supervised Defect Detection with Normalizing Flows"
-by Marco Rudolph, Bastian Wandt and Bodo Rosenhahn.
-For further information contact Marco Rudolph (rudolph@tnt.uni-hannover.de)
+原项目主函数
 """
 
 import config as c

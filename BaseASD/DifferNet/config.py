@@ -1,6 +1,5 @@
 """
-This file configures the training procedure because handling arguments in every single function is so exhaustive for
-research purposes. Don't try this code if you are a software engineer.
+配置文件
 """
 
 # device settings
@@ -13,9 +12,9 @@ torch.cuda.set_device(0)
 # dataset_path = "dummy_dataset"
 # class_name = "dummy_class"
 # modelname = "dummy_test"
-dataset_path = "/data/mvtec"
-class_name = "bottle"
-modelname = "bottle"
+dataset_path = r"C:\data\mvtec_anomaly_detection"
+class_name = "32k"
+modelname = "32k"
 
 img_size = (1024, 768)
 # img_size = (900, 900)

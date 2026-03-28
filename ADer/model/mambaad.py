@@ -1,8 +1,12 @@
+import torch
+import torch.nn as nn
 try:
     from torch.hub import load_state_dict_from_url
 except ImportError:
     from torch.utils.model_zoo import load_url as load_state_dict_from_url
 from timm.models.resnet import Bottleneck
+from ADer.model import get_model
+from ADer.model import MODEL
 import math
 from functools import partial
 from typing import Optional, Callable
@@ -16,8 +20,6 @@ from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_
 import numpy as np
 from hilbert import decode, encode
 from pyzorder import ZOrderIndexer
-from ADer.model import get_model
-from ADer.model import MODEL
 
 
 # ========== Decoder ==========

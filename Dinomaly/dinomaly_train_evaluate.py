@@ -122,6 +122,18 @@ class DinomalyBaseTrainer:
             total_iters=total_iters, warmup_iters=warmup_iters
         )
 
+    @staticmethod
+    def find_first_greater_than(sequence, thresholds):
+        results = {}
+        for threshold in thresholds:
+            index = -1
+            for i, num in enumerate(sequence):
+                if num > threshold:
+                    index = i
+                    break
+            results[threshold] = index
+        return results
+
     def evaluate_model(self, item_list, test_data_list, batch_size=16):
         """评估模型"""
         auroc_sp_list, ap_sp_list, f1_sp_list, gt_sp_list, pr_sp_list = [], [], [], [], []
@@ -130,7 +142,7 @@ class DinomalyBaseTrainer:
             test_dataloader = torch.utils.data.DataLoader(
                 test_data, batch_size=batch_size, shuffle=False, num_workers=4
             )
-            results = evaluation_batch(self.model, test_dataloader, self.device, max_ratio=0.01, resize_mask=256)
+            results = evaluation_batch(self.model, test_dataloader, self.device, max_ratio=0.005, resize_mask=256)
             auroc_sp, ap_sp, f1_sp, gt_sp, pr_sp = results
 
             auroc_sp_list.append(auroc_sp)
@@ -149,10 +161,22 @@ class DinomalyBaseTrainer:
         print("tpr: ", tpr)
         print("thresholds: ", thresholds)
         print("AUROC: ", metrics.auc(fpr, tpr))
+        # 计算第一个fpr>0.05的点
+        targets = [0.005, 0.01, 0.05]
+        inds = self.find_first_greater_than(fpr, targets)
+
+        print(
+            f"When threshold= {thresholds[inds[0.005]]}, we have fpr= {fpr[inds[0.005]]} and tpr= {tpr[inds[0.005]]} !")
+        print(f"When threshold= {thresholds[inds[0.01]]}, we have fpr= {fpr[inds[0.01]]} and tpr= {tpr[inds[0.01]]} !")
+        print(f"When threshold= {thresholds[inds[0.05]]}, we have fpr= {fpr[inds[0.05]]} and tpr= {tpr[inds[0.05]]} !")
+
         # 绘制ROC曲线
         plt.plot(fpr, tpr)
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
+        plt.xlim((-0.01, 0.05))
+        plt.ylim((0.7, 1))
+        plt.grid(True)
         plt.title('ROC Curve')
         # 保存
         plt.savefig('roc_curve.png')
@@ -282,7 +306,7 @@ class DinomalyV2Trainer(DinomalyBaseTrainer):
                 loss_list.append(loss.item())
                 scheduler.step()
 
-                if (it + 1) % 50 == 0:
+                if (it + 1) % 1000 == 0:
                     self.logger.info("Begin model eval!!!")
                     self.evaluate_model(item_list, test_data_list, batch_size)
                     for item, test_data in zip(item_list, test_data_list):
@@ -357,7 +381,7 @@ class DinomalyV3Trainer(DinomalyBaseTrainer):
         self.trainable = nn.ModuleList([bottleneck, decoder])
         self.initialize_weights()
 
-    def train(self, item_list, data_path, save_dir, total_iters=10000, batch_size=16,
+    def train(self, item_list, data_path, save_dir, total_iters=10000, batch_size=8,
               image_size=512, crop_size=448):
         """训练模型"""
 
@@ -399,7 +423,7 @@ class DinomalyV3Trainer(DinomalyBaseTrainer):
                 loss_list.append(loss.item())
                 scheduler.step()
 
-                if (it + 1) % 50 == 0:
+                if (it + 1) % 1000 == 0:
                     self.logger.info("Begin model eval!!!")
                     self.evaluate_model(item_list, test_data_list, batch_size)
 
@@ -423,7 +447,7 @@ class DinomalyV3Trainer(DinomalyBaseTrainer):
             self.logger.info(f'iter [{it}/{total_iters}], loss:{np.mean(loss_list):.4f}')
         self.save_model(save_dir=save_dir, save_name="dinomaly_dinov3", item_list=item_list, total_iters=total_iters)
 
-    def evaluate(self, model_path, item_list, data_path, batch_size=16,
+    def evaluate(self, model_path, item_list, data_path, batch_size=8,
                  image_size=512, crop_size=448):
         """评估模型"""
         data_transform, gt_transform = get_data_transforms(image_size, crop_size)
@@ -439,33 +463,33 @@ class DinomalyV3Trainer(DinomalyBaseTrainer):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--data_path', type=str, default='../data/mvtec')
+    parser.add_argument('--data_path', type=str, default='/mnt/test/scripts/asd_for_spk/data/spk_260123/')
     parser.add_argument('--save_dir', type=str, default='./saved_results')
     parser.add_argument('--save_name', type=str, default='vitill_mvtec_uni')
     args = parser.parse_args()
 
-    item_list = ['carpet', 'grid']
+    item_list = ['dk', 'qzgy']
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     logger = get_logger(args.save_name, args.save_dir)
 
     # 创建并训练DinoV2模型
-    dinomaly_v2 = DinomalyV2Trainer(model_size="small", device=device)
-    dinomaly_v2.logger = logger
+    # dinomaly_v2 = DinomalyV2Trainer(model_size="small", device=device)
+    # dinomaly_v2.logger = logger
 
     # 训练
-    # dinomaly_v2.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=100)
+    # dinomaly_v2.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=10000)
 
     # 评估
-    model_path = "saved_results/dinomaly_dinov2_small_carpet_grid_epoch_500_Sat Dec 20 19:52:36 2025.pth"
-    dinomaly_v2.evaluate(model_path, item_list, args.data_path)
+    # model_path = "/mnt/test/scripts/asd_for_spk/Dinomaly/saved_results/dinomaly_dinov2_small_dk_22050_qzgy_22050_epoch_10000_Mon Jan  5 19:59:12 2026.pth"
+    # dinomaly_v2.evaluate(model_path, item_list, args.data_path)
 
     # 创建并训练DinoV3模型
-    dinomaly_v3 = DinomalyV3Trainer(model_size="small", device=device)
+    dinomaly_v3 = DinomalyV3Trainer(model_size="large", device=device)
     dinomaly_v3.logger = logger
 
     # 训练
-    # dinomaly_v3.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=100)
+    dinomaly_v3.train(item_list, args.data_path, save_dir=args.save_dir, total_iters=20000)
 
     # 评估
-    model_path = "saved_results/dinomaly_dinov3_small_carpet_grid_epoch_500_Sat Dec 20 19:55:45 2025.pth"
-    dinomaly_v3.evaluate(model_path, item_list, args.data_path)
+    # model_path = "/mnt/test/scripts/asd_for_spk/Dinomaly/saved_results/dinomaly_dinov3_small_dk_22050_qzgy_22050_epoch_10000_Mon Jan  5 20:46:05 2026.pth"
+    # dinomaly_v3.evaluate(model_path, item_list, args.data_path)

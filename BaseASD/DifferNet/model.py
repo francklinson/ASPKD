@@ -1,12 +1,11 @@
-import numpy as np
 import os
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torchvision.models import alexnet
 
-import BaseASD.DifferNet.config as c
-from BaseASD.DifferNet.freia_funcs import permute_layer, glow_coupling_layer, F_fully_connected, \
+import AnomalySoundDetection.BaseASD.DifferNet.config as c
+from AnomalySoundDetection.BaseASD.DifferNet.freia_funcs import PermuteLayer, GlowCouplingLayer, FFullyConnected, \
     ReversibleGraphNet, OutputNode, InputNode, Node
 
 # 获取当前文件路径
@@ -20,9 +19,9 @@ def nf_head(input_dim=c.n_feat):
     nodes = list()
     nodes.append(InputNode(input_dim, name='input'))
     for k in range(c.n_coupling_blocks):
-        nodes.append(Node([nodes[-1].out0], permute_layer, {'seed': k}, name=F'permute_{k}'))
-        nodes.append(Node([nodes[-1].out0], glow_coupling_layer,
-                          {'clamp': c.clamp_alpha, 'F_class': F_fully_connected,
+        nodes.append(Node([nodes[-1].out0], PermuteLayer, {'seed': k}, name=F'permute_{k}'))
+        nodes.append(Node([nodes[-1].out0], GlowCouplingLayer,
+                          {'clamp': c.clamp_alpha, 'F_class': FFullyConnected,
                            'F_args': {'internal_size': c.fc_internal, 'dropout': c.dropout}},
                           name=F'fc_{k}'))
     nodes.append(OutputNode([nodes[-1].out0], name='output'))

@@ -99,7 +99,7 @@ def file_list_generator(target_dir,
 
 if __name__ == "__main__":
     mode = "development"
-    target = "swp"
+    target = "spk"
     if mode is None:
         sys.exit(-1)
 
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         scaler_file_path = "{scalers}/{machine_type}".format(scalers=param["scalers_directory"],
                                                              machine_type=machine_type)
         scaler_file_path = os.path.abspath(scaler_file_path)
-        # scaler = load(scaler_file_path + "/scaler_{machine_type}.bin".format(machine_type=machine_type))
+        scaler = load(scaler_file_path + "/scaler_{machine_type}.bin".format(machine_type=machine_type))
 
         # generate features
         print("============== FEATURES_GENERATOR ==============")

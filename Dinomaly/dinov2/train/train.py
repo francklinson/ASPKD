@@ -7,14 +7,14 @@ from functools import partial
 import torch
 from fvcore.common.checkpoint import PeriodicCheckpointer
 
-import dinov2.distributed as distributed
-from dinov2.data import SamplerType, make_data_loader, make_dataset
-from dinov2.data import collate_data_and_cast, DataAugmentationDINO, MaskingGenerator
-from dinov2.fsdp import FSDPCheckpointer
-from dinov2.logging import MetricLogger
-from dinov2.train.ssl_meta_arch import SSLMetaArch
-from dinov2.utils.config import setup
-from dinov2.utils.utils import CosineScheduler
+from ..distributed import Distributed
+from ..data import SamplerType, make_data_loader, make_dataset
+from ..data import collate_data_and_cast, DataAugmentationDINO, MaskingGenerator
+from ..fsdp import FSDPCheckpointer
+from ..logging import MetricLogger
+from ..train.ssl_meta_arch import SSLMetaArch
+from ..utils.config import setup
+from ..utils.utils import CosineScheduler
 
 torch.backends.cuda.matmul.allow_tf32 = True  # PyTorch 1.12 sets this to False by default
 logger = logging.getLogger("dinov2")
@@ -115,7 +115,7 @@ def apply_optim_scheduler(optimizer, lr, wd, last_layer_lr):
 def do_test(cfg, model, iteration):
     new_state_dict = model.teacher.state_dict()
 
-    if distributed.is_main_process():
+    if Distributed.is_main_process():
         iterstring = str(iteration)
         eval_dir = os.path.join(cfg.train.output_dir, "eval", iterstring)
         os.makedirs(eval_dir, exist_ok=True)
@@ -258,10 +258,10 @@ def do_train(cfg, model, resume=False):
 
         # logging
 
-        if distributed.get_global_size() > 1:
+        if Distributed.get_global_size() > 1:
             for v in loss_dict.values():
                 torch.distributed.all_reduce(v)
-        loss_dict_reduced = {k: v.item() / distributed.get_global_size() for k, v in loss_dict.items()}
+        loss_dict_reduced = {k: v.item() / Distributed.get_global_size() for k, v in loss_dict.items()}
 
         if math.isnan(sum(loss_dict_reduced.values())):
             logger.info("NaN detected")

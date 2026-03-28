@@ -23,7 +23,7 @@ MuSc 类是一个完整的异常检测系统，它使用预训练的视觉模型
             单图归一化：每张图单独归一化
             全局归一化：所有图一起归一化
             使用JET色图生成热力图
-    2.5 类别数据处理 (make_category_data)
+    2.5 类别数据处理 (evaluate_category_data)
         这是核心处理流程，包括：
         特征提取：
             使用骨干网络提取图像特征和补丁特征
@@ -41,7 +41,7 @@ MuSc 类是一个完整的异常检测系统，它使用预训练的视觉模型
             结合图像级特征进行分类
         指标计算：
             计算图像级和像素级的AUROC、F1、AP等指标
-    2.6 主流程 (main)
+    2.6 主流程 (evaluate)
         遍历所有类别进行异常检测
         计算并保存各项指标
         将结果保存到Excel文件
@@ -59,43 +59,30 @@ MuSc 类是一个完整的异常检测系统，它使用预训练的视觉模型
 """
 
 import os
-import sys
+import time
 
+import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-
-sys.path.append('./models/backbone')
-
-import datasets.mvtec as mvtec
-from datasets.mvtec import _CLASSNAMES as _CLASSNAMES_mvtec_ad
-import datasets.visa as visa
-from datasets.visa import _CLASSNAMES as _CLASSNAMES_visa
-import datasets.btad as btad
-from datasets.btad import _CLASSNAMES as _CLASSNAMES_btad
-
-import models.backbone.open_clip as open_clip
-import models.backbone._backbones as _backbones
-from models.modules._LNAMD import LNAMD
-from models.modules._MSM import MSM
-from models.modules._RsCIN import RsCIN
-from utils.metrics import compute_metrics
 from openpyxl import Workbook
 from tqdm import tqdm
-import time
-import cv2
 
-import warnings
+from MuSc.dataset import mvtec
+from MuSc.dataset.mvtec import CLASSNAMES
+from MuSc.models.backbone import _backbones
+from MuSc.models.backbone import open_clip
+from MuSc.models.modules.LNAMD import LNAMD
+from MuSc.models.modules.MSM import MSM
+from MuSc.models.modules.RsCIN import RsCIN
+from MuSc.utils.metrics import compute_metrics
 
-warnings.filterwarnings("ignore")
 
-
-class MuSc():
+class MuSc:
     def __init__(self, cfg, seed=0):
         self.cfg = cfg
         self.seed = seed
         self.device = torch.device("cuda:{}".format(cfg['device']) if torch.cuda.is_available() else "cpu")
-
         self.path = cfg['datasets']['data_path']
         self.dataset = cfg['datasets']['dataset_name']
         self.vis = cfg['testing']['vis']
@@ -105,24 +92,25 @@ class MuSc():
         self.categories = cfg['datasets']['class_name']
         if isinstance(self.categories, str):
             if self.categories.lower() == 'all':
-                if self.dataset == 'visa':
-                    self.categories = _CLASSNAMES_visa
-                elif self.dataset == 'mvtec_ad':
-                    self.categories = _CLASSNAMES_mvtec_ad
-                elif self.dataset == 'btad':
-                    self.categories = _CLASSNAMES_btad
+                if self.dataset == 'mvtec_ad':
+                    self.categories = CLASSNAMES
             else:
                 self.categories = [self.categories]
-
+        # model setting
         self.model_name = cfg['models']['backbone_name']
-        self.image_size = cfg['datasets']['img_resize']
+        self.pretrained_models_dir = cfg['models']['pretrained_models_dir']
+        self.dino_model = None
+        self.preprocess = None
+        self.clip_model = None
+        self.pretrained = cfg['models'][self.model_name]['pretrained']
+        # params
+        self.image_size = cfg['models'][self.model_name]['img_resize']
         self.batch_size = cfg['models']['batch_size']
-        self.pretrained = cfg['models']['pretrained']
-        self.features_list = [l + 1 for l in cfg['models']['feature_layers']]
-        self.divide_num = cfg['datasets']['divide_num']
         self.r_list = cfg['models']['r_list']
-        self.output_dir = os.path.join(cfg['testing']['output_dir'], self.dataset, self.model_name,
-                                       'imagesize{}'.format(self.image_size))
+        self.features_list = [l + 1 for l in cfg['models'][self.model_name]['feature_layers']]
+        self.divide_num = cfg['datasets']['divide_num']
+        self.output_dir = str(os.path.join(cfg['testing']['output_dir'], self.dataset, self.model_name,
+                                           'imagesize{}'.format(self.image_size)))
         os.makedirs(self.output_dir, exist_ok=True)
         self.load_backbone()
 
@@ -132,16 +120,16 @@ class MuSc():
         """
         if 'dino' in self.model_name:
             # dino or dino_v2
-            self.dino_model = _backbones.load(self.model_name)
+            self.dino_model = _backbones.load(self.model_name, model_cache_dir=self.pretrained_models_dir)
             self.dino_model.to(self.device)
             self.preprocess = None
         else:
             # clip
             self.clip_model, _, self.preprocess = open_clip.create_model_and_transforms(self.model_name,
                                                                                         self.image_size,
-                                                                                        pretrained=self.pretrained)
+                                                                                        pretrained=self.pretrained,
+                                                                                        cache_dir=self.pretrained_models_dir)
             self.clip_model.to(self.device)
-
 
     def load_datasets(self, category, divide_num=1, divide_iter=0):
         """
@@ -158,29 +146,23 @@ class MuSc():
         """
         # dataloader
         test_dataset = None
-        if self.dataset == 'visa':  # 如果数据集类型是visa
-            test_dataset = visa.VisaDataset(source=self.path, split=visa.DatasetSplit.TEST,  # 使用VisaDataset类创建测试数据集
-                                            classname=category, resize=self.image_size, imagesize=self.image_size,
-                                            # 设置类别和图像大小
-                                            clip_transformer=self.preprocess,  # 设置预处理转换器
-                                            divide_num=divide_num, divide_iter=divide_iter,
-                                            random_seed=self.seed)  # 设置划分参数和随机种子
-        elif self.dataset == 'mvtec_ad':  # 如果数据集类型是mvtec_ad
-            # 只用test数据进行预测
-            test_dataset = mvtec.MVTecDataset(source=self.path, split=mvtec.DatasetSplit.TEST,  # 使用MVTecDataset类创建测试数据集
-                                              class_name=category, resize=self.image_size, imagesize=self.image_size,
-                                              # 设置类别和图像大小
-                                              clip_transformer=self.preprocess,  # 设置预处理转换器
-                                              divide_num=divide_num, divide_iter=divide_iter,
-                                              random_seed=self.seed)  # 设置划分参数和随机种子
-        elif self.dataset == 'btad':  # 如果数据集类型是btad
-            test_dataset = btad.BTADDataset(source=self.path, split=btad.DatasetSplit.TEST,  # 使用BTADDataset类创建测试数据集
-                                            classname=category, resize=self.image_size, imagesize=self.image_size,
-                                            # 设置类别和图像大小
-                                            clip_transformer=self.preprocess,  # 设置预处理转换器
-                                            divide_num=divide_num, divide_iter=divide_iter,
-                                            random_seed=self.seed)  # 设置划分参数和随机种子
-        return test_dataset  # 返回创建的测试数据集对象
+        if self.dataset == 'mvtec_ad':
+            test_dataset = mvtec.MVTecDataset(source=self.path, split=mvtec.DatasetSplit.TEST,
+                                              classname=category, resize=self.image_size, imagesize=self.image_size,
+                                              clip_transformer=self.preprocess,
+                                              divide_num=divide_num, divide_iter=divide_iter, random_seed=self.seed)
+        return test_dataset
+
+    @staticmethod
+    def normalization01(img):
+        """
+        将图像归一化到0-1范围
+        参数:
+            img (numpy.ndarray): 输入图像
+        返回:
+            numpy.ndarray: 归一化后的图像
+        """
+        return (img - img.min()) / (img.max() - img.min())
 
     def visualization(self, image_path_list, gt_list, pr_px, category):
         """
@@ -191,16 +173,6 @@ class MuSc():
             pr_px (numpy.ndarray): 预测的异常图
             category (str): 类别名称
         """
-
-        def normalization01(img):
-            """
-            将图像归一化到0-1范围
-            参数:
-                img (numpy.ndarray): 输入图像
-            返回:
-                numpy.ndarray: 归一化后的图像
-            """
-            return (img - img.min()) / (img.max() - img.min())
 
         if self.vis_type == 'single_norm':
             # normalized per image
@@ -216,7 +188,7 @@ class MuSc():
                     original_img = cv2.imread(path)
 
                     anomaly_map = pr_px[i].squeeze()
-                    anomaly_map = normalization01(anomaly_map) * 255
+                    anomaly_map = self.normalization01(anomaly_map) * 255
                     anomaly_map = cv2.applyColorMap(anomaly_map.astype(np.uint8), cv2.COLORMAP_JET)
 
                     # 调整热力图尺寸以匹配原始图像
@@ -230,7 +202,7 @@ class MuSc():
                     cv2.imwrite(save_path, overlay)
         else:
             # normalized all image
-            pr_px = normalization01(pr_px)
+            pr_px = self.normalization01(pr_px)
             for i, path in enumerate(image_path_list):
                 anomaly_type = path.split('/')[-2]
                 img_name = path.split('/')[-1]
@@ -256,15 +228,18 @@ class MuSc():
                 cv2.imwrite(save_path, overlay)
                 # cv2.imwrite(save_path, anomaly_map)
 
-    def make_category_data(self, category):
+    def make_category_data(self, category, return_metrics=False):
         """
         处理特定类别的数据，进行异常检测并计算指标
         参数:
             category: str - 要处理的类别名称
+            return_metrics: - 是否执行compute_metrics 计算
         返回:
             tuple: 包含图像级和像素级指标的元组
 
         """
+        if category is None:
+            raise ValueError('category cannot be None')
         print("Currently processing category:", category)  # 打印当前处理的类别
 
         # divide sub-datasets
@@ -278,22 +253,15 @@ class MuSc():
         dataset_num = 0
         for divide_iter in range(divide_num):
             test_dataset = self.load_datasets(category, divide_num=divide_num, divide_iter=divide_iter)
-            test_dataloader = torch.utils.data.DataLoader(
-                test_dataset,
-                batch_size=self.batch_size,
-                shuffle=False,
-                num_workers=0,
-                pin_memory=True,
-            )
-
+            test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False,
+                                                          num_workers=0, pin_memory=True, )
             # extract features
             patch_tokens_list = []
             subset_num = len(test_dataset)
             dataset_num += subset_num
             start_time = time.time()
+            image = None
             for image_info in tqdm(test_dataloader):
-                # for image_info in test_dataloader:
-                # print(image_info["image_path"])
                 if isinstance(image_info, dict):
                     image = image_info["image"]
                     image_path_list.extend(image_info["image_path"])
@@ -315,7 +283,8 @@ class MuSc():
                                                                                    n=max(self.features_list))
                         image_features = self.dino_model(input_image)
                         patch_tokens = [patch_tokens_all[l - 1].cpu() for l in self.features_list]
-                    else:  # clip
+                    else:
+                        # clip
                         image_features, patch_tokens = self.clip_model.encode_image(input_image, self.features_list)
                         image_features /= image_features.norm(dim=-1, keepdim=True)
                         patch_tokens = [patch_tokens[l].cpu() for l in range(len(self.features_list))]
@@ -331,7 +300,8 @@ class MuSc():
             for r in self.r_list:
                 start_time = time.time()
                 print('aggregation degree: {}'.format(r))
-                LNAMD_r = LNAMD(device=self.device, r=r, feature_dim=feature_dim, feature_layer=self.features_list)
+                LNAMD_r = LNAMD(compute_device=self.device, r=r, feature_dim=feature_dim,
+                                feature_layer=self.features_list)
                 Z_layers = {}
                 for im in range(len(patch_tokens_list)):
                     patch_tokens = [p.to(self.device) for p in patch_tokens_list[im]]
@@ -355,14 +325,14 @@ class MuSc():
                     print('layer-{} mutual scoring...'.format(l))
                     anomaly_maps_msm = MSM(Z=Z, device=self.device, topmin_min=0, topmin_max=0.3)
                     anomaly_maps_l = torch.cat((anomaly_maps_l, anomaly_maps_msm.unsqueeze(0).cpu()), dim=0)
-                    torch.cuda.empty_cache()
                 anomaly_maps_l = torch.mean(anomaly_maps_l, 0)
                 anomaly_maps_r = torch.cat((anomaly_maps_r, anomaly_maps_l.unsqueeze(0)), dim=0)
                 end_time = time.time()
                 print('MSM: {}ms per image'.format((end_time - start_time) * 1000 / subset_num))
             anomaly_maps_iter = torch.mean(anomaly_maps_r, 0).to(self.device)
             del anomaly_maps_r
-            torch.cuda.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             # interpolate
             B, L = anomaly_maps_iter.shape
@@ -380,7 +350,8 @@ class MuSc():
         print('MuSc: {}ms per image'.format((end_time_all - start_time_all) * 1000 / dataset_num))
 
         anomaly_maps = anomaly_maps.cpu().numpy()
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         B = anomaly_maps.shape[0]  # the number of unlabeled test images
         ac_score = np.array(anomaly_maps).reshape(B, -1).max(-1)
@@ -398,22 +369,24 @@ class MuSc():
         gt_sp = np.array(gt_list)
         gt_px = torch.cat(img_masks, dim=0).numpy().astype(np.int32)
         pr_px = np.array(anomaly_maps)
-
-        # print("Predict:", pr_sp)
-        # print("Ground Truth:", gt_sp)
-
-        image_metric, pixel_metric = compute_metrics(gt_sp, pr_sp, gt_px, pr_px)
-        auroc_sp, f1_sp, ap_sp = image_metric
-        auroc_px, f1_px, ap_px, aupro = pixel_metric
-        print('image-level, auroc:{}, f1:{}, ap:{}'.format(auroc_sp * 100, f1_sp * 100, ap_sp * 100))
-        print('pixel-level, auroc:{}, f1:{}, ap:{}, aupro:{}'.format(auroc_px * 100, f1_px * 100, ap_px * 100,
-                                                                     aupro * 100))
-
+        print("Predict:", pr_sp)
+        print("Ground Truth:", gt_sp)
+        image_metric = None
+        pixel_metric = None
+        if return_metrics:
+            # compute_metrics 比较耗时，后续可优化
+            image_metric, pixel_metric = compute_metrics(gt_sp, pr_sp, gt_px, pr_px)
+            auroc_sp, f1_sp, ap_sp = image_metric
+            auroc_px, f1_px, ap_px, aupro = pixel_metric
+            print('image-level, auroc:{}, f1:{}, ap:{}'.format(auroc_sp * 100, f1_sp * 100, ap_sp * 100))
+            print('pixel-level, auroc:{}, f1:{}, ap:{}, aupro:{}'.format(auroc_px * 100, f1_px * 100, ap_px * 100,
+                                                                         aupro * 100))
         if self.vis:
             print('visualization...')
             self.visualization(image_path_list, gt_list, pr_px, category)
 
-        return image_metric, pixel_metric
+        # 如果 执行了compute_metrics ，则返回的  image_metric, pixel_metric 有数据，否则是None
+        return image_metric, pixel_metric, image_path_list, pr_sp, gt_sp
 
     def save_excel_results(self, auroc_px_ls, f1_px_ls, ap_px_ls, aupro_ls, auroc_sp_ls, f1_sp_ls, ap_sp_ls,
                            auroc_px_mean, f1_px_mean, ap_px_mean, aupro_mean, auroc_sp_mean, f1_sp_mean, ap_sp_mean, ):
@@ -453,7 +426,12 @@ class MuSc():
                             sheet.cell(row=row_index + 3, column=col_index + 7, value=ap_sp_mean * 100)
             workbook.save(os.path.join(self.output_dir, "results.xlsx"))
 
-    def main(self):
+    def evaluate(self):
+        """
+        执行完整的预测和评估
+        Returns:
+
+        """
         auroc_sp_ls = []
         f1_sp_ls = []
         ap_sp_ls = []
@@ -463,8 +441,9 @@ class MuSc():
         aupro_ls = []
         # 遍历类别计算指标
         for category in self.categories:
-            # 关键函数 make_category_data
-            image_metric, pixel_metric = self.make_category_data(category=category, )
+            # 关键函数 evaluate_category_data
+            image_metric, pixel_metric, _, _, _ = self.make_category_data(category=category, return_metrics=True)
+
             auroc_sp, f1_sp, ap_sp = image_metric
             auroc_px, f1_px, ap_px, aupro = pixel_metric
             auroc_sp_ls.append(auroc_sp)
@@ -493,8 +472,20 @@ class MuSc():
         print('pixel-level, auroc:{}, f1:{}, ap:{}, aupro:{}'.format(auroc_px_mean * 100, f1_px_mean * 100,
                                                                      ap_px_mean * 100, aupro_mean * 100))
 
-        # save in excel
+        # save in Excel
         if self.save_excel:
             self.save_excel_results(auroc_sp_ls, f1_sp_ls, ap_sp_ls, auroc_px_ls, f1_px_ls, ap_px_ls, aupro_ls,
                                     auroc_sp_mean, f1_sp_mean, ap_sp_mean, auroc_px_mean, f1_px_mean, ap_px_mean,
                                     aupro_mean)
+
+    def predict(self):
+        """
+        仅执行预测
+        Returns:
+        """
+        # 遍历类别计算指标
+        for category in self.categories:
+            # 关键函数 evaluate_category_data
+            _, _, image_path_list, pr_sp, _ = self.make_category_data(category=category, return_metrics=False)
+            for img, score in zip(image_path_list, pr_sp):
+                print(img, score)

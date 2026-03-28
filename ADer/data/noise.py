@@ -1,12 +1,9 @@
-
 # https://github.com/lmas/opensimplex
 
 from ctypes import c_int64
 from math import floor
-
 import numpy as np
 from numba import njit, prange
-
 
 
 class Simplex_CLASS:
@@ -16,9 +13,9 @@ class Simplex_CLASS:
 
     def newSeed(self, seed=None):
         if not seed:
-            seed = np.random.randint(-10000000000, 10000000000)
+            # seed = np.random.randint(-10000000000, 10000000000)
+            seed = np.random.default_rng().integers(-2**31, 2**31, dtype=np.int64)
         self._perm, self._perm_grad_index3 = _init(seed)
-
 
     def noise2(self, x, y):
         return _noise2(x, y, self._perm)
@@ -95,55 +92,55 @@ DEFAULT_SEED = 3
 # Gradients for 2D. They approximate the directions to the
 # vertices of an octagon from the center.
 GRADIENTS2 = np.array(
-        [
-            5, 2, 2, 5,
-            -5, 2, -2, 5,
-            5, -2, 2, -5,
-            -5, -2, -2, -5,
-            ], dtype=np.int64
-        )
+    [
+        5, 2, 2, 5,
+        -5, 2, -2, 5,
+        5, -2, 2, -5,
+        -5, -2, -2, -5,
+    ], dtype=np.int64
+)
 
 # Gradients for 3D. They approximate the directions to the
 # vertices of a rhombicuboctahedron from the center, skewed so
 # that the triangular and square facets can be inscribed inside
 # circles of the same radius.
 GRADIENTS3 = np.array(
-        [
-            -11, 4, 4, -4, 11, 4, -4, 4, 11,
-            11, 4, 4, 4, 11, 4, 4, 4, 11,
-            -11, -4, 4, -4, -11, 4, -4, -4, 11,
-            11, -4, 4, 4, -11, 4, 4, -4, 11,
-            -11, 4, -4, -4, 11, -4, -4, 4, -11,
-            11, 4, -4, 4, 11, -4, 4, 4, -11,
-            -11, -4, -4, -4, -11, -4, -4, -4, -11,
-            11, -4, -4, 4, -11, -4, 4, -4, -11,
-            ], dtype=np.int64
-        )
+    [
+        -11, 4, 4, -4, 11, 4, -4, 4, 11,
+        11, 4, 4, 4, 11, 4, 4, 4, 11,
+        -11, -4, 4, -4, -11, 4, -4, -4, 11,
+        11, -4, 4, 4, -11, 4, 4, -4, 11,
+        -11, 4, -4, -4, 11, -4, -4, 4, -11,
+        11, 4, -4, 4, 11, -4, 4, 4, -11,
+        -11, -4, -4, -4, -11, -4, -4, -4, -11,
+        11, -4, -4, 4, -11, -4, 4, -4, -11,
+    ], dtype=np.int64
+)
 
 # Gradients for 4D. They approximate the directions to the
 # vertices of a disprismatotesseractihexadecachoron from the center,
 # skewed so that the tetrahedral and cubic facets can be inscribed inside
 # spheres of the same radius.
 GRADIENTS4 = np.array(
-        [
-            3, 1, 1, 1, 1, 3, 1, 1, 1, 1, 3, 1, 1, 1, 1, 3,
-            -3, 1, 1, 1, -1, 3, 1, 1, -1, 1, 3, 1, -1, 1, 1, 3,
-            3, -1, 1, 1, 1, -3, 1, 1, 1, -1, 3, 1, 1, -1, 1, 3,
-            -3, -1, 1, 1, -1, -3, 1, 1, -1, -1, 3, 1, -1, -1, 1, 3,
-            3, 1, -1, 1, 1, 3, -1, 1, 1, 1, -3, 1, 1, 1, -1, 3,
-            -3, 1, -1, 1, -1, 3, -1, 1, -1, 1, -3, 1, -1, 1, -1, 3,
-            3, -1, -1, 1, 1, -3, -1, 1, 1, -1, -3, 1, 1, -1, -1, 3,
-            -3, -1, -1, 1, -1, -3, -1, 1, -1, -1, -3, 1, -1, -1, -1, 3,
-            3, 1, 1, -1, 1, 3, 1, -1, 1, 1, 3, -1, 1, 1, 1, -3,
-            -3, 1, 1, -1, -1, 3, 1, -1, -1, 1, 3, -1, -1, 1, 1, -3,
-            3, -1, 1, -1, 1, -3, 1, -1, 1, -1, 3, -1, 1, -1, 1, -3,
-            -3, -1, 1, -1, -1, -3, 1, -1, -1, -1, 3, -1, -1, -1, 1, -3,
-            3, 1, -1, -1, 1, 3, -1, -1, 1, 1, -3, -1, 1, 1, -1, -3,
-            -3, 1, -1, -1, -1, 3, -1, -1, -1, 1, -3, -1, -1, 1, -1, -3,
-            3, -1, -1, -1, 1, -3, -1, -1, 1, -1, -3, -1, 1, -1, -1, -3,
-            -3, -1, -1, -1, -1, -3, -1, -1, -1, -1, -3, -1, -1, -1, -1, -3,
-            ], dtype=np.int64
-        )
+    [
+        3, 1, 1, 1, 1, 3, 1, 1, 1, 1, 3, 1, 1, 1, 1, 3,
+        -3, 1, 1, 1, -1, 3, 1, 1, -1, 1, 3, 1, -1, 1, 1, 3,
+        3, -1, 1, 1, 1, -3, 1, 1, 1, -1, 3, 1, 1, -1, 1, 3,
+        -3, -1, 1, 1, -1, -3, 1, 1, -1, -1, 3, 1, -1, -1, 1, 3,
+        3, 1, -1, 1, 1, 3, -1, 1, 1, 1, -3, 1, 1, 1, -1, 3,
+        -3, 1, -1, 1, -1, 3, -1, 1, -1, 1, -3, 1, -1, 1, -1, 3,
+        3, -1, -1, 1, 1, -3, -1, 1, 1, -1, -3, 1, 1, -1, -1, 3,
+        -3, -1, -1, 1, -1, -3, -1, 1, -1, -1, -3, 1, -1, -1, -1, 3,
+        3, 1, 1, -1, 1, 3, 1, -1, 1, 1, 3, -1, 1, 1, 1, -3,
+        -3, 1, 1, -1, -1, 3, 1, -1, -1, 1, 3, -1, -1, 1, 1, -3,
+        3, -1, 1, -1, 1, -3, 1, -1, 1, -1, 3, -1, 1, -1, 1, -3,
+        -3, -1, 1, -1, -1, -3, 1, -1, -1, -1, 3, -1, -1, -1, 1, -3,
+        3, 1, -1, -1, 1, 3, -1, -1, 1, 1, -3, -1, 1, 1, -1, -3,
+        -3, 1, -1, -1, -1, 3, -1, -1, -1, 1, -3, -1, -1, 1, -1, -3,
+        3, -1, -1, -1, 1, -3, -1, -1, 1, -1, -3, -1, 1, -1, -1, -3,
+        -3, -1, -1, -1, -1, -3, -1, -1, -1, -1, -3, -1, -1, -1, -1, -3,
+    ], dtype=np.int64
+)
 
 STRETCH_CONSTANT2 = -0.211324865405187  # (1/Math.sqrt(2+1)-1)/2
 SQUISH_CONSTANT2 = 0.366025403784439  # (Math.sqrt(2+1)-1)/2
@@ -796,35 +793,35 @@ def _noise3(x, y, z, perm, perm_grad_index3):
     if attn_ext0 > 0:
         attn_ext0 *= attn_ext0
         value += attn_ext0 * attn_ext0 * _extrapolate3(
-                perm,
-                perm_grad_index3,
-                xsv_ext0,
-                ysv_ext0,
-                zsv_ext0,
-                dx_ext0,
-                dy_ext0,
-                dz_ext0
-                )
+            perm,
+            perm_grad_index3,
+            xsv_ext0,
+            ysv_ext0,
+            zsv_ext0,
+            dx_ext0,
+            dy_ext0,
+            dz_ext0
+        )
 
     # Second extra vertex
     attn_ext1 = 2 - dx_ext1 * dx_ext1 - dy_ext1 * dy_ext1 - dz_ext1 * dz_ext1
     if attn_ext1 > 0:
         attn_ext1 *= attn_ext1
         value += attn_ext1 * attn_ext1 * _extrapolate3(
-                perm,
-                perm_grad_index3,
-                xsv_ext1,
-                ysv_ext1,
-                zsv_ext1,
-                dx_ext1,
-                dy_ext1,
-                dz_ext1
-                )
+            perm,
+            perm_grad_index3,
+            xsv_ext1,
+            ysv_ext1,
+            zsv_ext1,
+            dx_ext1,
+            dy_ext1,
+            dz_ext1
+        )
 
     return value / NORM_CONSTANT3
 
 
-#@njit(cache=True, parallel=True)
+# @njit(cache=True, parallel=True)
 def _noise3a(X, Y, Z, perm, perm_grad_index3):
     noise = np.zeros((Z.size, Y.size, X.size), dtype=np.double)
     for z in prange(Z.size):
@@ -834,7 +831,7 @@ def _noise3a(X, Y, Z, perm, perm_grad_index3):
     return noise
 
 
-#@njit(cache=True, parallel=True)
+# @njit(cache=True, parallel=True)
 def _noise3b(X, Y, Z, perm, perm_grad_index3):
     noise = np.zeros(X.size * Y.size * Z.size, dtype=np.double)
     for z in prange(Z.size):
@@ -851,5 +848,3 @@ def _noise3aSlow(X, Y, T, FEATURE_SIZE, perm, perm_grad_index3):
             for y in range(Y):
                 img[t, x, y] = _noise3(x / FEATURE_SIZE, y / FEATURE_SIZE, t / FEATURE_SIZE, perm, perm_grad_index3)
     return img
-
-

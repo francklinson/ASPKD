@@ -9,7 +9,9 @@ from utils import *
 
 
 class ScoreObserver:
-    '''Keeps an eye on the current and highest score so far'''
+    """
+    Keeps an eye on the current and highest score so far
+    """
 
     def __init__(self, name):
         self.name = name

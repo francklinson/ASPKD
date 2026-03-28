@@ -12,13 +12,11 @@ import math
 import random
 import functools
 import operator
-
 import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.autograd import Function
 from argparse import Namespace
-
 from ADer.model.stylegan2_op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d
 from torchvision.models.resnet import BasicBlock, Bottleneck
 from ADer.model.basic_modules import get_norm, get_act, ConvNormAct
@@ -140,7 +138,7 @@ class Blur(nn.Module):
 
 class EqualLinear(nn.Module):
     def __init__(
-        self, in_dim, out_dim, bias=True, bias_init=0, lr_mul=1, activation=None
+            self, in_dim, out_dim, bias=True, bias_init=0, lr_mul=1, activation=None
     ):
         super().__init__()
 
@@ -177,17 +175,17 @@ class EqualLinear(nn.Module):
 
 class EqualConv2d(nn.Module):
     def __init__(
-        self,
-        in_channel,
-        out_channel,
-        kernel_size,
-        stride=1,
-        padding=0,
-        lr_mul=1,
-        bias=True,
-        bias_init=0,
-        conv_transpose2d=False,
-        activation=False,
+            self,
+            in_channel,
+            out_channel,
+            kernel_size,
+            stride=1,
+            padding=0,
+            lr_mul=1,
+            bias=True,
+            bias_init=0,
+            conv_transpose2d=False,
+            activation=False,
     ):
         super().__init__()
 
@@ -274,16 +272,16 @@ class EqualConv2d(nn.Module):
 
 class ConvLayer(nn.Sequential):
     def __init__(
-        self,
-        in_channel,
-        out_channel,
-        kernel_size,
-        upsample=False,
-        downsample=False,
-        blur_kernel=[1, 3, 3, 1],
-        bias=True,
-        activate=True,
-        lr_mul=1.,
+            self,
+            in_channel,
+            out_channel,
+            kernel_size,
+            upsample=False,
+            downsample=False,
+            blur_kernel=[1, 3, 3, 1],
+            bias=True,
+            activate=True,
+            lr_mul=1.,
     ):
         assert not (upsample and downsample)
         layers = []
@@ -350,7 +348,7 @@ class ConvLayer(nn.Sequential):
 
 class ResBlock(nn.Module):
     def __init__(
-        self, in_channel, out_channel, blur_kernel=[1, 3, 3, 1], return_features=False
+            self, in_channel, out_channel, blur_kernel=[1, 3, 3, 1], return_features=False
     ):
         super().__init__()
 
@@ -435,16 +433,16 @@ class Discriminator(nn.Module):
 
 class StyledConv(nn.Module):
     def __init__(
-        self,
-        in_channel,
-        out_channel,
-        kernel_size,
-        style_dim,
-        blur_kernel,
-        normalize_mode,
-        upsample=False,
-        activate=True,
-        modulate=True,
+            self,
+            in_channel,
+            out_channel,
+            kernel_size,
+            style_dim,
+            blur_kernel,
+            normalize_mode,
+            upsample=False,
+            activate=True,
+            modulate=True,
     ):
         super().__init__()
 
@@ -474,16 +472,16 @@ class StyledConv(nn.Module):
 
 class ModulatedConv2d(nn.Sequential):
     def __init__(
-        self,
-        in_channel,
-        out_channel,
-        kernel_size,
-        style_dim,
-        normalize_mode,
-        blur_kernel,
-        upsample=False,
-        downsample=False,
-        modulate=True,
+            self,
+            in_channel,
+            out_channel,
+            kernel_size,
+            style_dim,
+            normalize_mode,
+            blur_kernel,
+            upsample=False,
+            downsample=False,
+            modulate=True,
     ):
         super().__init__()
 
@@ -608,11 +606,14 @@ class ModulatedConv2d(nn.Sequential):
 
 
 class StyledResBlock(nn.Module):
-    def __init__(self, in_channel, out_channel, style_dim, blur_kernel, normalize_mode, upsample=True, act_layer='none'):
+    def __init__(self, in_channel, out_channel, style_dim, blur_kernel, normalize_mode, upsample=True,
+                 act_layer='none'):
         super().__init__()
         # self.conv1 = StyledConv(in_channel, out_channel, 3, style_dim, blur_kernel=blur_kernel, upsample=upsample, normalize_mode=None, )
-        self.conv1 = StyledConv(in_channel, out_channel, 3, style_dim, blur_kernel=blur_kernel, upsample=upsample, normalize_mode=normalize_mode, modulate=not upsample)
-        self.conv2 = StyledConv(out_channel, out_channel, 3, style_dim, blur_kernel=blur_kernel, upsample=False, normalize_mode=normalize_mode, modulate=True)
+        self.conv1 = StyledConv(in_channel, out_channel, 3, style_dim, blur_kernel=blur_kernel, upsample=upsample,
+                                normalize_mode=normalize_mode, modulate=not upsample)
+        self.conv2 = StyledConv(out_channel, out_channel, 3, style_dim, blur_kernel=blur_kernel, upsample=False,
+                                normalize_mode=normalize_mode, modulate=True)
         self.skip = ConvLayer(in_channel, out_channel, 1, upsample=upsample, activate=False, bias=False)
         self.acti = get_act(act_layer=act_layer)()
 
@@ -626,11 +627,15 @@ class StyledResBlock(nn.Module):
 
 
 class NormalResBlock(nn.Module):
-    def __init__(self, in_channel, out_channel, kernel_size=3, upsample=False, downsample=False, blur_kernel=[1, 3, 3, 1], bias=True, activate=True, lr_mul=1., act_layer='none'):
+    def __init__(self, in_channel, out_channel, kernel_size=3, upsample=False, downsample=False,
+                 blur_kernel=[1, 3, 3, 1], bias=True, activate=True, lr_mul=1., act_layer='none'):
         super().__init__()
-        self.conv1 = ConvLayer(in_channel, out_channel, kernel_size, upsample=upsample, downsample=downsample, blur_kernel=blur_kernel, bias=bias, activate=activate, lr_mul=lr_mul)
-        self.conv2 = ConvLayer(out_channel, out_channel, kernel_size, upsample=False, downsample=False, blur_kernel=blur_kernel, bias=bias, activate=activate, lr_mul=lr_mul)
-        self.skip = ConvLayer(in_channel, out_channel, 1, upsample=False, downsample=False, blur_kernel=blur_kernel, bias=bias, activate=activate, lr_mul=lr_mul)
+        self.conv1 = ConvLayer(in_channel, out_channel, kernel_size, upsample=upsample, downsample=downsample,
+                               blur_kernel=blur_kernel, bias=bias, activate=activate, lr_mul=lr_mul)
+        self.conv2 = ConvLayer(out_channel, out_channel, kernel_size, upsample=False, downsample=False,
+                               blur_kernel=blur_kernel, bias=bias, activate=activate, lr_mul=lr_mul)
+        self.skip = ConvLayer(in_channel, out_channel, 1, upsample=False, downsample=False, blur_kernel=blur_kernel,
+                              bias=bias, activate=activate, lr_mul=lr_mul)
         self.acti = get_act(act_layer=act_layer)()
 
     def forward(self, input):
@@ -644,16 +649,16 @@ class NormalResBlock(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(
-        self,
-        in_chas=[256, 512, 1024],
-        style_chas=[128, 256, 256],
-        latent_spatial_size=16,
-        latent_channel_size=64,
-        blur_kernel=[1, 3, 3, 1],
-        normalize_mode='LayerNorm',
-        lr_mul=0.01,
-        small_generator=False,
-        layers=[2, 2, 2]
+            self,
+            in_chas=[256, 512, 1024],
+            style_chas=[128, 256, 256],
+            latent_spatial_size=16,
+            latent_channel_size=64,
+            blur_kernel=[1, 3, 3, 1],
+            normalize_mode='LayerNorm',
+            lr_mul=0.01,
+            small_generator=False,
+            layers=[2, 2, 2]
     ):
         super().__init__()
 
@@ -671,15 +676,21 @@ class Decoder(nn.Module):
         for i in range(self.depth):
             latent_cha = latent_channel_size if small_generator else style_chas[self.depth - i - 1]
             self.convs_latent.append(nn.Sequential(*[
-                ConvLayer(style_chas[self.depth - i - 1], style_chas[self.depth - i - 1], 3, upsample=False, bias=True, activate=True, lr_mul=lr_mul),
-                ConvLayer(style_chas[self.depth - i - 1], latent_cha, 3, upsample=False, bias=True, activate=True, lr_mul=lr_mul),
+                ConvLayer(style_chas[self.depth - i - 1], style_chas[self.depth - i - 1], 3, upsample=False, bias=True,
+                          activate=True, lr_mul=lr_mul),
+                ConvLayer(style_chas[self.depth - i - 1], latent_cha, 3, upsample=False, bias=True, activate=True,
+                          lr_mul=lr_mul),
             ]))
 
             map_dim_cur = in_chas[self.depth - 1 - i]
             convs_depth = nn.ModuleList()
-            convs_depth.append(StyledResBlock(map_dim_pre, map_dim_cur, latent_cha, blur_kernel, normalize_mode=normalize_mode, upsample=False if i == 0 else True))
+            convs_depth.append(
+                StyledResBlock(map_dim_pre, map_dim_cur, latent_cha, blur_kernel, normalize_mode=normalize_mode,
+                               upsample=False if i == 0 else True))
             for j in range(layers[self.depth - 1 - i] - 1):
-                convs_depth.append(StyledResBlock(map_dim_cur, map_dim_cur, latent_cha, blur_kernel, normalize_mode=normalize_mode, upsample=False, act_layer='none'))
+                convs_depth.append(
+                    StyledResBlock(map_dim_cur, map_dim_cur, latent_cha, blur_kernel, normalize_mode=normalize_mode,
+                                   upsample=False, act_layer='none'))
             self.convs.append(convs_depth)
             map_dim_pre = map_dim_cur
 
@@ -700,16 +711,23 @@ class Decoder(nn.Module):
 
 
 class Fuser(nn.Module):
-    def __init__(self, in_chas=[256, 512, 1024], style_chas=[128, 256, 256], in_strides=[4, 2, 1], down_conv=True, out_stride=1, bottle_num=1, conv_num=1, conv_type='conv', lr_mul=0.01):
+    def __init__(self, in_chas=[256, 512, 1024], style_chas=[128, 256, 256], in_strides=[4, 2, 1], down_conv=True,
+                 out_stride=1, bottle_num=1, conv_num=1, conv_type='conv', lr_mul=0.01):
         super(Fuser, self).__init__()
         self.stage_num = len(in_chas)
         assert len(in_chas) == len(in_strides)
         if down_conv:
-            self.downsamples = nn.ModuleList([ConvNormAct(in_cha, in_cha, kernel_size=in_stride, stride=in_stride, bias=True, norm_layer='bn_2d', act_layer='none') for in_cha, in_stride in zip(in_chas, in_strides)])
+            self.downsamples = nn.ModuleList([ConvNormAct(in_cha, in_cha, kernel_size=in_stride, stride=in_stride,
+                                                          bias=True, norm_layer='bn_2d', act_layer='none') for
+                                              in_cha, in_stride in zip(in_chas, in_strides)])
         else:
-            self.downsamples = nn.ModuleList([nn.AvgPool2d(kernel_size=in_stride, stride=in_stride) for in_cha, in_stride in zip(in_chas, in_strides)])
-        self.conv_cat = ConvNormAct(sum(in_chas), style_chas[-1], kernel_size=1, stride=1, norm_layer='bn_2d', act_layer='relu')
-        self.conv_bottle = nn.Identity() if bottle_num < 1 else nn.Sequential(*[Bottleneck(style_chas[-1], style_chas[-1] // Bottleneck.expansion) for i in range(bottle_num)])
+            self.downsamples = nn.ModuleList(
+                [nn.AvgPool2d(kernel_size=in_stride, stride=in_stride) for in_cha, in_stride in
+                 zip(in_chas, in_strides)])
+        self.conv_cat = ConvNormAct(sum(in_chas), style_chas[-1], kernel_size=1, stride=1, norm_layer='bn_2d',
+                                    act_layer='relu')
+        self.conv_bottle = nn.Identity() if bottle_num < 1 else nn.Sequential(
+            *[Bottleneck(style_chas[-1], style_chas[-1] // Bottleneck.expansion) for i in range(bottle_num)])
 
         self.convs = nn.ModuleList()
         for i in range(self.stage_num):
@@ -720,11 +738,14 @@ class Fuser(nn.Module):
             if conv_type == 'conv':
                 convs = [ConvLayer(dim_pre, dim_cur, 3, upsample=upsample, bias=True, activate=True, lr_mul=lr_mul)]
                 for j in range(conv_num):
-                    convs.append(ConvLayer(dim_cur, dim_cur, 3, upsample=False, bias=True, activate=True, lr_mul=lr_mul))
+                    convs.append(
+                        ConvLayer(dim_cur, dim_cur, 3, upsample=False, bias=True, activate=True, lr_mul=lr_mul))
             elif conv_type == 'normresblcok':
                 convs = [ConvLayer(dim_pre, dim_cur, 3, upsample=upsample, bias=True, activate=True, lr_mul=lr_mul)]
                 for j in range(conv_num):
-                    convs.append(NormalResBlock(dim_cur, dim_cur, kernel_size=3, upsample=False, downsample=False, blur_kernel=[1, 3, 3, 1], bias=True, activate=True, lr_mul=1., act_layer='none'))
+                    convs.append(NormalResBlock(dim_cur, dim_cur, kernel_size=3, upsample=False, downsample=False,
+                                                blur_kernel=[1, 3, 3, 1], bias=True, activate=True, lr_mul=1.,
+                                                act_layer='none'))
             else:
                 convs = []
             self.convs.append(nn.Sequential(*convs))
@@ -745,25 +766,30 @@ class Fuser(nn.Module):
 
 
 class MultiScaleFuser(nn.Module):
-    def __init__(self, in_chas=[256, 512, 1024], style_chas=[128, 256, 256], in_strides=[4, 2, 1], bottle_num=1, cross_reso=True):
+    def __init__(self, in_chas=[256, 512, 1024], style_chas=[128, 256, 256], in_strides=[4, 2, 1], bottle_num=1,
+                 cross_reso=True):
         super(MultiScaleFuser, self).__init__()
         self.cross_reso = cross_reso
         assert len(in_chas) == len(in_strides)
         self.convs = nn.ModuleList()
         self.bottles = nn.ModuleList()
         for i in range(len(in_chas)):
-            self.convs.append(ConvNormAct(in_chas[i], style_chas[i], kernel_size=1, stride=1, norm_layer='bn_2d', act_layer='relu'))
-            self.bottles.append(nn.Identity() if bottle_num < 1 else nn.Sequential(*[Bottleneck(style_chas[i], style_chas[i] // Bottleneck.expansion) for i in range(bottle_num)]))
+            self.convs.append(
+                ConvNormAct(in_chas[i], style_chas[i], kernel_size=1, stride=1, norm_layer='bn_2d', act_layer='relu'))
+            self.bottles.append(nn.Identity() if bottle_num < 1 else nn.Sequential(
+                *[Bottleneck(style_chas[i], style_chas[i] // Bottleneck.expansion) for i in range(bottle_num)]))
             if cross_reso:
                 for j in range(len(in_chas)):
                     if j == i:
                         cross_module = nn.Identity()
                     elif j < i:
-                        cross_module = ConvNormAct(style_chas[j], style_chas[i], kernel_size=2**(i - j), stride=2**(i - j), norm_layer='bn_2d', act_layer='relu')
+                        cross_module = ConvNormAct(style_chas[j], style_chas[i], kernel_size=2 ** (i - j),
+                                                   stride=2 ** (i - j), norm_layer='bn_2d', act_layer='relu')
                     else:
                         cross_module = nn.Sequential(*[
-                            nn.Upsample(scale_factor=2**(j - i), mode='bicubic'),
-                            ConvNormAct(style_chas[j], style_chas[i], kernel_size=1, stride=1, norm_layer='bn_2d', act_layer='relu')
+                            nn.Upsample(scale_factor=2 ** (j - i), mode='bicubic'),
+                            ConvNormAct(style_chas[j], style_chas[i], kernel_size=1, stride=1, norm_layer='bn_2d',
+                                        act_layer='relu')
                         ])
                     self.__setattr__(f'cross_{i}_{j}', cross_module)
 
@@ -871,8 +897,9 @@ if __name__ == '__main__':
     model_encoder.kwargs = dict(pretrained=False, checkpoint_path='model/pretrain/wide_resnet50_racm-8234f177.pth',
                                 strict=False, features_only=True, out_indices=[1, 2, 3])
     model_fuser = dict(
-        type='Fuser', in_chas=in_chas, style_chas=style_chas, in_strides=[4, 2, 1], down_conv=True, bottle_num=1, conv_num=1, conv_type='conv', lr_mul=0.01)
-        # type='MultiScaleFuser', in_chas=in_chas, style_chas=style_chas, in_strides=in_strides, bottle_num=1, cross_reso=True)
+        type='Fuser', in_chas=in_chas, style_chas=style_chas, in_strides=[4, 2, 1], down_conv=True, bottle_num=1,
+        conv_num=1, conv_type='conv', lr_mul=0.01)
+    # type='MultiScaleFuser', in_chas=in_chas, style_chas=style_chas, in_strides=in_strides, bottle_num=1, cross_reso=True)
 
     latent_spatial_size = reso // (2 ** 4)
     model_decoder = dict(in_chas=in_chas, style_chas=style_chas,
@@ -882,7 +909,8 @@ if __name__ == '__main__':
     sizes = [reso // (2 ** (2 + i)) for i in range(len(in_chas))]
     # model_disor = dict(sizes=sizes, in_chas=in_chas)
     model_disor = None
-    net = invad(model_encoder=model_encoder, model_fuser=model_fuser, model_decoder=model_decoder, model_disor=model_disor).cuda()
+    net = invad(model_encoder=model_encoder, model_fuser=model_fuser, model_decoder=model_decoder,
+                model_disor=model_disor).cuda()
     net.eval()
     y = net(x)
     # preds = net.forward_d(y[0])

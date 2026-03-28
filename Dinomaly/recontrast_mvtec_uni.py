@@ -103,10 +103,10 @@ def train(item_list):
     setup_seed(1)
 
     # 定义训练总迭代次数、批次大小、图像尺寸和裁剪尺寸
-    total_iters = 50  # 总训练迭代次数
-    batch_size = 16     # 每个批次的大小
-    image_size = 256    # 输入图像的尺寸
-    crop_size = 256     # 图像裁剪的尺寸
+    total_iters = 10000  # 总训练迭代次数
+    batch_size = 16  # 每个批次的大小
+    image_size = 256  # 输入图像的尺寸
+    crop_size = 256  # 图像裁剪的尺寸
 
     # 获取数据转换函数，用于数据预处理
     data_transform, gt_transform = get_data_transforms(image_size, crop_size)
@@ -189,8 +189,8 @@ def train(item_list):
             alpha_final = 1
             alpha = min(-3 + (alpha_final - -3) * it / (total_iters * 0.1), alpha_final)
             # 计算带有alpha参数的全局余弦相似度损失
-            loss = global_cosine_hm(en[:3], de[:3], alpha=alpha, factor=0.) / 2 + \
-                   global_cosine_hm(en[3:], de[3:], alpha=alpha, factor=0.) / 2
+            loss = (global_cosine_hm(en[:3], de[:3], alpha=alpha, factor=0.) / 2
+                    + global_cosine_hm(en[3:], de[3:], alpha=alpha, factor=0.) / 2)
 
             # 反向传播和优化
             optimizer.zero_grad()

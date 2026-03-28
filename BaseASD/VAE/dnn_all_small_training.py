@@ -4,7 +4,7 @@ import torch.optim as optim
 import torch.utils.data as data
 from data import *
 from sklearn import mixture
-from BaseASD.VAE.model import Autoencoder
+from AnomalySoundDetection.BaseASD.VAE.model import Autoencoder
 
 # 变量设置
 EPOCH_MAX = 100

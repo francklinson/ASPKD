@@ -126,6 +126,6 @@ def calculation_auc(ty_pe, ID, batch):
 
 
 if __name__ == '__main__':
-    for ID in ['id_01']:
-        calculation_auc('swp', ID, batch)
+    for ID in ['id_01', 'id_02', 'id_03', 'id_04']:
+        calculation_auc('spk', ID, batch)
     print('Good Luck')

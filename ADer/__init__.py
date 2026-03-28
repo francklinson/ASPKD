@@ -2,16 +2,16 @@
 import argparse
 import os
 import shutil
+from xml.dom import NotFoundErr
 
 import librosa
 import numpy as np
 from matplotlib import pyplot as plt
-
 from ADer.configs import get_cfg
 from ADer.util.net import init_training
 from ADer.util.util import run_pre, init_checkpoint
 from ADer.trainer import get_trainer
-
+import subprocess
 
 def plot_spectrogram(audio_path, output_path):
     """
@@ -22,7 +22,11 @@ def plot_spectrogram(audio_path, output_path):
         output_path (str): 输出图像保存路径
     """
     # 加载音频文件
-    y, sr = librosa.load(audio_path)
+    try:
+        y, sr = librosa.load(audio_path)
+    except Exception as e:
+        print(f'音频加载失败 {audio_path}: {str(e)}')
+        return
     # 计算短时傅里叶变换(STFT)
     D = librosa.stft(y)
     # 转换为分贝标度
@@ -128,9 +132,12 @@ class ADerTaskAssigner:
                     plot_spectrogram(audio_path=os.path.join(root, file),
                                      output_path=os.path.join('data/spk/INF/test/bad', file.replace('wav', 'png')))
                     # 生成ghost数据
-                    shutil.copy('ghost.png',
-                                os.path.join('data/spk/INF/ground_truth/bad', file.split('.')[0] + '_mask.png'))
-
+                    if os.path.exists('ghost.png'):
+                        # root目录下需要有ghost.png 全0数据图像
+                        shutil.copy('ghost.png',
+                                    os.path.join('data/spk/INF/ground_truth/bad', file.split('.')[0] + '_mask.png'))
+                    else:
+                        raise  NotFoundErr('警告: ghost.png文件缺失')
         self.update_data_meta_json("data/gen_benchmark/spk_inference.py")
         cfg_terminal = parser.parse_args()
         cfg = get_cfg(cfg_terminal)
@@ -154,11 +161,17 @@ class ADerTaskAssigner:
         for root, dirs, files in os.walk('data/spk/INF/test/bad'):
             for file in files:
                 if file.endswith('.png'):
-                    os.remove(os.path.join(root, file))
+                    try:
+                        os.remove(os.path.join(root, file))
+                    except OSError as e:
+                        print(f'跳过无法删除的文件 {file}: {str(e)}')
         for root, dirs, files in os.walk('data/spk/ground_truth/bad'):
             for file in files:
                 if file.endswith('.png'):
-                    os.remove(os.path.join(root, file))
+                    try:
+                        os.remove(os.path.join(root, file))
+                    except OSError as e:
+                        print(f'跳过无法删除的文件 {file}: {str(e)}')
 
     @staticmethod
     def update_data_meta_json(generate_json_py_file):
@@ -168,9 +181,11 @@ class ADerTaskAssigner:
         Returns:
         """
         print(f"Generating meta.json using {generate_json_py_file}")
-        os.system(f'python3 {generate_json_py_file}')
+        try:
 
-
+            subprocess.run(['python3', generate_json_py_file], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f'元数据生成失败: {str(e)}')
 
 class MambaAD(ADerTaskAssigner):
     def __init__(self, method='MambaAD'):
@@ -196,13 +211,16 @@ class UniAD(ADerTaskAssigner):
     def __init__(self, method='UniAD'):
         super().__init__(method)
 
+
 class CFlow(ADerTaskAssigner):
     def __init__(self, method='CFlow'):
         super().__init__(method)
 
+
 class PyramidFLow(ADerTaskAssigner):
     def __init__(self, method='PyramidFlow'):
         super().__init__(method)
+
 
 class SimpleNet(ADerTaskAssigner):
     def __init__(self, method='SimpleNet'):

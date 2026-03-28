@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import xformers.ops as xops
 
-from dinov3.utils import named_apply, named_replace
+from ..utils import named_apply, named_replace
 
 logger = logging.getLogger("dinov3")
 

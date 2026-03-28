@@ -43,7 +43,7 @@ except ImportError:
     SwiGLU = SwiGLUFFN
     XFORMERS_AVAILABLE = False
 
-    warnings.warn("xFormers is not available (SwiGLU)")
+    # warnings.warn("xFormers is not available (SwiGLU)")
 
 
 class SwiGLUFFNFused(SwiGLU):

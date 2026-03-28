@@ -21,7 +21,7 @@ def resize(input, size=None, scale_factor=None, mode="nearest", align_corners=No
             input_h, input_w = tuple(int(x) for x in input.shape[2:])
             output_h, output_w = tuple(int(x) for x in size)
             # 检查输出尺寸是否大于输入尺寸
-            if output_h > input_h or output_w > output_h:
+            if output_h > input_h or output_w > input_w:
                 # 检查尺寸是否满足特定条件
                 if (
                     (output_h > 1 and output_w > 1 and input_h > 1 and input_w > 1)

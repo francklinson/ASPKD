@@ -9,7 +9,9 @@ from utils import *
 
 
 class ScoreObserver:
-    '''Keeps an eye on the current and highest score so far'''
+    """
+    Keeps an eye on the current and highest score so far
+    """
 
     def __init__(self, name):
         self.name = name
@@ -31,6 +33,9 @@ class ScoreObserver:
 
 
 def train(train_loader, test_loader):
+    """
+    Train a DifferNet model
+    """
     model = DifferNet()
     optimizer = torch.optim.Adam(model.nf.parameters(), lr=c.lr_init, betas=(0.8, 0.8), eps=1e-04, weight_decay=1e-5)
     model.to(c.device)
