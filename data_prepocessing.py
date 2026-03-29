@@ -396,8 +396,8 @@ class Preprocessor:
                 print("---跳过非音频文件: {}".format(_file))
 
         # 保存对应关系到文件中
-        with open(self.src_audio_gen_pic_map_file, 'w', encoding="utf-8") as f:
-            json.dump(self.src_audio_gen_pic_map, f, ensure_ascii=False, indent=4)
+        # with open(self.src_audio_gen_pic_map_file, 'w', encoding="utf-8") as f:
+        #     json.dump(self.src_audio_gen_pic_map, f, ensure_ascii=False, indent=4)
 
         return result_dict
 

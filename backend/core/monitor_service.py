@@ -39,7 +39,19 @@ class AudioFileHandler(FileSystemEventHandler):
         ext = os.path.splitext(file_path)[1].lower()
         
         if ext in self.extensions:
+            filename = os.path.basename(file_path)
             print(f"[Monitor] 检测到新文件: {file_path}")
+            # 发送日志广播
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast({
+                    "type": "monitor_log",
+                    "data": {
+                        "level": "info",
+                        "message": f"📁 检测到新文件: {filename}"
+                    }
+                }),
+                self.loop
+            )
             # 使用线程安全的方式提交到主事件循环
             asyncio.run_coroutine_threadsafe(
                 self._delayed_process(file_path), 
@@ -103,14 +115,72 @@ class MonitorService:
         existing_files = self._get_audio_files()
         
         if detect_existing:
-            # 创建批量检测任务
+            # 创建批量检测任务并处理结果
             if existing_files:
-                await task_manager.create_batch_task(
+                await websocket_manager.broadcast({
+                    "type": "monitor_log",
+                    "data": {
+                        "level": "info",
+                        "message": f"🔄 开始检测 {len(existing_files)} 个已有文件..."
+                    }
+                })
+                
+                task_id = await task_manager.create_batch_task(
                     file_paths=existing_files,
                     algorithm=algorithm,
                     device=device
                 )
-                self.total_processed += len(existing_files)
+                
+                # 等待任务完成并处理结果
+                while True:
+                    result = task_manager.get_task_result(task_id)
+                    if result["status"] in ["completed", "failed"]:
+                        break
+                    await asyncio.sleep(0.5)
+                
+                # 处理检测结果
+                if result["status"] == "completed" and result["results"]:
+                    for r in result["results"]:
+                        self.detection_results.append({
+                            "timestamp": datetime.now().isoformat(),
+                            **r
+                        })
+                        self.processed_files.add(r.get("file_path", ""))
+                        
+                        if r.get("is_anomaly"):
+                            self.anomaly_count += 1
+                    
+                    self.total_processed += len(result["results"])
+                    
+                    # 广播结果
+                    await websocket_manager.broadcast({
+                        "type": "monitor_log",
+                        "data": {
+                            "level": "success",
+                            "message": f"✅ 已有文件检测完成: {len(result['results'])} 个文件，发现 {sum(1 for r in result['results'] if r.get('is_anomaly'))} 个异常"
+                        }
+                    })
+                    
+                    # 逐个广播每个结果供前端显示
+                    for r in result["results"]:
+                        await websocket_manager.broadcast({
+                            "type": "monitor_update",
+                            "data": {
+                                "total_processed": self.total_processed,
+                                "anomaly_count": self.anomaly_count,
+                                "latest_result": r
+                            }
+                        })
+                        await asyncio.sleep(0.05)  # 稍微延迟避免消息堆积
+                        
+                elif result["status"] == "failed":
+                    await websocket_manager.broadcast({
+                        "type": "monitor_log",
+                        "data": {
+                            "level": "error",
+                            "message": f"❌ 已有文件检测失败: {result.get('error', '未知错误')}"
+                        }
+                    })
         else:
             # 记录已有文件，不处理
             self.processed_files.update(existing_files)
@@ -167,6 +237,13 @@ class MonitorService:
                 
                 if new_files:
                     print(f"[Monitor] 扫描发现 {len(new_files)} 个新文件")
+                    await websocket_manager.broadcast({
+                        "type": "monitor_log",
+                        "data": {
+                            "level": "info",
+                            "message": f"🔍 定期扫描发现 {len(new_files)} 个新文件"
+                        }
+                    })
                     for file_path in new_files:
                         await self.process_file(file_path)
                 
@@ -178,7 +255,18 @@ class MonitorService:
         if file_path in self.processed_files:
             return
         
+        filename = os.path.basename(file_path)
         result = None
+        
+        # 发送开始处理日志
+        await websocket_manager.broadcast({
+            "type": "monitor_log",
+            "data": {
+                "level": "info",
+                "message": f"🚀 开始处理: {filename}"
+            }
+        })
+        
         try:
             # 创建检测任务
             task_id = await task_manager.create_batch_task(
@@ -204,12 +292,32 @@ class MonitorService:
                     
                     if r.get("is_anomaly"):
                         self.anomaly_count += 1
+                
+                # 发送处理完成日志
+                r = result["results"][0]
+                status_icon = "⚠️" if r.get("is_anomaly") else "✅"
+                status_text = "异常" if r.get("is_anomaly") else "正常"
+                await websocket_manager.broadcast({
+                    "type": "monitor_log",
+                    "data": {
+                        "level": "success" if not r.get("is_anomaly") else "warning",
+                        "message": f"{status_icon} {filename} 检测完成: {status_text} (分数: {r.get('anomaly_score', 0):.4f})"
+                    }
+                })
             
-            print(f"[Monitor] 文件处理完成: {os.path.basename(file_path)}, 结果: {result.get('status')}")
+            print(f"[Monitor] 文件处理完成: {filename}, 结果: {result.get('status')}")
             
         except Exception as e:
             print(f"[Monitor] 处理文件失败 {file_path}: {e}")
             result = {"status": "failed", "error": str(e), "results": []}
+            # 发送错误日志
+            await websocket_manager.broadcast({
+                "type": "monitor_log",
+                "data": {
+                    "level": "error",
+                    "message": f"❌ {filename} 处理失败: {str(e)}"
+                }
+            })
         
         finally:
             # 确保文件被记录，避免重复处理

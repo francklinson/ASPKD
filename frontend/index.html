@@ -354,6 +354,169 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
+        .gallery-item img {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .gallery-item img:hover {
+            transform: scale(1.05);
+        }
+
+        /* 热力图放大模态框 */
+        .heatmap-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            animation: fadeIn 0.3s;
+        }
+
+        .heatmap-modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .heatmap-modal-content {
+            position: relative;
+            max-width: 90%;
+            max-height: 90%;
+            animation: zoomIn 0.3s;
+        }
+
+        .heatmap-modal-content img {
+            max-width: 100%;
+            max-height: 85vh;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .heatmap-modal-caption {
+            color: white;
+            text-align: center;
+            padding: 15px 0;
+            font-size: 16px;
+        }
+
+        .heatmap-modal-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .heatmap-modal-close:hover {
+            color: #ff4d4f;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes zoomIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* 自定义弹窗样式 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.2s;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            max-width: 420px;
+            width: 90%;
+            overflow: hidden;
+            animation: zoomIn 0.2s;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 20px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .modal-body {
+            padding: 20px;
+            font-size: 14px;
+            color: #333;
+            line-height: 1.6;
+            white-space: pre-line;
+        }
+
+        .modal-footer {
+            padding: 12px 20px 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .modal-btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .modal-btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .modal-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .modal-btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .modal-btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .modal-btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .modal-btn-danger:hover {
+            background: #ff7875;
+        }
         
         .stats-grid {
             display: grid;
@@ -480,9 +643,7 @@
                         <label>选择算法</label>
                         <select class="form-control" id="algorithm">
                             <option value="dinomaly_dinov3_small">Dinomaly DINOv3 Small</option>
-                            <option value="dinomaly_dinov3_large">Dinomaly DINOv3 Large</option>
                             <option value="dinomaly_dinov2_small">Dinomaly DINOv2 Small</option>
-                            <option value="dinomaly_dinov2_large">Dinomaly DINOv2 Large</option>
                         </select>
                     </div>
                     
@@ -510,7 +671,12 @@
                 </div>
                 
                 <div class="card">
-                    <div class="card-title">📊 检测结果</div>
+                    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>📊 检测结果</span>
+                        <button class="btn btn-secondary" id="exportOfflineBtn" onclick="exportOfflineResults()" style="padding: 6px 12px; font-size: 12px; display: none;">
+                            📥 导出结果
+                        </button>
+                    </div>
                     <div id="results">
                         <div style="text-align: center; color: #999; padding: 40px;">
                             等待检测...
@@ -564,7 +730,7 @@
                         <label>检测算法</label>
                         <select class="form-control" id="monitorAlgorithm">
                             <option value="dinomaly_dinov3_small">Dinomaly DINOv3 Small</option>
-                            <option value="dinomaly_dinov3_large">Dinomaly DINOv3 Large</option>
+                            <option value="dinomaly_dinov2_small">Dinomaly DINOv2 Small</option>
                         </select>
                     </div>
                     
@@ -588,8 +754,13 @@
             </div>
             
             <div class="card">
-                <div class="card-title">🔍 检测结果列表</div>
-                <div style="overflow-x: auto;">
+                <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>🔍 检测结果列表</span>
+                    <button class="btn btn-secondary" onclick="exportMonitorResults()" style="padding: 6px 12px; font-size: 12px;">
+                        📥 导出结果
+                    </button>
+                </div>
+                <div style="overflow-x: auto; max-height: 300px; overflow-y: auto;">
                     <table class="results-table" id="monitorResults">
                         <thead>
                             <tr>
@@ -601,6 +772,13 @@
                         </thead>
                         <tbody></tbody>
                     </table>
+                </div>
+            </div>
+
+            <div class="card" id="monitorHeatmapCard" style="display: none;">
+                <div class="card-title">🔥 异常热力图</div>
+                <div id="monitorHeatmapResults" style="max-height: 340px; overflow-y: auto;">
+                    <div style="text-align: center; color: #999; padding: 20px;">暂无热力图</div>
                 </div>
             </div>
         </div>
@@ -633,6 +811,26 @@
         </div>
     </div>
     
+    <!-- 热力图放大模态框 -->
+    <div id="heatmapModal" class="heatmap-modal" onclick="closeHeatmapModal()">
+        <div class="heatmap-modal-content" onclick="event.stopPropagation()">
+            <span class="heatmap-modal-close" onclick="closeHeatmapModal()">&times;</span>
+            <img id="heatmapModalImg" src="" alt="热力图">
+            <div class="heatmap-modal-caption" id="heatmapModalCaption"></div>
+        </div>
+    </div>
+
+    <!-- 自定义弹窗 -->
+    <div id="customModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header" id="modalTitle">提示</div>
+            <div class="modal-body" id="modalMessage"></div>
+            <div class="modal-footer" id="modalFooter">
+                <button class="modal-btn modal-btn-primary" onclick="closeModal()">确定</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // API 基础 URL
         const API_BASE = window.location.origin;
@@ -805,6 +1003,10 @@
                 }
             } else if (data.type === 'result') {
                 const result = data.data;
+                // 保存任务ID用于导出
+                if (result.task_id) {
+                    currentOfflineTaskId = result.task_id;
+                }
                 if (result.status === 'completed') {
                     log(`✅ 检测完成! 共处理 ${result.results?.length || 0} 个文件`);
                     const anomalyCount = result.results?.filter(r => r.is_anomaly).length || 0;
@@ -844,13 +1046,13 @@
         // 开始检测
         async function startDetection() {
             if (selectedFiles.length === 0) {
-                alert('请先选择音频文件');
+                await showModal('请先选择音频文件', '提示');
                 return;
             }
 
             // 检查是否已有检测任务在进行中
             if (isDetecting) {
-                alert('检测任务正在进行中，请等待当前任务完成后再试');
+                await showModal('检测任务正在进行中，请等待当前任务完成后再试', '提示');
                 return;
             }
 
@@ -911,6 +1113,7 @@
             const resultsDiv = document.getElementById('results');
             const heatmapCard = document.getElementById('heatmapCard');
             const heatmapResults = document.getElementById('heatmapResults');
+            const exportBtn = document.getElementById('exportOfflineBtn');
             const MAX_TABLE_ROWS = 10; // 表格最多显示行数
 
             // 检测完成后清除文件列表
@@ -918,6 +1121,11 @@
                 selectedFiles = [];
                 document.getElementById('fileInput').value = '';
                 updateFileList();
+
+                // 显示导出按钮
+                if (exportBtn) {
+                    exportBtn.style.display = 'inline-flex';
+                }
             }
 
             if (data.status === 'completed' && data.results) {
@@ -960,7 +1168,7 @@
                         <div class="gallery">
                             ${heatmapData.map(r => `
                                 <div class="gallery-item">
-                                    <img src="${API_BASE}/${r.heatmap_path}" alt="${r.filename}" loading="lazy">
+                                    <img src="${API_BASE}/${r.heatmap_path}" alt="${r.filename}" loading="lazy" onclick="openHeatmapModal('${API_BASE}/${r.heatmap_path}', '${r.filename}')">
                                     <div class="caption">${r.filename}</div>
                                 </div>
                             `).join('')}
@@ -979,10 +1187,11 @@
         async function startMonitor() {
             const dir = document.getElementById('monitorDir').value;
             if (!dir) {
-                alert('请输入监控目录');
+                await showModal('请输入监控目录', '提示');
                 return;
             }
-            
+
+            // 直接启动监控，跳过已有文件，只监控新文件
             const config = {
                 directory: dir,
                 interval: parseInt(document.getElementById('monitorInterval').value),
@@ -990,22 +1199,22 @@
                 device: 'auto',
                 detect_existing: false
             };
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/monitor/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(config)
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (response.ok) {
                     monitorLog('监控已启动');
                     document.getElementById('monitorStatus').textContent = '运行中';
                     document.getElementById('startMonitorBtn').disabled = true;
                     document.getElementById('stopMonitorBtn').disabled = false;
-                    
+
                     // 连接监控 WebSocket
                     connectMonitorWebSocket();
                 } else {
@@ -1021,16 +1230,21 @@
                 const response = await fetch(`${API_BASE}/api/monitor/stop`, {
                     method: 'POST'
                 });
-                
+
                 if (response.ok) {
                     monitorLog('监控已停止');
                     document.getElementById('monitorStatus').textContent = '停止';
                     document.getElementById('startMonitorBtn').disabled = false;
                     document.getElementById('stopMonitorBtn').disabled = true;
-                    
+
                     if (monitorWs) {
                         monitorWs.close();
                     }
+
+                    // 停止监控后显示汇总信息
+                    const total = document.getElementById('monitorTotal').textContent;
+                    const anomaly = document.getElementById('monitorAnomaly').textContent;
+                    monitorLog(`监控结束，共检测 ${total} 个文件，发现 ${anomaly} 个异常`);
                 }
             } catch (error) {
                 monitorLog(`错误: ${error.message}`);
@@ -1052,6 +1266,10 @@
                 const data = JSON.parse(event.data);
                 if (data.type === 'monitor_update') {
                     updateMonitorStats(data.data);
+                } else if (data.type === 'monitor_log') {
+                    // 处理监控日志消息
+                    const logData = data.data;
+                    monitorLog(logData.message);
                 }
             };
             
@@ -1065,10 +1283,178 @@
             };
         }
         
+        // 存储所有监控结果（用于显示热力图）
+        let monitorResults = [];
+
+        // 当前离线检测任务ID（用于导出）
+        let currentOfflineTaskId = null;
+
+        // 自定义弹窗函数
+        let modalResolve = null;
+
+        function showModal(message, title = '提示', type = 'alert') {
+            return new Promise((resolve) => {
+                modalResolve = resolve;
+                const modal = document.getElementById('customModal');
+                const modalTitle = document.getElementById('modalTitle');
+                const modalMessage = document.getElementById('modalMessage');
+                const modalFooter = document.getElementById('modalFooter');
+
+                modalTitle.textContent = title;
+                modalMessage.textContent = message;
+
+                if (type === 'confirm') {
+                    modalFooter.innerHTML = `
+                        <button class="modal-btn modal-btn-secondary" onclick="closeModal(false)">取消</button>
+                        <button class="modal-btn modal-btn-primary" onclick="closeModal(true)">确定</button>
+                    `;
+                } else if (type === 'danger') {
+                    modalFooter.innerHTML = `
+                        <button class="modal-btn modal-btn-secondary" onclick="closeModal(false)">取消</button>
+                        <button class="modal-btn modal-btn-danger" onclick="closeModal(true)">确定</button>
+                    `;
+                } else {
+                    modalFooter.innerHTML = `
+                        <button class="modal-btn modal-btn-primary" onclick="closeModal(true)">确定</button>
+                    `;
+                }
+
+                modal.classList.add('active');
+            });
+        }
+
+        function closeModal(result = true) {
+            const modal = document.getElementById('customModal');
+            modal.classList.remove('active');
+            if (modalResolve) {
+                modalResolve(result);
+                modalResolve = null;
+            }
+        }
+
+        // ESC键关闭弹窗
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal(false);
+            }
+        });
+
+        // 导出离线检测结果
+        async function exportOfflineResults() {
+            if (!currentOfflineTaskId) {
+                await showModal('暂无检测结果可导出', '提示');
+                return;
+            }
+
+            try {
+                const btn = document.getElementById('exportOfflineBtn');
+                btn.textContent = '⏳ 导出中...';
+                btn.disabled = true;
+
+                const response = await fetch(`${API_BASE}/api/detection/export/${currentOfflineTaskId}`);
+
+                if (response.ok) {
+                    // 获取文件名
+                    const contentDisposition = response.headers.get('content-disposition');
+                    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+                    let filename = `检测结果_${timestamp}.zip`;
+                    if (contentDisposition) {
+                        const match = contentDisposition.match(/filename="?(.+?)"?$/);
+                        if (match) filename = match[1];
+                    }
+
+                    // 下载文件
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    log('✅ 结果导出成功');
+                } else {
+                    const error = await response.json();
+                    await showModal(`导出失败: ${error.detail}`, '错误');
+                }
+            } catch (error) {
+                console.error('导出失败:', error);
+                await showModal('导出失败，请重试', '错误');
+            } finally {
+                const btn = document.getElementById('exportOfflineBtn');
+                btn.textContent = '📥 导出结果';
+                btn.disabled = false;
+            }
+        }
+
+        // 导出实时监控结果
+        async function exportMonitorResults() {
+            try {
+                const response = await fetch(`${API_BASE}/api/monitor/export`);
+
+                if (response.ok) {
+                    // 获取文件名
+                    const contentDisposition = response.headers.get('content-disposition');
+                    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+                    let filename = `监控结果_${timestamp}.zip`;
+                    if (contentDisposition) {
+                        const match = contentDisposition.match(/filename="?(.+?)"?$/);
+                        if (match) filename = match[1];
+                    }
+
+                    // 下载文件
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    monitorLog('✅ 监控结果导出成功');
+                } else {
+                    const error = await response.json();
+                    await showModal(`导出失败: ${error.detail}`, '错误');
+                }
+            } catch (error) {
+                console.error('导出失败:', error);
+                await showModal('导出失败，请重试', '错误');
+            }
+        }
+
+        // 打开热力图模态框
+        function openHeatmapModal(src, caption) {
+            const modal = document.getElementById('heatmapModal');
+            const img = document.getElementById('heatmapModalImg');
+            const cap = document.getElementById('heatmapModalCaption');
+            img.src = src;
+            cap.textContent = caption;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // 关闭热力图模态框
+        function closeHeatmapModal() {
+            const modal = document.getElementById('heatmapModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // ESC键关闭模态框
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeHeatmapModal();
+            }
+        });
+
         function updateMonitorStats(data) {
             document.getElementById('monitorTotal').textContent = data.total_processed;
             document.getElementById('monitorAnomaly').textContent = data.anomaly_count;
-            
+
             if (data.latest_result) {
                 const tbody = document.querySelector('#monitorResults tbody');
                 const row = document.createElement('tr');
@@ -1079,11 +1465,40 @@
                     <td><span class="badge ${data.latest_result.is_anomaly ? 'badge-danger' : 'badge-success'}">${data.latest_result.status}</span></td>
                 `;
                 tbody.insertBefore(row, tbody.firstChild);
+
+                // 保存结果用于显示热力图
+                monitorResults.push(data.latest_result);
+                updateMonitorHeatmap();
+            }
+        }
+
+        function updateMonitorHeatmap() {
+            const heatmapCard = document.getElementById('monitorHeatmapCard');
+            const heatmapResults = document.getElementById('monitorHeatmapResults');
+
+            // 只显示有热力图的结果
+            const heatmapData = monitorResults.filter(r => r.heatmap_path);
+
+            if (heatmapData.length > 0) {
+                heatmapCard.style.display = 'block';
+                heatmapResults.innerHTML = `
+                    <div class="gallery">
+                        ${heatmapData.map(r => `
+                            <div class="gallery-item">
+                                <img src="${API_BASE}/${r.heatmap_path}" alt="${r.filename}" loading="lazy" onclick="openHeatmapModal('${API_BASE}/${r.heatmap_path}', '${r.filename}')">
+                                <div class="caption">${r.filename}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
             }
         }
         
         function clearMonitorResults() {
             document.querySelector('#monitorResults tbody').innerHTML = '';
+            monitorResults = []; // 清除存储的结果
+            document.getElementById('monitorHeatmapCard').style.display = 'none';
+            document.getElementById('monitorHeatmapResults').innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">暂无热力图</div>';
             monitorLog('结果已清空');
         }
         
@@ -1091,9 +1506,17 @@
         async function loadTaskList() {
             try {
                 const response = await fetch(`${API_BASE}/api/tasks/list`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 const data = await response.json();
                 
                 const tbody = document.querySelector('#taskList tbody');
+                if (!data.tasks || data.tasks.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #999; padding: 40px;">暂无任务</td></tr>';
+                    return;
+                }
+                
                 tbody.innerHTML = data.tasks.map(t => `
                     <tr>
                         <td>${t.id.substring(0, 8)}...</td>
@@ -1103,13 +1526,15 @@
                         <td>${t.progress.toFixed(1)}%</td>
                         <td>${new Date(t.created_at).toLocaleString()}</td>
                         <td>
-                            <button class="btn btn-secondary" onclick="viewTask('${t.id}')">查看</button>
-                            ${t.status === 'running' ? `<button class="btn btn-danger" onclick="cancelTask('${t.id}')">取消</button>` : ''}
+                            <button class="btn btn-secondary" onclick="viewTask('${t.id}')" style="padding: 4px 8px; font-size: 12px;">查看</button>
+                            ${t.status === 'running' ? `<button class="btn btn-danger" onclick="cancelTask('${t.id}')" style="padding: 4px 8px; font-size: 12px; margin-left: 4px;">取消</button>` : ''}
                         </td>
                     </tr>
                 `).join('');
             } catch (error) {
                 console.error('加载任务列表失败:', error);
+                const tbody = document.querySelector('#taskList tbody');
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ff4d4f; padding: 40px;">加载失败: ${error.message}</td></tr>`;
             }
         }
         
@@ -1124,25 +1549,80 @@
             return map[status] || 'secondary';
         }
         
-        async function cancelTask(taskId) {
+        async function viewTask(taskId) {
             try {
-                await fetch(`${API_BASE}/api/detection/cancel/${taskId}`, {
+                const response = await fetch(`${API_BASE}/api/detection/result/${taskId}`);
+                if (!response.ok) {
+                    throw new Error('获取任务详情失败');
+                }
+                const data = await response.json();
+                
+                // 格式化显示任务详情
+                let details = `任务ID: ${taskId}\n`;
+                details += `状态: ${data.status}\n`;
+                details += `进度: ${data.progress?.toFixed(1) || 0}%\n`;
+                if (data.current_file) {
+                    details += `当前文件: ${data.current_file}\n`;
+                }
+                if (data.error) {
+                    details += `错误信息: ${data.error}\n`;
+                }
+                if (data.results && data.results.length > 0) {
+                    details += `\n检测结果:\n`;
+                    data.results.forEach((r, i) => {
+                        details += `  ${i+1}. ${r.filename}: ${r.status} (分数: ${r.anomaly_score?.toFixed(4) || 0})\n`;
+                    });
+                }
+                
+                await showModal(details, '任务详情');
+            } catch (error) {
+                console.error('查看任务失败:', error);
+                await showModal('查看任务详情失败: ' + error.message, '错误');
+            }
+        }
+
+        async function cancelTask(taskId) {
+            const confirmed = await showModal('确定要取消该任务吗？', '确认', 'confirm');
+            if (!confirmed) {
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE}/api/detection/cancel/${taskId}`, {
                     method: 'POST'
                 });
+                if (!response.ok) {
+                    throw new Error('取消任务失败');
+                }
+                await showModal('任务已取消', '提示');
                 loadTaskList();
             } catch (error) {
-                alert('取消任务失败');
+                console.error('取消任务失败:', error);
+                await showModal('取消任务失败: ' + error.message, '错误');
             }
         }
         
         async function cleanupOldTasks() {
+            const confirmed = await showModal(
+                '确定要清理所有已完成的任务缓存吗？\n\n这将删除所有已完成/失败/取消的任务记录，保留运行中的任务。',
+                '确认清理',
+                'danger'
+            );
+            if (!confirmed) {
+                return;
+            }
             try {
-                await fetch(`${API_BASE}/api/tasks/cleanup`, {
+                const response = await fetch(`${API_BASE}/api/tasks/cleanup?clear_all=true`, {
                     method: 'POST'
                 });
+                if (!response.ok) {
+                    throw new Error('清理任务失败');
+                }
+                const result = await response.json();
+                await showModal(`已清理 ${result.removed_count || 0} 个任务`, '清理完成');
                 loadTaskList();
             } catch (error) {
-                alert('清理任务失败');
+                console.error('清理任务失败:', error);
+                await showModal('清理任务失败: ' + error.message, '错误');
             }
         }
         
@@ -1151,7 +1631,7 @@
             try {
                 const response = await fetch(`${API_BASE}/api/monitor/status`);
                 const status = await response.json();
-                
+
                 if (status.is_running) {
                     document.getElementById('monitorStatus').textContent = '运行中';
                     document.getElementById('monitorTotal').textContent = status.total_processed;

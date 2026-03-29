@@ -1,8 +1,13 @@
 """
 目录监控 API
 """
+import os
+import zipfile
+import shutil
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from backend.core.monitor_service import monitor_service
@@ -110,3 +115,146 @@ async def cleanup_temp_files(max_age_hours: int = 24):
         "deleted_files": deleted_count,
         "message": f"清理了 {deleted_count} 个临时文件"
     }
+
+
+class ScanRequest(BaseModel):
+    """扫描目录请求"""
+    directory: str = Field(..., description="目录路径")
+    file_extensions: list = Field(
+        default=[".wav", ".mp3", ".flac", ".aac", ".ogg", ".m4a"],
+        description="文件扩展名列表"
+    )
+
+
+@router.post("/scan")
+async def scan_directory(request: ScanRequest):
+    """
+    扫描目录中的音频文件
+    
+    - **directory**: 目录路径
+    - **file_extensions**: 文件扩展名列表
+    """
+    import os
+    
+    directory = request.directory
+    file_extensions = request.file_extensions
+    
+    if not os.path.exists(directory):
+        raise HTTPException(status_code=400, detail="目录不存在")
+    
+    if not os.path.isdir(directory):
+        raise HTTPException(status_code=400, detail="路径不是目录")
+    
+    extensions = set(ext.lower() for ext in (file_extensions or [".wav", ".mp3", ".flac", ".aac", ".ogg", ".m4a"]))
+    
+    audio_files = []
+    try:
+        for filename in os.listdir(directory):
+            filepath = os.path.join(directory, filename)
+            if os.path.isfile(filepath):
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in extensions:
+                    audio_files.append({
+                        "name": filename,
+                        "path": filepath,
+                        "size": os.path.getsize(filepath)
+                    })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"扫描目录失败: {str(e)}")
+    
+    return {
+        "directory": directory,
+        "file_count": len(audio_files),
+        "files": audio_files
+    }
+
+
+@router.get("/export")
+async def export_monitor_results():
+    """
+    导出实时监控结果为压缩包（包含Excel表格和热力图）
+    """
+    results = monitor_service.get_results(limit=1000, offset=0)
+    
+    if not results:
+        raise HTTPException(status_code=400, detail="没有检测结果可导出")
+    
+    # 创建导出目录
+    export_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+    export_dir = os.path.join("exports", f"monitor_{export_id}")
+    os.makedirs(export_dir, exist_ok=True)
+    
+    try:
+        # 1. 创建 Excel 文件
+        try:
+            import pandas as pd
+            
+            excel_data = []
+            for r in results:
+                excel_data.append({
+                    "时间": r.get("timestamp", ""),
+                    "文件名": r.get("filename", ""),
+                    "异常分数": r.get("anomaly_score", 0),
+                    "检测结果": r.get("status", ""),
+                    "是否异常": "是" if r.get("is_anomaly") else "否",
+                    "热力图路径": r.get("heatmap_path", "")
+                })
+            
+            df = pd.DataFrame(excel_data)
+            excel_path = os.path.join(export_dir, "监控结果.xlsx")
+            df.to_excel(excel_path, index=False, engine='openpyxl')
+        except ImportError:
+            # 如果没有 pandas，使用 CSV 格式
+            import csv
+            csv_path = os.path.join(export_dir, "监控结果.csv")
+            with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f)
+                writer.writerow(["时间", "文件名", "异常分数", "检测结果", "是否异常", "热力图路径"])
+                for r in results:
+                    writer.writerow([
+                        r.get("timestamp", ""),
+                        r.get("filename", ""),
+                        r.get("anomaly_score", 0),
+                        r.get("status", ""),
+                        "是" if r.get("is_anomaly") else "否",
+                        r.get("heatmap_path", "")
+                    ])
+        
+        # 2. 收集热力图
+        heatmap_dir = os.path.join(export_dir, "热力图")
+        os.makedirs(heatmap_dir, exist_ok=True)
+        
+        for r in results:
+            heatmap_path = r.get("heatmap_path")
+            if heatmap_path and os.path.exists(heatmap_path):
+                # 复制热力图到导出目录
+                filename = os.path.basename(heatmap_path)
+                dest_path = os.path.join(heatmap_dir, filename)
+                shutil.copy2(heatmap_path, dest_path)
+        
+        # 3. 打包成 zip
+        zip_filename = f"监控结果_{export_id}.zip"
+        zip_path = os.path.join("exports", zip_filename)
+        
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(export_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, export_dir)
+                    zipf.write(file_path, arcname)
+        
+        # 4. 清理临时目录
+        shutil.rmtree(export_dir)
+        
+        return FileResponse(
+            path=zip_path,
+            filename=zip_filename,
+            media_type='application/zip',
+            content_disposition=f'attachment; filename="{zip_filename}"'
+        )
+        
+    except Exception as e:
+        # 清理临时目录
+        if os.path.exists(export_dir):
+            shutil.rmtree(export_dir)
+        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")

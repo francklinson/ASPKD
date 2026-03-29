@@ -44,17 +44,21 @@ async def get_task_stats():
 
 
 @router.post("/cleanup")
-async def cleanup_old_tasks(keep_days: int = 7):
+async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False):
     """
     清理旧任务记录
     
-    - **keep_days**: 保留最近几天的任务
+    - **keep_days**: 保留最近几天的任务（默认7天）
+    - **clear_all**: 是否清理所有已完成/失败/取消的任务（优先于keep_days）
     """
-    removed_count = await task_manager.cleanup_old_tasks(keep_days)
+    if clear_all:
+        removed_count = await task_manager.clear_all_tasks()
+    else:
+        removed_count = await task_manager.cleanup_old_tasks(keep_days)
     return {
         "status": "cleaned",
         "removed_count": removed_count,
-        "message": f"清理了 {removed_count} 个旧任务"
+        "message": f"清理了 {removed_count} 个任务"
     }
 
 

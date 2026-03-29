@@ -310,6 +310,26 @@ class TaskManager:
                 if images:
                     file_image_map[audio_file] = images
                     all_images.extend(images)
+                else:
+                    # 未找到指定片段
+                    await websocket_manager.send_progress(task.id, {
+                        "progress": task.progress,
+                        "current": idx + 1,
+                        "total": total_files,
+                        "current_file": task.current_file,
+                        "status": "preprocessing",
+                        "message": f"⚠️ {task.current_file}: 未找到指定片段"
+                    })
+            else:
+                # 预处理结果为空
+                await websocket_manager.send_progress(task.id, {
+                    "progress": task.progress,
+                    "current": idx + 1,
+                    "total": total_files,
+                    "current_file": task.current_file,
+                    "status": "preprocessing",
+                    "message": f"⚠️ {task.current_file}: 未找到指定片段"
+                })
 
         print(f"[TaskManager] 预处理完成，共生成 {len(all_images)} 张图片")
 
@@ -485,6 +505,20 @@ class TaskManager:
         
         for task_id, task in self.tasks.items():
             if task.completed_at and task.completed_at.timestamp() < cutoff_time:
+                to_remove.append(task_id)
+        
+        for task_id in to_remove:
+            del self.tasks[task_id]
+        
+        return len(to_remove)
+    
+    async def clear_all_tasks(self) -> int:
+        """清理所有已完成/失败/取消的任务"""
+        to_remove = []
+        
+        for task_id, task in self.tasks.items():
+            # 只保留运行中和待处理的任务
+            if task.status in ['completed', 'failed', 'cancelled']:
                 to_remove.append(task_id)
         
         for task_id in to_remove:

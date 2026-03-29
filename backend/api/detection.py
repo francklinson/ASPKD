@@ -3,11 +3,16 @@
 """
 import os
 import uuid
+import zipfile
+import shutil
+from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from backend.core.task_manager import task_manager
+from backend.core.websocket import websocket_manager
 
 router = APIRouter()
 
@@ -189,3 +194,99 @@ async def get_available_devices():
             })
     
     return {"devices": devices}
+
+
+@router.get("/export/{task_id}")
+async def export_task_results(task_id: str):
+    """
+    导出检测结果为压缩包（包含Excel表格和热力图）
+    
+    - **task_id**: 任务ID
+    """
+    result = task_manager.get_task_result(task_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    
+    if result["status"] != "completed":
+        raise HTTPException(status_code=400, detail="任务尚未完成，无法导出")
+    
+    results = result.get("results", [])
+    if not results:
+        raise HTTPException(status_code=400, detail="没有检测结果可导出")
+    
+    # 创建导出目录
+    export_dir = os.path.join("exports", task_id)
+    os.makedirs(export_dir, exist_ok=True)
+    
+    try:
+        # 1. 创建 Excel 文件
+        try:
+            import pandas as pd
+            
+            excel_data = []
+            for r in results:
+                excel_data.append({
+                    "文件名": r.get("filename", ""),
+                    "异常分数": r.get("anomaly_score", 0),
+                    "检测结果": r.get("status", ""),
+                    "是否异常": "是" if r.get("is_anomaly") else "否",
+                    "热力图路径": r.get("heatmap_path", "")
+                })
+            
+            df = pd.DataFrame(excel_data)
+            excel_path = os.path.join(export_dir, "检测结果.xlsx")
+            df.to_excel(excel_path, index=False, engine='openpyxl')
+        except ImportError:
+            # 如果没有 pandas，使用 CSV 格式
+            import csv
+            csv_path = os.path.join(export_dir, "检测结果.csv")
+            with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f)
+                writer.writerow(["文件名", "异常分数", "检测结果", "是否异常", "热力图路径"])
+                for r in results:
+                    writer.writerow([
+                        r.get("filename", ""),
+                        r.get("anomaly_score", 0),
+                        r.get("status", ""),
+                        "是" if r.get("is_anomaly") else "否",
+                        r.get("heatmap_path", "")
+                    ])
+        
+        # 2. 收集热力图
+        heatmap_dir = os.path.join(export_dir, "热力图")
+        os.makedirs(heatmap_dir, exist_ok=True)
+        
+        for r in results:
+            heatmap_path = r.get("heatmap_path")
+            if heatmap_path and os.path.exists(heatmap_path):
+                # 复制热力图到导出目录
+                filename = os.path.basename(heatmap_path)
+                dest_path = os.path.join(heatmap_dir, filename)
+                shutil.copy2(heatmap_path, dest_path)
+        
+        # 3. 打包成 zip
+        zip_filename = f"检测结果_{task_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        zip_path = os.path.join("exports", zip_filename)
+        
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(export_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, export_dir)
+                    zipf.write(file_path, arcname)
+        
+        # 4. 清理临时目录
+        shutil.rmtree(export_dir)
+        
+        return FileResponse(
+            path=zip_path,
+            filename=zip_filename,
+            media_type='application/zip',
+            content_disposition=f'attachment; filename="{zip_filename}"'
+        )
+        
+    except Exception as e:
+        # 清理临时目录
+        if os.path.exists(export_dir):
+            shutil.rmtree(export_dir)
+        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
