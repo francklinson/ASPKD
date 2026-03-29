@@ -62,7 +62,7 @@ class TaskManager:
             
             from algorithms import create_detector
             from core import ConfigManager
-            from data_prepocessing import Preprocessor
+            from prepocessing import Preprocessor
             
             self.create_detector = create_detector
             self.ConfigManager = ConfigManager
