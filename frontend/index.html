@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音频异常检测系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .tab:hover {
+            background: #f0f0f0;
+        }
+        
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .content {
+            display: none;
+        }
+        
+        .content.active {
+            display: block;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .dropzone {
+            border: 2px dashed #d9d9d9;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .dropzone:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .dropzone.dragover {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+        
+        .file-list {
+            margin-top: 16px;
+            max-height: 130px; /* 约3行高度 */
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .file-more {
+            text-align: center;
+            padding: 8px;
+            color: #666;
+            font-size: 13px;
+            background: #f0f0f0;
+            border-radius: 6px;
+        }
+
+        /* 检测结果区域 */
+        #results {
+            max-height: none;
+            overflow-y: visible;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        #results .results-container {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 400px;
+            min-height: 200px;
+        }
+
+        #results .results-container table {
+            width: 100%;
+        }
+
+        #results table {
+            width: 100%;
+        }
+
+        #results .gallery {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        /* 热力图区域 - 限制两行高度 */
+        #heatmapResults {
+            max-height: 340px;
+            overflow-y: auto;
+        }
+
+        #heatmapResults .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        
+        .progress {
+            margin-top: 20px;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        
+        .progress-text {
+            margin-top: 8px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .status-log {
+            background: #f8f9fa;
+            color: #333;
+            border: 1px solid #e8e8e8;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 16px;
+        }
+
+        .status-log .timestamp {
+            color: #666;
+        }
+        
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+        
+        .results-table th,
+        .results-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .results-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .results-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .badge {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-success {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+        
+        .badge-danger {
+            background: #fff2f0;
+            color: #ff4d4f;
+        }
+        
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        
+        .gallery-item {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .gallery-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+        
+        .gallery-item .caption {
+            padding: 8px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        
+        .alert-info {
+            background: #e6f7ff;
+            border: 1px solid #91d5ff;
+            color: #096dd9;
+        }
+        
+        .alert-success {
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #389e0d;
+        }
+        
+        .alert-error {
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #cf1322;
+        }
+        
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: stretch;
+        }
+
+        .row > .card {
+            display: flex;
+            flex-direction: column;
+            height: auto;
+            min-height: 500px;
+        }
+
+        .row > .card > #results {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        @media (max-width: 768px) {
+            .row {
+                grid-template-columns: 1fr;
+            }
+            
+            .tabs {
+                flex-wrap: wrap;
+            }
+            
+            .gallery {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎵 音频异常检测系统</h1>
+        <p>前后端分离架构 v2.0 | 支持在线/离线检测</p>
+    </div>
+    
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('offline')">💻 离线检测</button>
+            <button class="tab" onclick="switchTab('monitor')">📡 实时监控</button>
+            <button class="tab" onclick="switchTab('tasks')">📋 任务管理</button>
+        </div>
+        
+        <!-- 离线检测 -->
+        <div id="offline" class="content active">
+            <div class="row">
+                <div class="card">
+                    <div class="card-title">📤 上传音频文件</div>
+                    
+                    <div class="dropzone" id="dropzone">
+                        <div>📁 拖拽文件到此处，或点击选择</div>
+                        <div style="color: #999; font-size: 14px; margin-top: 8px;">支持 WAV, MP3, FLAC 等格式</div>
+                        <input type="file" id="fileInput" multiple accept="audio/*" style="display: none;">
+                    </div>
+
+                    <div class="file-list" id="fileList"></div>
+
+                    <div id="fileActions" style="margin-top: 10px; display: none;">
+                        <button class="btn btn-secondary" onclick="clearFiles()">
+                            🗑️ 清除文件列表
+                        </button>
+                        <button class="btn btn-secondary" onclick="continueUpload()" style="margin-left: 10px;">
+                            ➕ 继续上传文件
+                        </button>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label>选择算法</label>
+                        <select class="form-control" id="algorithm">
+                            <option value="dinomaly_dinov3_small">Dinomaly DINOv3 Small</option>
+                            <option value="dinomaly_dinov3_large">Dinomaly DINOv3 Large</option>
+                            <option value="dinomaly_dinov2_small">Dinomaly DINOv2 Small</option>
+                            <option value="dinomaly_dinov2_large">Dinomaly DINOv2 Large</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>运行设备</label>
+                        <select class="form-control" id="device">
+                            <option value="auto">自动选择 (GPU优先)</option>
+                            <option value="cpu">CPU (纯CPU运行)</option>
+                            <option value="cuda:0">GPU 0</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn btn-primary" id="startBtn" onclick="startDetection()">
+                        🚀 开始检测
+                    </button>
+                    
+                    <div class="progress" id="progress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">准备中...</div>
+                    </div>
+                    
+                    <div class="status-log" id="statusLog"></div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">📊 检测结果</div>
+                    <div id="results">
+                        <div style="text-align: center; color: #999; padding: 40px;">
+                            等待检测...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" id="heatmapCard" style="display: none;">
+                <div class="card-title">🔥 异常热力图</div>
+                <div id="heatmapResults">
+                    <div style="text-align: center; color: #999; padding: 20px;">
+                        暂无热力图
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 实时监控 -->
+        <div id="monitor" class="content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="monitorTotal">0</div>
+                    <div class="stat-label">总检测数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="monitorAnomaly">0</div>
+                    <div class="stat-label">异常数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="monitorStatus">停止</div>
+                    <div class="stat-label">监控状态</div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="card">
+                    <div class="card-title">⚙️ 监控设置</div>
+                    
+                    <div class="form-group">
+                        <label>监控目录</label>
+                        <input type="text" class="form-control" id="monitorDir" placeholder="输入绝对路径">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>检测间隔（秒）</label>
+                        <input type="number" class="form-control" id="monitorInterval" value="30" min="5" max="300">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>检测算法</label>
+                        <select class="form-control" id="monitorAlgorithm">
+                            <option value="dinomaly_dinov3_small">Dinomaly DINOv3 Small</option>
+                            <option value="dinomaly_dinov3_large">Dinomaly DINOv3 Large</option>
+                        </select>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" id="startMonitorBtn" onclick="startMonitor()">
+                            ▶️ 开始监控
+                        </button>
+                        <button class="btn btn-danger" id="stopMonitorBtn" onclick="stopMonitor()" disabled>
+                            ⏹️ 停止监控
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearMonitorResults()">
+                            🗑️ 清空结果
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">📝 实时监控日志</div>
+                    <div class="status-log" id="monitorLog" style="height: 300px;"></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">🔍 检测结果列表</div>
+                <div style="overflow-x: auto;">
+                    <table class="results-table" id="monitorResults">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>文件名</th>
+                                <th>异常分数</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 任务管理 -->
+        <div id="tasks" class="content">
+            <div class="card">
+                <div class="card-title">📋 任务列表</div>
+                <div style="overflow-x: auto;">
+                    <table class="results-table" id="taskList">
+                        <thead>
+                            <tr>
+                                <th>任务ID</th>
+                                <th>状态</th>
+                                <th>算法</th>
+                                <th>文件数</th>
+                                <th>进度</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 16px; text-align: center;">
+                    <button class="btn btn-secondary" onclick="loadTaskList()">🔄 刷新</button>
+                    <button class="btn btn-danger" onclick="cleanupOldTasks()">🧹 清理旧任务</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // API 基础 URL
+        const API_BASE = window.location.origin;
+        
+        // 状态管理
+        let selectedFiles = [];
+        let currentTaskId = null;
+        let wsConnection = null;
+        let monitorWs = null;
+        let isDetecting = false; // 标记是否正在检测中
+        
+        // 标签切换
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            if (tabName === 'tasks') {
+                loadTaskList();
+            }
+        }
+        
+        // 文件上传处理
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        
+        dropzone.addEventListener('click', () => fileInput.click());
+        
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+        
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        function handleFiles(files) {
+            // 追加新文件到已有列表
+            const newFiles = Array.from(files);
+            selectedFiles = [...selectedFiles, ...newFiles];
+            updateFileList();
+            log(`已添加 ${newFiles.length} 个文件，当前共 ${selectedFiles.length} 个文件`);
+        }
+        
+        function updateFileList() {
+            const list = document.getElementById('fileList');
+            const dropzone = document.getElementById('dropzone');
+            const fileActions = document.getElementById('fileActions');
+
+            if (selectedFiles.length === 0) {
+                list.innerHTML = '';
+                dropzone.style.display = 'block';
+                fileActions.style.display = 'none';
+                return;
+            }
+
+            // 有文件时隐藏上传框，显示操作按钮
+            dropzone.style.display = 'none';
+            fileActions.style.display = 'block';
+
+            // 显示所有文件（通过CSS限制显示高度，支持滚动）
+            list.innerHTML = selectedFiles.map((f, index) => `
+                <div class="file-item">
+                    <span>📄 ${f.name}</span>
+                    <span>${(f.size / 1024 / 1024).toFixed(2)} MB</span>
+                </div>
+            `).join('');
+        }
+
+        function clearFiles() {
+            selectedFiles = [];
+            document.getElementById('fileInput').value = '';
+            updateFileList();
+            log('文件列表已清除');
+        }
+
+        function continueUpload() {
+            // 清空 input 值，允许重复选择相同文件
+            document.getElementById('fileInput').value = '';
+            // 触发文件选择框
+            document.getElementById('fileInput').click();
+        }
+        
+        // 日志输出
+        function log(message, type = 'info') {
+            const logBox = document.getElementById('statusLog');
+            const time = new Date().toLocaleTimeString();
+            const line = document.createElement('div');
+            line.innerHTML = `<span class="timestamp">[${time}]</span> ${message}`;
+            logBox.appendChild(line);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+        
+        function monitorLog(message) {
+            const logBox = document.getElementById('monitorLog');
+            const time = new Date().toLocaleTimeString();
+            const line = document.createElement('div');
+            line.innerHTML = `<span class="timestamp">[${time}]</span> ${message}`;
+            logBox.appendChild(line);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+        
+        // WebSocket 连接
+        function connectWebSocket(taskId) {
+            const wsUrl = `ws://${window.location.host}/ws/progress/${taskId}`;
+            wsConnection = new WebSocket(wsUrl);
+
+            wsConnection.onopen = () => {
+                console.log('WebSocket connected');
+            };
+
+            wsConnection.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+
+            wsConnection.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                log('WebSocket 连接错误', 'error');
+                // WebSocket 错误时重置状态
+                isDetecting = false;
+                const btn = document.getElementById('startBtn');
+                btn.disabled = false;
+                btn.textContent = '🚀 开始检测';
+            };
+
+            wsConnection.onclose = () => {
+                console.log('WebSocket closed');
+                // 如果检测状态仍为 true，说明是异常关闭，重置状态
+                if (isDetecting) {
+                    isDetecting = false;
+                    const btn = document.getElementById('startBtn');
+                    btn.disabled = false;
+                    btn.textContent = '🚀 开始检测';
+                    log('连接已断开', 'error');
+                }
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            if (data.type === 'progress') {
+                const progress = data.data;
+                updateProgress(progress.progress, progress.status);
+
+                // 根据状态显示详细日志
+                if (progress.status === 'preprocessing' && progress.message) {
+                    log(progress.message);
+                } else if (progress.status === 'detecting' && progress.message) {
+                    log(progress.message);
+                } else if (progress.current_file) {
+                    log(`处理: ${progress.current_file}`);
+                }
+
+                // 显示统计信息
+                if (progress.current !== undefined && progress.total !== undefined) {
+                    log(`进度: ${progress.current}/${progress.total}`);
+                }
+            } else if (data.type === 'result') {
+                const result = data.data;
+                if (result.status === 'completed') {
+                    log(`✅ 检测完成! 共处理 ${result.results?.length || 0} 个文件`);
+                    const anomalyCount = result.results?.filter(r => r.is_anomaly).length || 0;
+                    if (anomalyCount > 0) {
+                        log(`⚠️ 发现 ${anomalyCount} 个异常文件`);
+                    }
+                } else if (result.status === 'failed') {
+                    log(`❌ 检测失败: ${result.error}`, 'error');
+                }
+                showResults(result);
+                wsConnection.close();
+
+                // 检测完成后启用按钮
+                isDetecting = false;
+                const btn = document.getElementById('startBtn');
+                btn.disabled = false;
+                btn.textContent = '🚀 开始检测';
+            }
+        }
+        
+        function updateProgress(percent, status) {
+            const progress = document.getElementById('progress');
+            const fill = document.getElementById('progressFill');
+            const text = document.getElementById('progressText');
+            
+            progress.style.display = 'block';
+            fill.style.width = `${percent}%`;
+            
+            const statusMap = {
+                'preprocessing': '预处理中...',
+                'detecting': '异常检测中...',
+                'completed': '完成!'
+            };
+            text.textContent = statusMap[status] || `${percent.toFixed(1)}%`;
+        }
+        
+        // 开始检测
+        async function startDetection() {
+            if (selectedFiles.length === 0) {
+                alert('请先选择音频文件');
+                return;
+            }
+
+            // 检查是否已有检测任务在进行中
+            if (isDetecting) {
+                alert('检测任务正在进行中，请等待当前任务完成后再试');
+                return;
+            }
+
+            const btn = document.getElementById('startBtn');
+            isDetecting = true;
+            btn.disabled = true;
+            btn.textContent = '检测中...';
+
+            // 显示上传信息
+            const totalSize = selectedFiles.reduce((sum, f) => sum + f.size, 0);
+            log(`📁 准备上传 ${selectedFiles.length} 个文件，共 ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
+
+            const formData = new FormData();
+            selectedFiles.forEach(f => formData.append('files', f));
+            formData.append('algorithm', document.getElementById('algorithm').value);
+            formData.append('device', document.getElementById('device').value);
+
+            log('⬆️ 正在上传文件...');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/detection/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    currentTaskId = result.task_id;
+                    log(`✅ 任务创建成功: ${currentTaskId.substring(0, 8)}...`);
+                    if (result.queue_position > 0) {
+                        log(`⏳ 队列位置: ${result.queue_position}，请稍候...`);
+                    } else {
+                        log('🚀 开始处理...');
+                    }
+
+                    // 连接 WebSocket
+                    connectWebSocket(currentTaskId);
+                } else {
+                    log(`❌ 错误: ${result.detail}`, 'error');
+                    // 请求失败时重置状态
+                    isDetecting = false;
+                    btn.disabled = false;
+                    btn.textContent = '🚀 开始检测';
+                }
+            } catch (error) {
+                log(`❌ 请求失败: ${error.message}`, 'error');
+                // 请求失败时重置状态
+                isDetecting = false;
+                btn.disabled = false;
+                btn.textContent = '🚀 开始检测';
+            }
+            // 注意：任务成功创建后，按钮保持禁用状态，直到收到结果
+        }
+        
+        // 显示结果
+        function showResults(data) {
+            const resultsDiv = document.getElementById('results');
+            const heatmapCard = document.getElementById('heatmapCard');
+            const heatmapResults = document.getElementById('heatmapResults');
+            const MAX_TABLE_ROWS = 10; // 表格最多显示行数
+
+            // 检测完成后清除文件列表
+            if (data.status === 'completed') {
+                selectedFiles = [];
+                document.getElementById('fileInput').value = '';
+                updateFileList();
+            }
+
+            if (data.status === 'completed' && data.results) {
+                const totalCount = data.results.length;
+                const displayResults = data.results.slice(0, MAX_TABLE_ROWS);
+
+                const tableRows = displayResults.map(r => `
+                    <tr>
+                        <td>${r.filename}</td>
+                        <td>${r.anomaly_score.toFixed(4)}</td>
+                        <td><span class="badge ${r.is_anomaly ? 'badge-danger' : 'badge-success'}">${r.status}</span></td>
+                    </tr>
+                `).join('');
+
+                // 显示结果表格
+                resultsDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        检测完成! 共 ${totalCount} 个文件
+                        ${data.results.filter(r => r.is_anomaly).length > 0 ? `，发现 ${data.results.filter(r => r.is_anomaly).length} 个异常` : ''}
+                    </div>
+                    <div class="results-container">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>文件名</th>
+                                    <th>异常分数</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody>${tableRows}</tbody>
+                        </table>
+                    </div>
+                `;
+
+                // 单独处理热力图显示（不限制数量，通过滚动条显示）
+                const heatmapData = data.results.filter(r => r.heatmap_path);
+                if (heatmapData.length > 0) {
+                    heatmapCard.style.display = 'block';
+                    heatmapResults.innerHTML = `
+                        <div class="gallery">
+                            ${heatmapData.map(r => `
+                                <div class="gallery-item">
+                                    <img src="${API_BASE}/${r.heatmap_path}" alt="${r.filename}" loading="lazy">
+                                    <div class="caption">${r.filename}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    heatmapCard.style.display = 'none';
+                }
+            } else if (data.status === 'failed') {
+                resultsDiv.innerHTML = `<div class="alert alert-error">检测失败: ${data.error}</div>`;
+                heatmapCard.style.display = 'none';
+            }
+        }
+        
+        // 实时监控
+        async function startMonitor() {
+            const dir = document.getElementById('monitorDir').value;
+            if (!dir) {
+                alert('请输入监控目录');
+                return;
+            }
+            
+            const config = {
+                directory: dir,
+                interval: parseInt(document.getElementById('monitorInterval').value),
+                algorithm: document.getElementById('monitorAlgorithm').value,
+                device: 'auto',
+                detect_existing: false
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/monitor/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    monitorLog('监控已启动');
+                    document.getElementById('monitorStatus').textContent = '运行中';
+                    document.getElementById('startMonitorBtn').disabled = true;
+                    document.getElementById('stopMonitorBtn').disabled = false;
+                    
+                    // 连接监控 WebSocket
+                    connectMonitorWebSocket();
+                } else {
+                    monitorLog(`启动失败: ${result.detail}`);
+                }
+            } catch (error) {
+                monitorLog(`错误: ${error.message}`);
+            }
+        }
+        
+        async function stopMonitor() {
+            try {
+                const response = await fetch(`${API_BASE}/api/monitor/stop`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    monitorLog('监控已停止');
+                    document.getElementById('monitorStatus').textContent = '停止';
+                    document.getElementById('startMonitorBtn').disabled = false;
+                    document.getElementById('stopMonitorBtn').disabled = true;
+                    
+                    if (monitorWs) {
+                        monitorWs.close();
+                    }
+                }
+            } catch (error) {
+                monitorLog(`错误: ${error.message}`);
+            }
+        }
+        
+        function connectMonitorWebSocket() {
+            // 使用广播通道接收监控更新
+            const wsUrl = `ws://${window.location.host}/ws/progress/broadcast`;
+            monitorWs = new WebSocket(wsUrl);
+            
+            monitorWs.onopen = () => {
+                console.log('[Monitor] WebSocket connected');
+                monitorLog('WebSocket 已连接');
+            };
+            
+            monitorWs.onmessage = (event) => {
+                console.log('[Monitor] Received:', event.data);
+                const data = JSON.parse(event.data);
+                if (data.type === 'monitor_update') {
+                    updateMonitorStats(data.data);
+                }
+            };
+            
+            monitorWs.onerror = (error) => {
+                console.error('[Monitor] WebSocket error:', error);
+                monitorLog('WebSocket 错误');
+            };
+            
+            monitorWs.onclose = () => {
+                console.log('[Monitor] WebSocket closed');
+            };
+        }
+        
+        function updateMonitorStats(data) {
+            document.getElementById('monitorTotal').textContent = data.total_processed;
+            document.getElementById('monitorAnomaly').textContent = data.anomaly_count;
+            
+            if (data.latest_result) {
+                const tbody = document.querySelector('#monitorResults tbody');
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date().toLocaleTimeString()}</td>
+                    <td>${data.latest_result.filename}</td>
+                    <td>${data.latest_result.anomaly_score.toFixed(4)}</td>
+                    <td><span class="badge ${data.latest_result.is_anomaly ? 'badge-danger' : 'badge-success'}">${data.latest_result.status}</span></td>
+                `;
+                tbody.insertBefore(row, tbody.firstChild);
+            }
+        }
+        
+        function clearMonitorResults() {
+            document.querySelector('#monitorResults tbody').innerHTML = '';
+            monitorLog('结果已清空');
+        }
+        
+        // 任务管理
+        async function loadTaskList() {
+            try {
+                const response = await fetch(`${API_BASE}/api/tasks/list`);
+                const data = await response.json();
+                
+                const tbody = document.querySelector('#taskList tbody');
+                tbody.innerHTML = data.tasks.map(t => `
+                    <tr>
+                        <td>${t.id.substring(0, 8)}...</td>
+                        <td><span class="badge badge-${getStatusColor(t.status)}">${t.status}</span></td>
+                        <td>${t.algorithm}</td>
+                        <td>${t.file_count}</td>
+                        <td>${t.progress.toFixed(1)}%</td>
+                        <td>${new Date(t.created_at).toLocaleString()}</td>
+                        <td>
+                            <button class="btn btn-secondary" onclick="viewTask('${t.id}')">查看</button>
+                            ${t.status === 'running' ? `<button class="btn btn-danger" onclick="cancelTask('${t.id}')">取消</button>` : ''}
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('加载任务列表失败:', error);
+            }
+        }
+        
+        function getStatusColor(status) {
+            const map = {
+                'pending': 'secondary',
+                'running': 'info',
+                'completed': 'success',
+                'failed': 'danger',
+                'cancelled': 'secondary'
+            };
+            return map[status] || 'secondary';
+        }
+        
+        async function cancelTask(taskId) {
+            try {
+                await fetch(`${API_BASE}/api/detection/cancel/${taskId}`, {
+                    method: 'POST'
+                });
+                loadTaskList();
+            } catch (error) {
+                alert('取消任务失败');
+            }
+        }
+        
+        async function cleanupOldTasks() {
+            try {
+                await fetch(`${API_BASE}/api/tasks/cleanup`, {
+                    method: 'POST'
+                });
+                loadTaskList();
+            } catch (error) {
+                alert('清理任务失败');
+            }
+        }
+        
+        // 定期刷新监控状态
+        setInterval(async () => {
+            try {
+                const response = await fetch(`${API_BASE}/api/monitor/status`);
+                const status = await response.json();
+                
+                if (status.is_running) {
+                    document.getElementById('monitorStatus').textContent = '运行中';
+                    document.getElementById('monitorTotal').textContent = status.total_processed;
+                    document.getElementById('monitorAnomaly').textContent = status.anomaly_count;
+                }
+            } catch (error) {
+                // 忽略错误
+            }
+        }, 5000);
+        
+        // 初始化
+        log('系统就绪，等待文件上传...');
+    </script>
+</body>
+</html>
