@@ -251,7 +251,7 @@ backend/
 使用**MFCC + DTW**算法在完整音频中定位目标测试片段：
 
 ```python
-from prepocessing import Preprocessor
+from preprocessing import Preprocessor
 
 # 初始化预处理器，指定参考音频
 preprocessor = Preprocessor(ref_file="ref/渡口片段10s.wav", split_method='mfcc_dtw')
@@ -324,7 +324,7 @@ pip install -r requirements.txt
 #### 1. 数据预处理
 
 ```python
-from prepocessing import Preprocessor
+from preprocessing import Preprocessor
 
 p = Preprocessor(ref_file="ref/渡口片段10s.wav", split_method='mfcc_dtw')
 predict_file_list = ["原始数据/audio1.wav", "原始数据/audio2.wav"]

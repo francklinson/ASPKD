@@ -1,0 +1,1 @@
+# Shazam core module

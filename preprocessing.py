@@ -4,6 +4,7 @@ import math
 import os
 import secrets
 import shutil
+import sys
 import time
 
 import librosa
@@ -13,6 +14,26 @@ import numpy as np
 import soundfile as sf
 from dtw import dtw
 from tqdm import tqdm, trange
+
+# 添加项目根目录到路径，确保可以导入 Shazam 模块
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+# 尝试导入 Shazam 模块
+try:
+    from Shazam.api import AudioFingerprinter
+    SHAZAM_AVAILABLE = True
+except ImportError as e:
+    SHAZAM_AVAILABLE = False
+    # 只在详细模式下打印错误
+    import importlib
+    try:
+        importlib.import_module('Shazam')
+    except ImportError as inner_e:
+        print(f"[警告] Shazam 模块未找到，shazam 定位方法不可用")
+        # 调试信息：可以取消注释以下行查看详细错误
+        # print(f"[调试] 导入错误详情: {inner_e}")
 
 
 def plot_spectrogram(audio_path, output_path, offset=0.0, duration=None):
@@ -257,8 +278,106 @@ class MFCCLocate:
         return start_time
 
 
+class ShazamLocate:
+    """
+    使用 Shazam 音频指纹算法进行音频定位
+
+    基于音频指纹技术，通过匹配频谱峰值特征来定位参考片段在长音频中的位置。
+    相比 MFCC+DTW 具有更好的抗噪能力和更快的匹配速度。
+    """
+
+    def __init__(self, ref_file, sr=22050, threshold=10, auto_add_ref=True):
+        """
+        初始化 Shazam 定位器
+
+        Args:
+            ref_file: 参考音频文件路径
+            sr: 采样率（默认22050，与主项目一致）
+            threshold: Shazam匹配阈值，低于此值认为定位失败
+            auto_add_ref: 是否自动将参考音频添加到指纹库
+        """
+        if not SHAZAM_AVAILABLE:
+            raise ImportError("Shazam 模块未安装或初始化失败，无法使用 shazam 定位方法")
+
+        self.ref_file = ref_file
+        self.sr = sr
+        self.threshold = threshold
+        self.auto_add_ref = auto_add_ref
+
+        # 初始化指纹识别器
+        self._fingerprinter = None
+        self._ref_added = False
+
+        # 验证参考音频
+        if not os.path.exists(ref_file):
+            raise FileNotFoundError(f"参考音频不存在: {ref_file}")
+
+    def _get_fingerprinter(self):
+        """获取指纹识别器（懒加载）"""
+        if self._fingerprinter is None:
+            self._fingerprinter = AudioFingerprinter()
+            # 确保数据库已初始化
+            self._fingerprinter.init_database()
+            if self.auto_add_ref and not self._ref_added:
+                self._fingerprinter.add_reference(self.ref_file, name="shazam_ref")
+                self._ref_added = True
+        return self._fingerprinter
+
+    def audio_locate(self, long_audio_path):
+        """
+        在长音频中定位参考片段的位置
+
+        Args:
+            long_audio_path: 长音频文件路径
+
+        Returns:
+            float: 片段起始时间（秒），定位失败返回 -1
+        """
+        if not os.path.exists(long_audio_path):
+            print(f"[Shazam] 音频文件不存在: {long_audio_path}")
+            return -1
+
+        try:
+            fp = self._get_fingerprinter()
+
+            # 获取参考音频时长
+            ref_duration = librosa.get_duration(path=self.ref_file, sr=self.sr)
+
+            # 使用 Shazam 定位
+            location = fp.locate(
+                long_audio_path=long_audio_path,
+                reference_path=self.ref_file,
+                threshold=self.threshold
+            )
+
+            if location.found:
+                print(f"[Shazam] 定位成功: {location.start_time:.2f}s, 置信度: {location.confidence}")
+                return location.start_time
+            else:
+                print(f"[Shazam] 定位失败: 未找到匹配片段")
+                return -1
+
+        except Exception as e:
+            print(f"[Shazam] 定位出错: {e}")
+            return -1
+
+    def close(self):
+        """释放资源"""
+        if self._fingerprinter:
+            self._fingerprinter.close()
+            self._fingerprinter = None
+
+    def __enter__(self):
+        """上下文管理器入口"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """上下文管理器出口"""
+        self.close()
+
+
 class Preprocessor:
-    def __init__(self, ref_file, split_method='mfcc_dtw'):
+    def __init__(self, ref_file, split_method='shazam', shazam_threshold=10):
         self.ref_file = ref_file
 
         # 获取目标音频时长
@@ -271,9 +390,32 @@ class Preprocessor:
         if os.path.exists(self.src_audio_gen_pic_map_file):
             with open(self.src_audio_gen_pic_map_file, 'r', encoding="utf-8") as f:
                 self.src_audio_gen_pic_map = json.load(f)
-        assert split_method in ['mfcc_dtw', 'corr']
+
+        # 支持的方法: mfcc_dtw, corr, shazam
+        valid_methods = ['mfcc_dtw', 'corr']
+        if SHAZAM_AVAILABLE:
+            valid_methods.append('shazam')
+
+        if split_method not in valid_methods:
+            raise ValueError(f"不支持的 split_method: {split_method}，可用选项: {valid_methods}")
+
         self.split_method = split_method
         self.mfcc_finder = MFCCLocate(ref_file=self.ref_file)
+
+        # Shazam 定位器（懒加载）
+        self._shazam_finder = None
+        self._shazam_threshold = shazam_threshold
+
+    def _get_shazam_finder(self):
+        """获取 Shazam 定位器（懒加载）"""
+        if self._shazam_finder is None:
+            self._shazam_finder = ShazamLocate(
+                ref_file=self.ref_file,
+                sr=self.sr_target,
+                threshold=self._shazam_threshold,
+                auto_add_ref=True
+            )
+        return self._shazam_finder
 
     def find_audio_segment(self, audio_path, threshold=0.7):
         """
@@ -349,6 +491,8 @@ class Preprocessor:
                     found_position = self.find_audio_segment(_file)
                 elif self.split_method == 'mfcc_dtw':
                     found_position = self.mfcc_finder.audio_locate(_file)
+                elif self.split_method == 'shazam':
+                    found_position = self._get_shazam_finder().audio_locate(_file)
 
                 if found_position > 0:
                     print(f"找到片段起始位置(秒): {found_position}")
@@ -399,12 +543,37 @@ class Preprocessor:
         # with open(self.src_audio_gen_pic_map_file, 'w', encoding="utf-8") as f:
         #     json.dump(self.src_audio_gen_pic_map, f, ensure_ascii=False, indent=4)
 
+        # 清理 Shazam 资源
+        if self._shazam_finder is not None:
+            self._shazam_finder.close()
+
         return result_dict
+
+    def __enter__(self):
+        """上下文管理器入口"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """上下文管理器出口"""
+        # 清理 Shazam 资源
+        if self._shazam_finder is not None:
+            self._shazam_finder.close()
 
 
 if __name__ == '__main__':
     # plot_ghost_ground_truth()
     # convert_to_gray()
+
+    # ==================== 使用示例 ====================
+
+    # 示例1: 使用 MFCC+DTW 方法（默认）
+    # p = Preprocessor(ref_file="ref/渡口片段10s.wav", split_method='mfcc_dtw')
+
+    # 示例2: 使用互相关方法
+    # p = Preprocessor(ref_file="ref/渡口片段10s.wav", split_method='corr')
+
+    # 示例3: 使用 Shazam 音频指纹方法（推荐，需要 MySQL 数据库）
+    # p = Preprocessor(ref_file="ref/渡口片段10s.wav", split_method='shazam', shazam_threshold=10)
 
     p = Preprocessor(ref_file="ref/渡口片段10s.wav")
     # p = Preprocessor(ref_file="ref/青藏高原片段_10s.wav")
@@ -418,8 +587,11 @@ if __name__ == '__main__':
         for file in files:
             if file.endswith(".wav"):
                 predict_file_list.append(os.path.join(root, file))
-    p.process_audio(
-        file_list=predict_file_list,
-        save_dir="slice")
+
+    # 使用上下文管理器确保资源释放
+    with p:
+        p.process_audio(
+            file_list=predict_file_list,
+            save_dir="slice")
 
     # generate_ghost_ground_truth()

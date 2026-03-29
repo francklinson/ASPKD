@@ -48,7 +48,7 @@ def get_available_devices():
 # 使用统一接口
 from algorithms import create_detector, list_available_algorithms
 from core import ConfigManager
-from prepocessing import Preprocessor
+from preprocessing import Preprocessor
 
 
 class LogManager:
