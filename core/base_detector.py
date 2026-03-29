@@ -65,6 +65,14 @@ class BaseDetector(ABC):
         """设置运行设备"""
         if device == 'auto':
             return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # 检查指定的cuda设备是否可用
+        if device.startswith('cuda:') and torch.cuda.is_available():
+            gpu_id = int(device.split(':')[1])
+            if gpu_id >= torch.cuda.device_count():
+                print(f"[WARNING] 请求的 {device} 不可用（只有 {torch.cuda.device_count()} 个GPU），回退到 cuda:0")
+                return torch.device('cuda:0')
+        
         return torch.device(device)
     
     @abstractmethod

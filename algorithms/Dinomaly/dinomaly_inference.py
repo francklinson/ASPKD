@@ -86,7 +86,19 @@ class DinomalyBaseInferencer(ABC):
         print(f"[DEBUG] DinomalyBaseInferencer.__init__: model_path={model_path}, type={type(model_path)}")
         if not model_path:
             raise ValueError(f"DinomalyBaseInferencer 接收到无效的 model_path: {model_path}")
-        self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
+        
+        # 设备选择逻辑：检查指定设备是否可用
+        if torch.cuda.is_available():
+            # 如果指定了cuda设备，检查该设备是否存在
+            if device.startswith('cuda:'):
+                gpu_id = int(device.split(':')[1])
+                if gpu_id >= torch.cuda.device_count():
+                    # 回退到 cuda:0
+                    print(f"[WARNING] 请求的 {device} 不可用，回退到 cuda:0")
+                    device = 'cuda:0'
+            self.device = torch.device(device)
+        else:
+            self.device = torch.device('cpu')
         self.model_size = model_size
         self.model = self._load_model(model_path)
         self.model.eval()
