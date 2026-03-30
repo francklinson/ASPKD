@@ -13,8 +13,9 @@ from typing import List, Dict, Optional, Union, Tuple
 from dataclasses import dataclass
 from pathlib import Path
 
-from .core.STFTMusicProcessor import STFTMusicProcessorCreate, STFTMusicProcessorPredict
-from .database.MySQLConnector import MySQLConnector, DatabaseChecker
+from .core.implementations.stft.stft_create import StftMusicProcessorCreate
+from .core.implementations.stft.stft_predict import StftMusicProcessorPredict
+from .database.connector import MySQLConnector, DatabaseChecker
 from .utils.hparam import Hparam, hp
 
 
@@ -82,8 +83,8 @@ class AudioFingerprinter:
 
         # 初始化数据库连接
         self._connector: Optional[MySQLConnector] = None
-        self._creator: Optional[STFTMusicProcessorCreate] = None
-        self._predictor: Optional[STFTMusicProcessorPredict] = None
+        self._creator: Optional[StftMusicProcessorCreate] = None
+        self._predictor: Optional[StftMusicProcessorPredict] = None
 
         # 采样率配置
         self.sr = self.hp.fingerprint.core.stft.sr
@@ -95,16 +96,16 @@ class AudioFingerprinter:
             self._connector = MySQLConnector()
         return self._connector
 
-    def _get_creator(self) -> STFTMusicProcessorCreate:
+    def _get_creator(self) -> StftMusicProcessorCreate:
         """获取指纹创建器（懒加载）"""
         if self._creator is None:
-            self._creator = STFTMusicProcessorCreate()
+            self._creator = StftMusicProcessorCreate()
         return self._creator
 
-    def _get_predictor(self) -> STFTMusicProcessorPredict:
+    def _get_predictor(self) -> StftMusicProcessorPredict:
         """获取指纹预测器（懒加载）"""
         if self._predictor is None:
-            self._predictor = STFTMusicProcessorPredict()
+            self._predictor = StftMusicProcessorPredict()
         return self._predictor
 
     def close(self):

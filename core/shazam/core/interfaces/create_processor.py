@@ -1,10 +1,9 @@
 
 import abc
-from core.ICore.IMusicProcessor import IMusicProcessor
+from .base_processor import MusicProcessor
 
 
-
-class IMusicProcessorCreate(IMusicProcessor):
+class MusicProcessorCreate(MusicProcessor):
 
     # 创建指纹并保存到数据库中的接口
     @abc.abstractmethod

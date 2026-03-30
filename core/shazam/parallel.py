@@ -14,8 +14,8 @@ import queue
 import time
 
 from .api import AudioFingerprinter, RecognitionResult, LocationResult
-from .database.MySQLConnector import MySQLConnector
-from .core.STFT.STFTMusicProcessorPredict import STFTMusicProcessorPredict
+from .database.connector import MySQLConnector
+from .core.implementations.stft.stft_predict import StftMusicProcessorPredict
 from .utils.hparam import Hparam
 
 

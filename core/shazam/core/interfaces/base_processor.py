@@ -1,63 +1,39 @@
-import abc
 import hashlib
-
-import librosa
-import matplotlib.pyplot as plt
-import numpy as np
 from scipy.ndimage.filters import maximum_filter
-from scipy.ndimage.morphology import generate_binary_structure, iterate_structure
+from scipy.ndimage.morphology import generate_binary_structure,binary_erosion,iterate_structure
+from ...utils.hparam import hp
+from ...utils.print_utils import print_error, print_message, print_warning
+import numpy as np
+import abc
+import matplotlib.pyplot as plt
 
-from ..utils.hparam import hp
 
 
 # 音乐的处理
-class IMusicProcessor:
+class MusicProcessor():
 
     # 创建指纹并保存到数据库中的接口
+    @abc.abstractmethod
     def create_finger_prints_and_save_database(self, music_path, connector):
         raise NotImplementedError(u"出错了，你没有实现create_finger_prints_and_save_database抽象方法")
 
+    # 计算Hash
+    @abc.abstractmethod
     def _calculation_hash(self, music_path):
-        """
-        计算指纹
-        :param music_path: 音乐的路径
-        :return: 指纹 [(hash,t1), (hash,t1)...]
-        """
-        # 音乐的预处理，转为频谱图(频谱矩阵)
-        spectrogram = self._pre_music(music_path)
-        # 处理频谱图
-        spectrogram = self._spectrogram_handle(spectrogram)
-        # 通过频谱图得到peakes
-        peakes = self._fingerprint(spectrogram)
-        # 通过peakes得到Hash并返回
-        return self._generate_hash(peakes)
+        raise NotImplementedError(u"出错了，你没有实现_calculation_hash抽象方法")
 
-    @staticmethod
-    def _pre_music(music_path):
-        """
-        音乐的预处理，转为频谱图(频谱矩阵)
-        :param music_path: 音乐的路径
-        :return: 频谱图
-        """
-        # 加载歌曲
-        y, sr = librosa.load(music_path, sr=hp.fingerprint.core.stft.sr)
-        # 做短时傅里叶变化
-        arr2D = librosa.stft(y,
-                             n_fft=hp.fingerprint.core.stft.n_fft,
-                             hop_length=hp.fingerprint.core.stft.hop_length,
-                             win_length=hp.fingerprint.core.stft.win_length
-                             )
-        # 返回的是（频率，时间）
-        return np.abs(arr2D)
+    # 音乐的预处理，转为频谱图(频谱矩阵)
+    @abc.abstractmethod
+    def _pre_music(self, music_path):
+        raise NotImplementedError(u"出错了，你没有实现_pre_music抽象方法")
 
-    # @cost_time
-    @staticmethod
-    def _spectrogram_handle(spectrogram):
-        """
+    # 处理频谱图
+    def _spectrogram_handle(self, spectrogram):
+        '''
         处理频谱图
         :param spectrogram: 频谱图
         :return: 处理之后的频谱图
-        """
+        '''
         # 用最小值替换频谱矩阵的的0
         min_ = np.min(spectrogram[np.nonzero(spectrogram)])
 
@@ -74,13 +50,12 @@ class IMusicProcessor:
         return spectrogram
 
     # 通过频谱图得到peakes
-    # @cost_time
     def _fingerprint(self, spectrogram):
-        """
+        '''
         通过频谱图得到peakes
         :param spectrogram: 频谱图
         :return: 局部最大值点
-        """
+        '''
         # maximum_filter
         # 制作十字架
         struct = generate_binary_structure(2, 1)
@@ -97,7 +72,7 @@ class IMusicProcessor:
         # 拉平
         amps = amps.flatten()
         # 拿到局部最大值点的时间和频率两个轴的值，j表示频率，i表示时间
-        j, i = np.where(local_max)
+        j,i = np.where(local_max)
 
         # 得到（时间，频率，能量值）三元组数据即是我们要的peakes
         peakes = list(zip(i, j, amps))
@@ -108,6 +83,7 @@ class IMusicProcessor:
         # 画图函数，星座图
         if hp.fingerprint.show_plot.create_database.planisphere_plot:
             self._draw_planisphere_plot(peakes)
+            pass
 
         # 时间
         time_idx = [item[0] for item in peakes]
@@ -120,16 +96,15 @@ class IMusicProcessor:
 
         return peakes
 
-    # @cost_time
-    @staticmethod
-    def _generate_hash(peaks):
-        """
+    # 通过peakes得到Hash并返回
+    def _generate_hash(self, peakes):
+        '''
         通过peakes得到Hash并返回
-        :param peaks: 局部最大值点
+        :param peakes: peakes，局部最大值点
         :return: Hash，[(hash,t1), (hash, t1), ]
-        """
+        '''
         # 按照时间进行排序
-        peakes = sorted(peaks)
+        peakes = sorted(peakes)
 
         # 遍历锚点
         for i in range(len(peakes)):
@@ -154,15 +129,16 @@ class IMusicProcessor:
                         hash_str = hashlib.sha1(hash_str.encode("utf-8"))
                         yield hash_str.hexdigest(), t1
 
-    # @cost_time
-    @staticmethod
-    def _draw_planisphere_plot(peaks):
-        """
-        绘制星座图
-        :param peaks:
-        :return:
-        """
-        x_and_y = [(item[1], item[0]) for item in peaks]
+                    pass
+                pass
+            pass
+
+        pass
+
+    # 绘制星座图
+    def _draw_planisphere_plot(self, peakes):
+
+        x_and_y = [(item[1], item[0]) for item in peakes]
 
         # x坐标
         x = [int(item[0]) for item in x_and_y]
@@ -173,16 +149,6 @@ class IMusicProcessor:
         plt.show()
 
 
-class IMusicProcessorCreate(IMusicProcessor):
+        pass
 
-    # 创建指纹并保存到数据库中的接口
-    @abc.abstractmethod
-    def create_finger_prints_and_save_database(self, music_path, connector):
-        raise NotImplementedError(u"出错了，你没有实现create_finger_prints_and_save_database抽象方法")
-
-
-class IMusicProcessorPredict(IMusicProcessor):
-
-    @abc.abstractmethod
-    def predict_music(self, music_path, connector):
-        raise NotImplementedError(u"出错了，你没有实现predict_music抽象方法")
+    pass

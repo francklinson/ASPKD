@@ -35,7 +35,7 @@ from pathlib import Path
 # 确保能导入 Shazam 模块
 sys.path.insert(0, str(Path(__file__).parent))
 
-from shazam import AudioFingerprinter, create_fingerprint_db, batch_recognize
+from core.shazam import AudioFingerprinter, create_fingerprint_db, batch_recognize
 
 
 def cmd_init(args):

@@ -1,11 +1,11 @@
 
 
 
-from ..ICore.IMusicProcessor import IMusicProcessor
+from .base_processor import MusicProcessor
 import abc
 
 
-class IMusicProcessorPredict(IMusicProcessor):
+class MusicProcessorPredict(MusicProcessor):
 
     @abc.abstractmethod
     def predict_music(self, music_path, connector):

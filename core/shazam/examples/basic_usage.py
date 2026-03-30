@@ -5,8 +5,8 @@ Shazam 模块使用示例
 演示如何使用 AudioFingerprinter 进行音频指纹识别和定位
 """
 
-from shazam import AudioFingerprinter, RecognitionResult, LocationResult
-from shazam import create_fingerprint_db, batch_recognize, batch_locate
+from core.shazam import AudioFingerprinter, RecognitionResult, LocationResult
+from core.shazam import create_fingerprint_db, batch_recognize, batch_locate
 
 
 def example_1_basic_usage():

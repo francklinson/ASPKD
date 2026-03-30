@@ -22,7 +22,7 @@ if PROJECT_ROOT not in sys.path:
 
 # 尝试导入 Shazam 模块
 try:
-    from shazam.api import AudioFingerprinter
+    from core.shazam import AudioFingerprinter
 
     SHAZAM_AVAILABLE = True
 except ImportError as e:
@@ -395,9 +395,11 @@ class ShazamLocate:
                 if location.start_time < 0:
                     actual_pos = -location.start_time
                     if self.auto_match:
-                        print(f"[Shazam] 定位成功: 匹配到 '{location.music_name}'，在查询音频的 {actual_pos:.2f}s 处出现 (置信度: {location.confidence})")
+                        print(
+                            f"[Shazam] 定位成功: 匹配到 '{location.music_name}'，在查询音频的 {actual_pos:.2f}s 处出现 (置信度: {location.confidence})")
                     else:
-                        print(f"[Shazam] 定位成功: 参考音频在查询音频的 {actual_pos:.2f}s 处出现 (offset={location.start_time:.2f}s), 置信度: {location.confidence}")
+                        print(
+                            f"[Shazam] 定位成功: 参考音频在查询音频的 {actual_pos:.2f}s 处出现 (offset={location.start_time:.2f}s), 置信度: {location.confidence}")
                     return actual_pos  # 返回实际位置（取绝对值）
                 else:
                     print(f"[Shazam] 定位成功: {location.start_time:.2f}s, 置信度: {location.confidence}")
@@ -431,7 +433,8 @@ class ShazamLocate:
 
 
 class Preprocessor:
-    def __init__(self, ref_file=None, split_method='shazam', shazam_threshold=10, shazam_auto_match=False, max_workers=1):
+    def __init__(self, ref_file=None, split_method='shazam', shazam_threshold=10, shazam_auto_match=False,
+                 max_workers=1):
         """
         预处理器
 
@@ -581,12 +584,12 @@ class Preprocessor:
                 if found_position >= 0:
                     print(f"找到片段起始位置(秒): {found_position}")
                     # 提取目标片段
-                    
+
                     # 生成直观的文件名
                     # 格式: {父文件夹}_{原始文件名}_{参考音频名}_pos{定位位置}s_{短随机后缀}
                     original_name = os.path.splitext(os.path.basename(_file))[0]
                     parent_dir = os.path.basename(os.path.dirname(_file))
-                    
+
                     # 获取参考音频名称
                     if self.shazam_auto_match and self._shazam_finder:
                         ref_name = getattr(self._shazam_finder, '_last_matched_name', 'unknown')
@@ -594,7 +597,7 @@ class Preprocessor:
                         ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
                     else:
                         ref_name = 'unknown'
-                    
+
                     # 清理名称中的非法字符
                     def sanitize_name(name):
                         import re
@@ -602,17 +605,17 @@ class Preprocessor:
                         name = re.sub(r'[\\/:*?"<>|\.\s]+', '_', name)
                         # 限制长度
                         return name[:30]  # 最多30字符
-                    
+
                     parent_dir_clean = sanitize_name(parent_dir)
                     original_name_clean = sanitize_name(original_name)
                     ref_name_clean = sanitize_name(ref_name)
-                    
+
                     # 生成短随机后缀(4字节=8个hex字符)
                     short_hash = secrets.token_hex(4)
-                    
+
                     # 组合文件名
                     new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s_{short_hash}"
-                    
+
                     # 计算切片时长
                     slice_duration = min(10.0, self.target_segment_duration)
 
@@ -691,42 +694,42 @@ class Preprocessor:
         """
         if not SHAZAM_AVAILABLE:
             raise ImportError("Shazam 模块不可用，无法使用并行处理")
-        
+
         if self.split_method != 'shazam':
             raise ValueError(f"并行处理仅支持 'shazam' 方法，当前方法为 '{self.split_method}'")
-        
+
         if self.max_workers <= 1:
             print("[警告] max_workers <= 1，将使用串行处理")
             return self.process_audio(file_list, save_dir)
-        
+
         # 检查输入
         if not isinstance(file_list, list) or len(file_list) == 0:
             raise ValueError("输入的音频列表不存在")
-        
+
         # 创建输出目录
         pic_dir = os.path.join(save_dir, 'picture')
         audio_dir = os.path.join(save_dir, 'audio')
         os.makedirs(pic_dir, exist_ok=True)
         os.makedirs(audio_dir, exist_ok=True)
-        
+
         # 过滤出wav文件
         wav_files = [f for f in file_list if f.endswith(".wav")]
         print(f"[并行处理] 总文件数: {len(file_list)}, WAV文件数: {len(wav_files)}, 线程数: {self.max_workers}")
-        
+
         # 导入并行接口
         try:
-            from shazam.api_parallel import ParallelAudioFingerprinter, ParallelResult
+            from core.shazam import ParallelAudioFingerprinter, ParallelResult
         except ImportError:
             print("[错误] 无法导入并行接口，回退到串行处理")
             return self.process_audio(file_list, save_dir)
-        
+
         # 阶段1：并行定位所有音频
         print("[阶段1/2] 并行音频指纹查询...")
         parallel_fp = ParallelAudioFingerprinter(max_workers=self.max_workers)
-        
+
         def progress_callback(completed, total):
-            print(f"  进度: {completed}/{total} ({completed/total*100:.1f}%)")
-        
+            print(f"  进度: {completed}/{total} ({completed / total * 100:.1f}%)")
+
         locate_results = parallel_fp.batch_locate(
             long_audio_paths=wav_files,
             reference_path=self.ref_file if not self.shazam_auto_match else None,
@@ -735,62 +738,62 @@ class Preprocessor:
             progress_callback=progress_callback,
             use_parallel=True
         )
-        
+
         stats = parallel_fp.get_stats()
         print(f"[阶段1完成] 成功: {stats['success']}, 失败: {stats['failed']}, 总耗时: {stats['total_time']:.2f}s")
-        
+
         # 阶段2：串行处理切片和保存（IO操作，不需要并行）
         print("[阶段2/2] 生成时频图和音频切片...")
         result_dict = {}
-        
+
         for i, result in enumerate(locate_results):
             if not result.success or not result.result or not result.result.matched:
                 print(f"[跳过] {result.file_path}: {result.error or '匹配失败'}")
                 continue
-            
+
             _file = result.file_path
             # 修复：offset 为负值时表示参考音频在查询音频的 |offset| 秒处出现
             # 需要转换为正数作为实际切片的起始位置
             raw_offset = result.result.offset
             found_position = -raw_offset if raw_offset < 0 else raw_offset
             matched_name = result.result.name
-            
-            print(f"[{i+1}/{len(locate_results)}] 处理: {_file}")
+
+            print(f"[{i + 1}/{len(locate_results)}] 处理: {_file}")
             print(f"       位置: {found_position:.2f}s, 匹配: {matched_name}")
-            
+
             # 生成文件名
             original_name = os.path.splitext(os.path.basename(_file))[0]
             parent_dir = os.path.basename(os.path.dirname(_file))
-            
+
             if self.shazam_auto_match:
                 ref_name = matched_name or 'unknown'
             elif self.ref_file:
                 ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
             else:
                 ref_name = 'unknown'
-            
+
             def sanitize_name(name):
                 import re
                 name = re.sub(r'[\\/:*?"<>|\.\s]+', '_', name)
                 return name[:30]
-            
+
             parent_dir_clean = sanitize_name(parent_dir)
             original_name_clean = sanitize_name(original_name)
             ref_name_clean = sanitize_name(ref_name)
             short_hash = secrets.token_hex(4)
-            
+
             new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s_{short_hash}"
             slice_duration = min(10.0, self.target_segment_duration)
-            
+
             # 保存图片
             pic_output_path = os.path.join(pic_dir, f'{new_file_name}.png')
             try:
                 plot_spectrogram(_file, pic_output_path, offset=found_position, duration=slice_duration)
                 self.src_audio_gen_pic_map[_file] = f'{new_file_name}.png'
-                
+
                 if _file not in result_dict:
                     result_dict[_file] = {"dk": None, "qzgy": None}
-                
+
                 # 分类
                 if self.shazam_auto_match:
                     if "qzgy" in ref_name_clean.lower() or "青藏高原" in ref_name_clean:
@@ -801,11 +804,11 @@ class Preprocessor:
                     result_dict[_file]["qzgy"] = pic_output_path
                 else:
                     result_dict[_file]["dk"] = pic_output_path
-                
+
             except Exception as e:
                 print(f"[错误] 生成图片失败: {e}")
                 continue
-            
+
             # 保存音频
             audio_output_path = os.path.join(audio_dir, f'{new_file_name}.wav')
             try:
@@ -813,7 +816,7 @@ class Preprocessor:
                 sf.write(audio_output_path, y_slice, sr_slice)
             except Exception as e:
                 print(f"[错误] 保存音频失败: {e}")
-        
+
         parallel_fp.close()
         print(f"[并行处理完成] 成功处理 {len(result_dict)} 个文件")
         return result_dict
@@ -833,10 +836,10 @@ class Preprocessor:
         """
         # 决定是否使用并行处理
         should_use_parallel = (
-            use_parallel is True or 
-            (use_parallel is None and self.max_workers > 1 and self.split_method == 'shazam')
+                use_parallel is True or
+                (use_parallel is None and self.max_workers > 1 and self.split_method == 'shazam')
         )
-        
+
         if should_use_parallel and self.split_method == 'shazam' and SHAZAM_AVAILABLE:
             return self.process_audio_parallel(file_list, save_dir)
         else:
@@ -878,30 +881,30 @@ class Preprocessor:
                 if found_position >= 0:
                     print(f"找到片段起始位置(秒): {found_position}")
                     # 提取目标片段
-                    
+
                     # 生成直观的文件名
                     original_name = os.path.splitext(os.path.basename(_file))[0]
                     parent_dir = os.path.basename(os.path.dirname(_file))
-                    
+
                     if self.shazam_auto_match and self._shazam_finder:
                         ref_name = getattr(self._shazam_finder, '_last_matched_name', 'unknown')
                     elif self.ref_file:
                         ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
                     else:
                         ref_name = 'unknown'
-                    
+
                     def sanitize_name(name):
                         import re
                         name = re.sub(r'[\\/:*?"<>|\.\s]+', '_', name)
                         return name[:30]
-                    
+
                     parent_dir_clean = sanitize_name(parent_dir)
                     original_name_clean = sanitize_name(original_name)
                     ref_name_clean = sanitize_name(ref_name)
                     short_hash = secrets.token_hex(4)
-                    
+
                     new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s_{short_hash}"
-                    
+
                     slice_duration = min(10.0, self.target_segment_duration)
 
                     # 保存图片到picture目录
@@ -915,7 +918,7 @@ class Preprocessor:
                         # 记录到结果字典
                         if _file not in result_dict:
                             result_dict[_file] = {"dk": None, "qzgy": None}
-                        
+
                         if self.shazam_auto_match:
                             matched_name = getattr(self._shazam_finder, '_last_matched_name', '')
                             if "qzgy" in matched_name.lower() or "青藏高原" in matched_name:

@@ -1,13 +1,13 @@
 
 import librosa
-from ..ICore.IMusicProcessorPredict import IMusicProcessorPredict
-from ...utils.hparam import hp
+from ...interfaces.predict_processor import MusicProcessorPredict
+from ....utils.hparam import hp
 import numpy as np
-from ...utils.data_utils import start_time, end_time
+from ....utils.data_utils import start_time, end_time
 import matplotlib.pyplot as plt
 
 
-class STFTMusicProcessorPredict(IMusicProcessorPredict):
+class StftMusicProcessorPredict(MusicProcessorPredict):
 
     # 预测歌曲
     def predict_music(self, music_path, connector):

@@ -1,14 +1,13 @@
 
 
-from ...utils.print_utils import print_error,print_message,print_warning
+from ....utils.print_utils import print_error, print_message, print_warning
 import numpy as np
 import librosa
-from ...utils.hparam import hp
-from ..ICore.IMusicProcessorCreate import IMusicProcessorCreate
+from ....utils.hparam import hp
+from ...interfaces.create_processor import MusicProcessorCreate
 
 
-
-class STFTMusicProcessorCreate(IMusicProcessorCreate):
+class StftMusicProcessorCreate(MusicProcessorCreate):
 
     # 创建指纹并且保存到数据库中
     def create_finger_prints_and_save_database(self, music_path, connector):
