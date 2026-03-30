@@ -46,7 +46,7 @@ python quickstart.py locate long_audio.wav --ref ref.wav
 ### 基础用法
 
 ```python
-from Shazam import AudioFingerprinter
+from shazam import AudioFingerprinter
 
 # 创建指纹识别器
 fingerprinter = AudioFingerprinter()
@@ -65,7 +65,7 @@ fingerprinter.close()
 ### 上下文管理器
 
 ```python
-from Shazam import AudioFingerprinter
+from shazam import AudioFingerprinter
 
 with AudioFingerprinter() as fp:
     fp.add_reference("ref.wav")
@@ -76,7 +76,7 @@ with AudioFingerprinter() as fp:
 ### 音频定位
 
 ```python
-from Shazam import AudioFingerprinter
+from shazam import AudioFingerprinter
 
 with AudioFingerprinter() as fp:
     # 添加参考音频
@@ -93,7 +93,7 @@ with AudioFingerprinter() as fp:
 ### 批量操作
 
 ```python
-from Shazam import create_fingerprint_db, batch_recognize, batch_locate
+from shazam import create_fingerprint_db, batch_recognize, batch_locate
 
 # 批量创建指纹库
 ids = create_fingerprint_db("dataset/key/", pattern="*.wav")
@@ -112,7 +112,7 @@ positions = batch_locate(["long1.wav", "long2.wav"], reference_path="ref.wav")
 ### 替换 MFCC+DTW 定位
 
 ```python
-from Shazam.asd_adapter import ShazamLocator, ShazamPreprocessor
+from shazam.asd_adapter import ShazamLocator, ShazamPreprocessor
 
 # 方法1: 仅使用定位功能
 locator = ShazamLocator(ref_audio="ref/渡口片段10s.wav")

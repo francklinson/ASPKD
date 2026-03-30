@@ -8,7 +8,7 @@ Shazam 音频指纹识别模块 - 外部调用接口
     3. 音频片段定位
 
 示例：
-    >>> from Shazam import AudioFingerprinter
+    >>> from shazam import AudioFingerprinter
     >>> fingerprinter = AudioFingerprinter()
     >>>
     >>> # 添加参考音频到指纹库

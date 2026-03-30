@@ -22,7 +22,7 @@ if PROJECT_ROOT not in sys.path:
 
 # 尝试导入 Shazam 模块
 try:
-    from Shazam.api import AudioFingerprinter
+    from shazam.api import AudioFingerprinter
 
     SHAZAM_AVAILABLE = True
 except ImportError as e:
@@ -715,7 +715,7 @@ class Preprocessor:
         
         # 导入并行接口
         try:
-            from Shazam.api_parallel import ParallelAudioFingerprinter, ParallelResult
+            from shazam.api_parallel import ParallelAudioFingerprinter, ParallelResult
         except ImportError:
             print("[错误] 无法导入并行接口，回退到串行处理")
             return self.process_audio(file_list, save_dir)
