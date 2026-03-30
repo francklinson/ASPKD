@@ -212,15 +212,19 @@ class AudioFingerprinter:
         confidence = result['max_hash_count']
 
         # 判断是否匹配成功
-        matched = confidence >= threshold and music_id != -1
+        # offset == -1 是初始值表示未匹配，其他值（包括负数）都是有效偏移
+        matched = confidence >= threshold and music_id != -1 and offset != -1
 
         # 获取音乐名称
         name = ""
         if matched:
             name = connector.find_music_name_by_music_id(music_id) or ""
 
-        # 计算时间偏移（秒）
-        offset_seconds = offset * self.hop_length / self.sr if offset > 0 else 0
+        # 计算时间偏移（秒），offset 是帧索引（可能为负值）
+        if matched:
+            offset_seconds = offset * self.hop_length / self.sr
+        else:
+            offset_seconds = -1.0  # 未匹配返回 -1
 
         return RecognitionResult(
             music_id=music_id,
@@ -231,41 +235,48 @@ class AudioFingerprinter:
         )
 
     def locate(self, long_audio_path: str, reference_path: Optional[str] = None,
-               reference_name: Optional[str] = None, threshold: int = 10) -> LocationResult:
+               reference_name: Optional[str] = None, threshold: int = 10,
+               auto_match: bool = False) -> LocationResult:
         """
         在长音频中定位参考片段的位置
 
         Args:
             long_audio_path: 长音频文件路径
-            reference_path: 参考音频路径（与 reference_name 二选一）
+            reference_path: 参考音频路径（与 reference_name 二选一，若都未提供则需设置 auto_match=True）
             reference_name: 参考音频名称（已添加到指纹库中）
             threshold: 匹配阈值
+            auto_match: 是否自动从数据库匹配参考音频（无需指定 reference_path/name）
 
         Returns:
             LocationResult: 定位结果
 
         Raises:
-            ValueError: reference_path 和 reference_name 必须指定一个
+            ValueError: 未指定参考音频且 auto_match=False
             FileNotFoundError: 音频文件不存在
         """
         if not os.path.exists(long_audio_path):
             raise FileNotFoundError(f"音频文件不存在: {long_audio_path}")
 
-        if reference_path is None and reference_name is None:
-            raise ValueError("必须指定 reference_path 或 reference_name 之一")
+        if reference_path is None and reference_name is None and not auto_match:
+            raise ValueError("必须指定 reference_path/reference_name 之一，或设置 auto_match=True")
 
-        # 识别
+        # 识别（自动从数据库找最匹配的参考音频）
         result = self.recognize(long_audio_path, threshold=threshold)
 
         if not result.matched:
             return LocationResult(found=False, start_time=0, end_time=0, confidence=0)
+
+        # 验证匹配到的参考音频是否是指定的（如果指定了）
+        if reference_name and result.name != reference_name:
+            return LocationResult(found=False, start_time=0, end_time=0, confidence=0,
+                                  music_name=f"匹配到 {result.name}，但指定的是 {reference_name}")
 
         # 计算参考音频时长
         if reference_path:
             import librosa
             ref_duration = librosa.get_duration(path=reference_path, sr=self.sr)
         else:
-            # 默认使用10秒，或从数据库查询
+            # 默认使用10秒
             ref_duration = 10.0
 
         return LocationResult(
@@ -285,11 +296,12 @@ class AudioFingerprinter:
             参考音频信息列表 [{music_id, name, path, hash_count}, ...]
         """
         connector = self._get_connector()
+        hp = self.hp
 
-        sql = f"SELECT {connector.hp.fingerprint.database.tables.music.column.music_id}, " \
-              f"{connector.hp.fingerprint.database.tables.music.column.music_name}, " \
-              f"{connector.hp.fingerprint.database.tables.music.column.music_path} " \
-              f"FROM {connector.hp.fingerprint.database.tables.music.name}"
+        sql = f"SELECT {hp.fingerprint.database.tables.music.column.music_id}, " \
+              f"{hp.fingerprint.database.tables.music.column.music_name}, " \
+              f"{hp.fingerprint.database.tables.music.column.music_path} " \
+              f"FROM {hp.fingerprint.database.tables.music.name}"
 
         connector.cursor.execute(sql)
         results = connector.cursor.fetchall()
@@ -317,16 +329,17 @@ class AudioFingerprinter:
             bool: 是否删除成功
         """
         connector = self._get_connector()
+        hp = self.hp
 
         try:
             # 删除指纹
-            sql_fp = f"DELETE FROM {connector.hp.fingerprint.database.tables.finger_prints.name} " \
-                     f"WHERE {connector.hp.fingerprint.database.tables.finger_prints.column.music_id_fk} = %s"
+            sql_fp = f"DELETE FROM {hp.fingerprint.database.tables.finger_prints.name} " \
+                     f"WHERE {hp.fingerprint.database.tables.finger_prints.column.music_id_fk} = %s"
             connector.cursor.execute(sql_fp, (music_id,))
 
             # 删除音乐记录
-            sql_music = f"DELETE FROM {connector.hp.fingerprint.database.tables.music.name} " \
-                        f"WHERE {connector.hp.fingerprint.database.tables.music.column.music_id} = %s"
+            sql_music = f"DELETE FROM {hp.fingerprint.database.tables.music.name} " \
+                        f"WHERE {hp.fingerprint.database.tables.music.column.music_id} = %s"
             connector.cursor.execute(sql_music, (music_id,))
 
             connector.conn.commit()
@@ -343,12 +356,13 @@ class AudioFingerprinter:
             bool: 是否清空成功
         """
         connector = self._get_connector()
+        hp = self.hp
 
         try:
-            sql_fp = f"TRUNCATE TABLE {connector.hp.fingerprint.database.tables.finger_prints.name}"
+            sql_fp = f"TRUNCATE TABLE {hp.fingerprint.database.tables.finger_prints.name}"
             connector.cursor.execute(sql_fp)
 
-            sql_music = f"TRUNCATE TABLE {connector.hp.fingerprint.database.tables.music.name}"
+            sql_music = f"TRUNCATE TABLE {hp.fingerprint.database.tables.music.name}"
             connector.cursor.execute(sql_music)
 
             connector.conn.commit()

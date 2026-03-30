@@ -23,11 +23,13 @@ if PROJECT_ROOT not in sys.path:
 # 尝试导入 Shazam 模块
 try:
     from Shazam.api import AudioFingerprinter
+
     SHAZAM_AVAILABLE = True
 except ImportError as e:
     SHAZAM_AVAILABLE = False
     # 只在详细模式下打印错误
     import importlib
+
     try:
         importlib.import_module('Shazam')
     except ImportError as inner_e:
@@ -284,33 +286,47 @@ class ShazamLocate:
 
     基于音频指纹技术，通过匹配频谱峰值特征来定位参考片段在长音频中的位置。
     相比 MFCC+DTW 具有更好的抗噪能力和更快的匹配速度。
+
+    注意: Shazam 使用自己的采样率配置（默认16kHz），与主项目（22.05kHz）不同，
+    但时间计算会自动处理转换。
+
+    支持两种模式:
+    1. 指定参考音频: 在长音频中定位特定参考片段的位置
+    2. 仅数据库匹配: 不指定参考音频，自动从数据库中找到最匹配的参考音频并定位
     """
 
-    def __init__(self, ref_file, sr=22050, threshold=10, auto_add_ref=True):
+    def __init__(self, ref_file=None, threshold=10, auto_add_ref=True, auto_match=False):
         """
         初始化 Shazam 定位器
 
         Args:
-            ref_file: 参考音频文件路径
-            sr: 采样率（默认22050，与主项目一致）
+            ref_file: 参考音频文件路径（可选，若不提供则需设置 auto_match=True）
             threshold: Shazam匹配阈值，低于此值认为定位失败
             auto_add_ref: 是否自动将参考音频添加到指纹库
+            auto_match: 是否自动从数据库匹配参考音频（无需提供 ref_file）
         """
         if not SHAZAM_AVAILABLE:
             raise ImportError("Shazam 模块未安装或初始化失败，无法使用 shazam 定位方法")
 
         self.ref_file = ref_file
-        self.sr = sr
         self.threshold = threshold
         self.auto_add_ref = auto_add_ref
+        self.auto_match = auto_match
 
         # 初始化指纹识别器
         self._fingerprinter = None
         self._ref_added = False
 
-        # 验证参考音频
-        if not os.path.exists(ref_file):
+        # 验证参考音频（如果提供了）
+        if ref_file and not os.path.exists(ref_file):
             raise FileNotFoundError(f"参考音频不存在: {ref_file}")
+
+        # 检查模式
+        if not ref_file and not auto_match:
+            raise ValueError("必须提供 ref_file 或设置 auto_match=True")
+
+        # 保存最后一次匹配的参考音频名称（用于 auto_match 模式下的分类）
+        self._last_matched_name = ""
 
     def _get_fingerprinter(self):
         """获取指纹识别器（懒加载）"""
@@ -318,17 +334,18 @@ class ShazamLocate:
             self._fingerprinter = AudioFingerprinter()
             # 确保数据库已初始化
             self._fingerprinter.init_database()
-            if self.auto_add_ref and not self._ref_added:
+            if self.auto_add_ref and not self._ref_added and self.ref_file:
                 self._fingerprinter.add_reference(self.ref_file, name="shazam_ref")
                 self._ref_added = True
         return self._fingerprinter
 
-    def audio_locate(self, long_audio_path):
+    def audio_locate(self, long_audio_path, debug=False):
         """
         在长音频中定位参考片段的位置
 
         Args:
             long_audio_path: 长音频文件路径
+            debug: 是否输出详细调试信息
 
         Returns:
             float: 片段起始时间（秒），定位失败返回 -1
@@ -340,25 +357,62 @@ class ShazamLocate:
         try:
             fp = self._get_fingerprinter()
 
-            # 获取参考音频时长
-            ref_duration = librosa.get_duration(path=self.ref_file, sr=self.sr)
+            if debug:
+                if self.auto_match:
+                    print(f"[Shazam调试] 模式: 自动数据库匹配")
+                else:
+                    print(f"[Shazam调试] 参考音频: {self.ref_file}")
+                print(f"[Shazam调试] 查询音频: {long_audio_path}")
+                print(f"[Shazam调试] 匹配阈值: {self.threshold}")
 
             # 使用 Shazam 定位
-            location = fp.locate(
-                long_audio_path=long_audio_path,
-                reference_path=self.ref_file,
-                threshold=self.threshold
-            )
-
-            if location.found:
-                print(f"[Shazam] 定位成功: {location.start_time:.2f}s, 置信度: {location.confidence}")
-                return location.start_time
+            if self.auto_match:
+                # 自动匹配模式：从数据库中找到最匹配的参考音频
+                location = fp.locate(
+                    long_audio_path=long_audio_path,
+                    auto_match=True,
+                    threshold=self.threshold
+                )
             else:
-                print(f"[Shazam] 定位失败: 未找到匹配片段")
+                # 指定参考音频模式
+                location = fp.locate(
+                    long_audio_path=long_audio_path,
+                    reference_path=self.ref_file,
+                    threshold=self.threshold
+                )
+
+            if debug:
+                print(
+                    f"[Shazam调试] 匹配结果: found={location.found}, offset={location.start_time:.3f}s, confidence={location.confidence}")
+                if location.music_name:
+                    print(f"[Shazam调试] 匹配到的参考音频: {location.music_name}")
+
+            if location.found and location.start_time != -1.0:  # found=True 且 start_time 有效
+                # 保存匹配到的参考音频名称
+                self._last_matched_name = location.music_name
+                # offset 解释: offset = 参考帧 - 查询帧
+                # 负值表示参考音频出现在查询音频的 |offset| 秒处
+                if location.start_time < 0:
+                    actual_pos = -location.start_time
+                    if self.auto_match:
+                        print(f"[Shazam] 定位成功: 匹配到 '{location.music_name}'，在查询音频的 {actual_pos:.2f}s 处出现 (置信度: {location.confidence})")
+                    else:
+                        print(f"[Shazam] 定位成功: 参考音频在查询音频的 {actual_pos:.2f}s 处出现 (offset={location.start_time:.2f}s), 置信度: {location.confidence}")
+                    return actual_pos  # 返回实际位置（取绝对值）
+                else:
+                    print(f"[Shazam] 定位成功: {location.start_time:.2f}s, 置信度: {location.confidence}")
+                    return location.start_time
+            else:
+                print(f"[Shazam] 定位失败: 未找到匹配片段（置信度 {location.confidence} < 阈值 {self.threshold}）")
+                if not self.auto_match:
+                    print(f"[Shazam建议] 1. 先用 quickstart.py add 添加参考音频到指纹库")
+                    print(f"[Shazam建议] 2. 尝试降低 shazam_threshold（当前 {self.threshold}）")
                 return -1
 
         except Exception as e:
             print(f"[Shazam] 定位出错: {e}")
+            import traceback
+            traceback.print_exc()
             return -1
 
     def close(self):
@@ -377,12 +431,27 @@ class ShazamLocate:
 
 
 class Preprocessor:
-    def __init__(self, ref_file, split_method='shazam', shazam_threshold=10):
+    def __init__(self, ref_file=None, split_method='shazam', shazam_threshold=10, shazam_auto_match=False):
+        """
+        预处理器
+
+        Args:
+            ref_file: 参考音频文件路径（可选，shazam_auto_match=True 时不需要）
+            split_method: 分割方法 ('mfcc_dtw', 'corr', 'shazam')
+            shazam_threshold: Shazam匹配阈值
+            shazam_auto_match: 是否使用Shazam自动数据库匹配模式（无需ref_file）
+        """
         self.ref_file = ref_file
+        self.shazam_auto_match = shazam_auto_match
 
         # 获取目标音频时长
-        self.target_segment_duration = librosa.get_duration(path=self.ref_file)
-        self.y_target, self.sr_target = librosa.load(self.ref_file)
+        if ref_file:
+            self.target_segment_duration = librosa.get_duration(path=self.ref_file)
+            self.y_target, self.sr_target = librosa.load(self.ref_file)
+        else:
+            # 无参考音频模式：使用默认时长
+            self.target_segment_duration = 10.0  # 默认10秒
+            self.y_target, self.sr_target = None, 22050
 
         self.src_audio_gen_pic_map_file = "src_audio_gen_pic_map.json"
         self.src_audio_gen_pic_map = dict()
@@ -399,8 +468,17 @@ class Preprocessor:
         if split_method not in valid_methods:
             raise ValueError(f"不支持的 split_method: {split_method}，可用选项: {valid_methods}")
 
+        # 检查参数
+        if split_method in ['mfcc_dtw', 'corr'] and not ref_file:
+            raise ValueError(f"方法 {split_method} 需要提供 ref_file")
+        if split_method == 'shazam' and not ref_file and not shazam_auto_match:
+            raise ValueError("Shazam 方法需要提供 ref_file 或设置 shazam_auto_match=True")
+
         self.split_method = split_method
-        self.mfcc_finder = MFCCLocate(ref_file=self.ref_file)
+        if ref_file:
+            self.mfcc_finder = MFCCLocate(ref_file=self.ref_file)
+        else:
+            self.mfcc_finder = None
 
         # Shazam 定位器（懒加载）
         self._shazam_finder = None
@@ -411,9 +489,9 @@ class Preprocessor:
         if self._shazam_finder is None:
             self._shazam_finder = ShazamLocate(
                 ref_file=self.ref_file,
-                sr=self.sr_target,
                 threshold=self._shazam_threshold,
-                auto_add_ref=True
+                auto_add_ref=True,
+                auto_match=self.shazam_auto_match
             )
         return self._shazam_finder
 
@@ -467,7 +545,7 @@ class Preprocessor:
         if not isinstance(file_list, list) or len(file_list) == 0:
             raise ValueError("输入的音频列表不存在")
 
-        if not os.path.isfile(self.ref_file):
+        if not self.shazam_auto_match and not os.path.isfile(self.ref_file):
             raise ValueError("目标片段音频文件不存在")
 
         # 创建picture和audio子目录
@@ -493,12 +571,46 @@ class Preprocessor:
                     found_position = self.mfcc_finder.audio_locate(_file)
                 elif self.split_method == 'shazam':
                     found_position = self._get_shazam_finder().audio_locate(_file)
+                    # Shazam offset 含义: offset = 参考帧 - 查询帧
+                    # 负值表示参考音频出现在查询音频的 |offset| 秒处
+                    # 例如 offset=-7.68s 表示参考音频在查询音频的 7.68s 处开始
+                    # 负值是有效定位结果，不需要调整
 
-                if found_position > 0:
+                if found_position >= 0:
                     print(f"找到片段起始位置(秒): {found_position}")
                     # 提取目标片段
-                    new_file_name = secrets.token_hex(16)
-
+                    
+                    # 生成直观的文件名
+                    # 格式: {父文件夹}_{原始文件名}_{参考音频名}_pos{定位位置}s_{短随机后缀}
+                    original_name = os.path.splitext(os.path.basename(_file))[0]
+                    parent_dir = os.path.basename(os.path.dirname(_file))
+                    
+                    # 获取参考音频名称
+                    if self.shazam_auto_match and self._shazam_finder:
+                        ref_name = getattr(self._shazam_finder, '_last_matched_name', 'unknown')
+                    elif self.ref_file:
+                        ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
+                    else:
+                        ref_name = 'unknown'
+                    
+                    # 清理名称中的非法字符
+                    def sanitize_name(name):
+                        import re
+                        # 替换非法字符为下划线
+                        name = re.sub(r'[\\/:*?"<>|\.\s]+', '_', name)
+                        # 限制长度
+                        return name[:30]  # 最多30字符
+                    
+                    parent_dir_clean = sanitize_name(parent_dir)
+                    original_name_clean = sanitize_name(original_name)
+                    ref_name_clean = sanitize_name(ref_name)
+                    
+                    # 生成短随机后缀(4字节=8个hex字符)
+                    short_hash = secrets.token_hex(4)
+                    
+                    # 组合文件名
+                    new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s_{short_hash}"
+                    
                     # 计算切片时长
                     slice_duration = min(10.0, self.target_segment_duration)
 
@@ -514,7 +626,21 @@ class Preprocessor:
                         if _file not in result_dict:
                             result_dict[_file] = {"dk": None, "qzgy": None}
                         # 根据参考音频类型判断是dk还是qzgy
-                        if "qzgy" in self.ref_file.lower() or "青藏高原" in self.ref_file:
+                        # auto_match模式下根据匹配到的参考音频名称判断
+                        if self.shazam_auto_match:
+                            # 从Shazam定位器获取最后一次匹配的参考音频名称
+                            matched_name = getattr(self._shazam_finder, '_last_matched_name', '')
+                            if "qzgy" in matched_name.lower() or "青藏高原" in matched_name:
+                                result_dict[_file]["qzgy"] = pic_output_path
+                                print(f"[Shazam] 自动匹配到 '{matched_name}'，分类为 qzgy")
+                            elif "dk" in matched_name.lower() or "渡口" in matched_name:
+                                result_dict[_file]["dk"] = pic_output_path
+                                print(f"[Shazam] 自动匹配到 '{matched_name}'，分类为 dk")
+                            else:
+                                # 无法确定分类，默认保存到dk
+                                result_dict[_file]["dk"] = pic_output_path
+                                print(f"[Shazam] 自动匹配到 '{matched_name}'，无法确定分类，默认保存到 dk")
+                        elif "qzgy" in self.ref_file.lower() or "青藏高原" in self.ref_file:
                             result_dict[_file]["qzgy"] = pic_output_path
                         else:
                             result_dict[_file]["dk"] = pic_output_path
