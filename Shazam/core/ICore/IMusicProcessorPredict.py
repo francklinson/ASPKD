@@ -1,7 +1,7 @@
 
 
 
-from core.ICore.IMusicProcessor import IMusicProcessor
+from ..ICore.IMusicProcessor import IMusicProcessor
 import abc
 
 

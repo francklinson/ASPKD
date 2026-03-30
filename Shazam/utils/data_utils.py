@@ -2,6 +2,19 @@ from .print_utils import print_error, print_message, print_warning
 import time
 
 
+# 用于兼容旧代码的计时函数
+_start_times = {}
+
+def start_time():
+    """开始计时，返回时间戳"""
+    return time.time()
+
+def end_time(start, message):
+    """结束计时并打印耗时"""
+    dur = time.time() - start
+    print_warning(message + "：" + str(dur) + "s")
+
+
 class ProcessTimer:
     def __init__(self):
         self.last_time = None
