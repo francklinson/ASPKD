@@ -5,19 +5,17 @@
 
 import gc
 import os
-import sys
-import tempfile
+import threading
 import time
 import zipfile
-import threading
+from collections import deque
 from datetime import datetime
 from typing import List, Dict, Optional
-from collections import deque
 
-import torch
-import torch.cuda as cuda
 import gradio as gr
 import pandas as pd
+import torch
+import torch.cuda as cuda
 
 # 可选依赖：内存监控
 try:
@@ -29,11 +27,10 @@ except ImportError:
 
 def get_available_devices():
     """获取可用的计算设备列表"""
-    devices = [("auto", "自动选择 (GPU优先)")]
+    devices = [("auto", "自动选择 (GPU优先)"), ("cpu", "CPU (纯CPU运行)")]
     
     # 添加CPU选项
-    devices.append(("cpu", "CPU (纯CPU运行)"))
-    
+
     # 如果有CUDA，添加各个GPU
     if torch.cuda.is_available():
         gpu_count = torch.cuda.device_count()
@@ -46,7 +43,7 @@ def get_available_devices():
     return devices
 
 # 使用统一接口
-from algorithms import create_detector, list_available_algorithms
+from algorithms import create_detector
 from core import ConfigManager
 from preprocessing import Preprocessor
 
@@ -69,12 +66,12 @@ class LogManager:
     def update_log(self, msg):
         """更新日志"""
         self.generate_log(msg)
-        yield self.log_messages, gr.update(visible=False), None, None, None, gr.update(interactive=False)
+        yield self.log_messages, gr.update(visible=False), None, None, None, gr.update(interactive=False), gr.update()
     
     def update_log_and_action(self, msg, run_button_action):
         """更新日志，同时传递GUI控件响应"""
         self.generate_log(msg)
-        yield self.log_messages, gr.update(visible=False), None, None, None, run_button_action
+        yield self.log_messages, gr.update(visible=False), None, None, None, run_button_action, gr.update()
 
 
 class Export:
@@ -108,82 +105,151 @@ class UnifiedAlgorithmManager:
     """
     
     def __init__(self, device: str = 'auto'):
+        print(f"\n{'='*60}")
+        print(f"[模型管理器] 🚀 初始化 UnifiedAlgorithmManager")
+        print(f"[模型管理器] 初始设备设置: {device}")
+        print(f"{'='*60}")
+        
         self.detector = None
         self.algorithm_chosen = ""
         self.device = device  # 运行设备
+        self._model_loaded = False  # 模型加载状态标志
+        
         # 使用绝对路径加载配置
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "algorithms.yaml")
-        print(f"[DEBUG] UnifiedAlgorithmManager: config_path={config_path}")
-        print(f"[DEBUG] Config file exists: {os.path.exists(config_path)}")
+        print(f"[模型管理器] 配置文件路径: {config_path}")
+        print(f"[模型管理器] 配置文件存在: {os.path.exists(config_path)}")
+        
         self.config = ConfigManager(config_path)
-        print(f"[DEBUG] Config loaded, base_dir={self.config.base_dir}")
-        print(f"[DEBUG] Models in config: {list(self.config.config.get('models', {}).keys())}")
+        print(f"[模型管理器] 配置加载完成，base_dir={self.config.base_dir}")
+        print(f"[模型管理器] 配置中的模型: {list(self.config.config.get('models', {}).keys())}")
+        
         # 获取可用算法列表
         self.available_algorithms = self._get_gui_algorithms()
-        print(f"[DEBUG] 使用设备: {device}")
+        print(f"[模型管理器] 可用算法列表: {self.available_algorithms}")
+        print(f"[模型管理器] ✓ 初始化完成，当前模型: None")
+        print(f"{'='*60}\n")
     
     def _get_gui_algorithms(self) -> List[str]:
         """获取GUI可用的算法列表"""
-        # 暂时只启用已完整实现的Dinomaly系列
-        # 后续可以逐步添加其他算法
+        # 只保留轻量级模型
         return [
-            "dinomaly_dinov3_small",
-            "dinomaly_dinov3_large",
             "dinomaly_dinov2_small",
-            "dinomaly_dinov2_large",
+            "dinomaly_dinov3_small",
         ]
     
     def update_algorithm(self, algorithm_choice, device: str = None):
         """更新算法"""
+        print(f"\n{'='*60}")
+        print(f"[模型管理器] 🔄 开始更新算法")
+        print(f"[模型管理器] 目标算法: {algorithm_choice}")
+        print(f"[模型管理器] 当前算法: {self.algorithm_chosen if self.algorithm_chosen else 'None'}")
+        print(f"[模型管理器] 新设备: {device if device else '未指定（使用当前）'}")
+        print(f"[模型管理器] 当前设备: {self.device}")
+        print(f"{'='*60}")
+        
         assert algorithm_choice in self.available_algorithms
         
         if self.detector is not None and algorithm_choice == self.algorithm_chosen:
+            print(f"[模型管理器] ℹ 算法未改变，无需更新")
+            print(f"{'='*60}\n")
             return
         
         # 如果指定了新设备，更新设备设置
         if device is not None:
+            old_device = self.device
             self.device = device
+            print(f"[模型管理器] 设备更新: {old_device} -> {device}")
         
         # 清理旧模型
         if self.detector is not None:
-            self.detector.release()
+            print(f"[模型管理器] 🧹 开始清理旧模型: {self.algorithm_chosen}")
+            try:
+                self.detector.release()
+                print(f"[模型管理器] ✓ 旧模型已释放")
+            except Exception as e:
+                print(f"[模型管理器] ⚠ 旧模型释放失败: {e}")
             self.detector = None
+            self._model_loaded = False
+            print(f"[模型管理器] ✓ 检测器引用已清空，模型状态: _model_loaded=False")
             self._clear_cuda_cache()
+        else:
+            print(f"[模型管理器] ℹ 无旧模型需要清理")
         
         # 使用统一接口创建新检测器
         try:
-            # 调试信息
+            print(f"[模型管理器] 🏗️ 开始创建新检测器...")
             model_path = self.config.get_model_path('dinomaly', 'dinov3_small')
-            print(f"[DEBUG] Config base_dir: {self.config.base_dir}")
-            print(f"[DEBUG] Model path from config: {model_path}")
-            print(f"[DEBUG] 使用设备: {self.device}")
+            print(f"[模型管理器] 配置 base_dir: {self.config.base_dir}")
+            print(f"[模型管理器] 模型路径: {model_path}")
+            print(f"[模型管理器] 使用设备: {self.device}")
             
             self.detector = create_detector(
                 algorithm_name=algorithm_choice,
                 config_manager=self.config,
-                device=self.device  # 传递设备参数
+                device=self.device
             )
             self.algorithm_chosen = algorithm_choice
-            print(f"算法成功切换到: {self.algorithm_chosen}")
-            print(f"[DEBUG] Detector model_path: {self.detector.model_path}")
-            print(f"[DEBUG] 实际使用设备: {self.detector.device}")
+            print(f"[模型管理器] ✓ 检测器创建成功")
+            print(f"[模型管理器] 算法: {self.algorithm_chosen}")
+            print(f"[模型管理器] 模型路径: {self.detector.model_path}")
+            print(f"[模型管理器] 实际使用设备: {self.detector.device}")
         except Exception as e:
-            print(f"加载算法失败: {e}")
+            print(f"[模型管理器] ✗ 加载算法失败: {e}")
             import traceback
             traceback.print_exc()
             raise
+        finally:
+            print(f"{'='*60}\n")
+    
+    def is_model_loaded(self) -> bool:
+        """检查模型是否已加载"""
+        return self._model_loaded and self.detector is not None
+    
+    def load_model(self):
+        """加载模型并更新状态"""
+        if self.detector is None:
+            raise RuntimeError("检测器未初始化，请先调用 update_algorithm")
+        self.detector.load_model()
+        self._model_loaded = True
+        print(f"[模型管理器] ✓ 模型加载状态已更新: _model_loaded=True")
+    
+    def unload_model(self):
+        """卸载模型并更新状态"""
+        if self.detector is not None:
+            self.detector.release()
+        self._model_loaded = False
+        print(f"[模型管理器] ✓ 模型卸载状态已更新: _model_loaded=False")
     
     @staticmethod
     def _clear_cuda_cache():
         """清除GPU缓存"""
+        print(f"[模型管理器] 🧹 开始清理 CUDA 缓存...")
         if torch.cuda.is_available():
             try:
+                # 清理前显存状态
+                for i in range(torch.cuda.device_count()):
+                    allocated = torch.cuda.memory_allocated(i) / 1024**2
+                    reserved = torch.cuda.memory_reserved(i) / 1024**2
+                    print(f"[模型管理器]   GPU {i} 清理前: 已分配={allocated:.1f}MB, 预留={reserved:.1f}MB")
+                
                 torch.cuda.empty_cache()
                 cuda.empty_cache()
                 cuda.synchronize()
+                
+                # 清理后显存状态
+                for i in range(torch.cuda.device_count()):
+                    allocated = torch.cuda.memory_allocated(i) / 1024**2
+                    reserved = torch.cuda.memory_reserved(i) / 1024**2
+                    print(f"[模型管理器]   GPU {i} 清理后: 已分配={allocated:.1f}MB, 预留={reserved:.1f}MB")
+                print(f"[模型管理器] ✓ CUDA 缓存清理完成")
             except Exception as e:
-                print(f"[警告] 清除CUDA缓存失败: {e}")
+                print(f"[模型管理器] ⚠ 清除CUDA缓存失败: {e}")
+        else:
+            print(f"[模型管理器] ℹ 无 CUDA 设备，跳过显存清理")
+        
         gc.collect()
+        print(f"[模型管理器] ✓ 垃圾回收已执行")
 
 
 class DirectoryMonitor:
@@ -205,9 +271,17 @@ class DirectoryMonitor:
         self.status_callback = None  # 状态回调函数
         self.detect_existing_on_start = False  # 启动时是否检测已有文件
         
-    def set_preprocessor(self, ref_file: str):
+    def set_preprocessor(self, ref_file: str, split_method: str = 'mfcc_dtw', 
+                        shazam_threshold: int = 10, shazam_auto_match: bool = False,
+                        max_workers: int = 1):
         """设置预处理器"""
-        self.preprocessor = Preprocessor(ref_file=ref_file)
+        self.preprocessor = Preprocessor(
+            ref_file=ref_file,
+            split_method=split_method,
+            shazam_threshold=shazam_threshold,
+            shazam_auto_match=shazam_auto_match,
+            max_workers=max_workers
+        )
         
     def set_monitor_params(self, monitor_dir: str, interval: int = 5):
         """设置监控参数"""
@@ -221,21 +295,41 @@ class DirectoryMonitor:
         
     def update_algorithm(self, algorithm: str, config):
         """动态更新检测算法（会重新加载模型）"""
+        print(f"\n{'='*60}")
+        print(f"[在线模式] 🔄 动态切换算法请求")
+        print(f"[在线模式] 目标算法: {algorithm}")
+        print(f"[在线模式] 监控状态: {'运行中' if self.is_monitoring else '未运行'}")
+        print(f"{'='*60}")
+        
         if self.is_monitoring:
             self._log(f"正在切换算法到: {algorithm}...")
             try:
-                # 释放旧模型
-                if self.algorithm_manager.detector:
-                    self.algorithm_manager.detector.release()
+                # 释放旧模型（使用封装方法，会更新状态标志）
+                if self.algorithm_manager.is_model_loaded():
+                    print(f"[在线模式] 🧹 释放旧模型...")
+                    self.algorithm_manager.unload_model()
+                    print(f"[在线模式] ✓ 旧模型已释放")
                 
                 # 切换算法
+                print(f"[在线模式] 🏗️ 调用 update_algorithm 切换算法...")
                 self.algorithm_manager.update_algorithm(algorithm)
-                self.algorithm_manager.detector.load_model()
+                
+                print(f"[在线模式] 🏗️ 调用 load_model() 加载新模型...")
+                self.algorithm_manager.load_model()  # 使用封装方法
+                
                 self._log(f"算法切换成功: {algorithm}")
+                print(f"[在线模式] ✓ 算法切换完成")
+                print(f"{'='*60}\n")
                 return True
             except Exception as e:
                 self._log(f"算法切换失败: {e}")
+                print(f"[在线模式] ✗ 算法切换失败: {e}")
+                import traceback
+                traceback.print_exc()
+                print(f"{'='*60}\n")
                 return False
+        print(f"[在线模式] ℹ 监控未运行，跳过算法切换")
+        print(f"{'='*60}\n")
         return False
         
     def set_status_callback(self, callback):
@@ -430,14 +524,30 @@ class DirectoryMonitor:
         self._log(f"检测间隔: {self.interval}秒")
         self._log("=" * 50)
         
-        # 加载模型
+        # 加载模型（仅当模型未加载时）
         try:
-            print("[监控] 正在加载模型...")
-            self.algorithm_manager.detector.load_model()
-            print("[监控] ✓ 模型加载成功")
-            self._log("模型加载成功")
+            if self.algorithm_manager.is_model_loaded():
+                print(f"\n{'='*60}")
+                print(f"[监控] ℹ 模型已经加载，跳过重复加载")
+                print(f"[监控] 算法: {self.algorithm_manager.algorithm_chosen}")
+                print(f"[监控] 设备: {self.device}")
+                print(f"{'='*60}\n")
+                self._log("模型已加载，直接使用")
+            else:
+                print(f"\n{'='*60}")
+                print(f"[监控] 🏗️ 正在加载模型...")
+                print(f"[监控] 算法: {self.algorithm_manager.algorithm_chosen}")
+                print(f"[监控] 设备: {self.device}")
+                print(f"{'='*60}")
+                self.algorithm_manager.load_model()
+                print(f"[监控] ✓ 模型加载成功")
+                print(f"[监控] 模型状态: 已加载并就绪")
+                print(f"{'='*60}\n")
+                self._log("模型加载成功")
         except Exception as e:
             print(f"[监控] ✗ 模型加载失败: {e}")
+            import traceback
+            traceback.print_exc()
             self._log(f"模型加载失败: {e}")
             self.is_monitoring = False
             return
@@ -588,48 +698,67 @@ class DirectoryMonitor:
         
     def cleanup(self):
         """清理资源，防止内存泄漏"""
-        print("\n[Cleanup] 开始清理监控资源...")
+        print(f"\n{'='*60}")
+        print(f"[Cleanup] 🧹 开始清理监控资源...")
+        print(f"{'='*60}")
         
         # 1. 停止监控
         if self.is_monitoring:
+            print(f"[Cleanup] ⏹️ 停止监控线程...")
             self.is_monitoring = False
             if self.monitor_thread and self.monitor_thread.is_alive():
                 self.monitor_thread.join(timeout=5)
-                print(f"[Cleanup] 监控线程已停止")
+                print(f"[Cleanup] ✓ 监控线程已停止")
+        else:
+            print(f"[Cleanup] ℹ 监控未运行，无需停止线程")
         
         # 2. 释放模型和显存
-        if self.algorithm_manager and self.algorithm_manager.detector:
+        if self.algorithm_manager and self.algorithm_manager.is_model_loaded():
+            print(f"[Cleanup] 🏗️ 准备释放模型...")
+            print(f"[Cleanup] 当前算法: {self.algorithm_manager.algorithm_chosen}")
             try:
-                self.algorithm_manager.detector.release()
-                print("[Cleanup] 模型已释放")
+                self.algorithm_manager.unload_model()  # 使用封装方法
+                print(f"[Cleanup] ✓ 模型已释放")
             except Exception as e:
-                print(f"[Cleanup] 模型释放失败: {e}")
+                print(f"[Cleanup] ⚠ 模型释放失败: {e}")
             
             # 强制清空CUDA缓存
             try:
                 if torch.cuda.is_available():
+                    print(f"[Cleanup] 🧹 清空 CUDA 缓存...")
+                    for i in range(torch.cuda.device_count()):
+                        allocated_before = torch.cuda.memory_allocated(i) / 1024**2
+                        print(f"[Cleanup]   GPU {i} 清理前: {allocated_before:.1f}MB")
+                    
                     torch.cuda.empty_cache()
                     torch.cuda.synchronize()
-                    print("[Cleanup] CUDA缓存已清空")
+                    
+                    for i in range(torch.cuda.device_count()):
+                        allocated_after = torch.cuda.memory_allocated(i) / 1024**2
+                        print(f"[Cleanup]   GPU {i} 清理后: {allocated_after:.1f}MB")
+                    print(f"[Cleanup] ✓ CUDA缓存已清空")
             except Exception as e:
-                print(f"[Cleanup] CUDA缓存清空失败: {e}")
+                print(f"[Cleanup] ⚠ CUDA缓存清空失败: {e}")
+        else:
+            print(f"[Cleanup] ℹ 无模型需要释放")
         
         # 3. 清理数据集合
         result_count = len(self.detection_results)
         self.detection_results.clear()
         self.processed_files.clear()
-        print(f"[Cleanup] 已清空 {result_count} 条检测结果")
+        print(f"[Cleanup] ✓ 已清空 {result_count} 条检测结果和已处理文件记录")
         
         # 4. 删除预处理器引用
         if self.preprocessor:
             del self.preprocessor
             self.preprocessor = None
-            print("[Cleanup] 预处理器已释放")
+            print(f"[Cleanup] ✓ 预处理器已释放")
         
         # 5. 强制垃圾回收
         gc.collect()
-        print("[Cleanup] 垃圾回收已执行")
-        print("[Cleanup] 资源清理完成\n")
+        print(f"[Cleanup] ✓ 垃圾回收已执行")
+        print(f"[Cleanup] ✓ 资源清理完成")
+        print(f"{'='*60}\n")
         
     def _cleanup_temp_files(self, max_age_hours=24):
         """
@@ -666,10 +795,123 @@ class DirectoryMonitor:
                 
         except Exception as e:
             print(f"[Cleanup] 临时文件清理失败: {e}")
+    
+    def cleanup_all_slice_files(self) -> tuple:
+        """
+        清理slice目录下的所有临时文件（无时间限制）
+        返回: (删除文件数量, 释放空间字节数)
+        """
+        slice_dir = "slice"
+        if not os.path.exists(slice_dir):
+            return 0, 0
+        
+        deleted_count = 0
+        deleted_size = 0
+        
+        try:
+            for filename in os.listdir(slice_dir):
+                filepath = os.path.join(slice_dir, filename)
+                if os.path.isfile(filepath):
+                    try:
+                        file_size = os.path.getsize(filepath)
+                        os.remove(filepath)
+                        deleted_count += 1
+                        deleted_size += file_size
+                    except Exception as e:
+                        print(f"[Cleanup] 删除临时文件失败 {filepath}: {e}")
+            
+            print(f"[Cleanup] 清理所有临时文件完成: {deleted_count} 个文件，释放 {deleted_size/1024/1024:.2f} MB")
+            return deleted_count, deleted_size
+                
+        except Exception as e:
+            print(f"[Cleanup] 临时文件清理失败: {e}")
+            return deleted_count, deleted_size
+    
+    @staticmethod
+    def cleanup_all_temp_files() -> dict:
+        """
+        清理所有临时文件（slice/、exports/ 和 visualize/ 目录）
+        递归删除目录中的所有文件和子目录
+        返回: {'slice': (file_count, dir_count, size), 'exports': (...), 'visualize': (...)}
+        """
+        result = {'slice': (0, 0, 0), 'exports': (0, 0, 0), 'visualize': (0, 0, 0)}
+        
+        def cleanup_directory_recursive(dir_path: str) -> tuple:
+            """
+            递归清理目录中的所有文件和子目录
+            返回: (文件数量, 目录数量, 释放空间字节数)
+            """
+            file_count, dir_count, total_size = 0, 0, 0
+            
+            if not os.path.exists(dir_path):
+                return file_count, dir_count, total_size
+            
+            try:
+                for item in os.listdir(dir_path):
+                    item_path = os.path.join(dir_path, item)
+                    
+                    if os.path.isfile(item_path):
+                        # 删除文件
+                        try:
+                            file_size = os.path.getsize(item_path)
+                            os.remove(item_path)
+                            file_count += 1
+                            total_size += file_size
+                        except Exception as e:
+                            print(f"[Cleanup] 删除文件失败 {item_path}: {e}")
+                    
+                    elif os.path.isdir(item_path):
+                        # 递归清理子目录
+                        sub_file_count, sub_dir_count, sub_size = cleanup_directory_recursive(item_path)
+                        file_count += sub_file_count
+                        dir_count += sub_dir_count
+                        total_size += sub_size
+                        
+                        # 删除空目录
+                        try:
+                            os.rmdir(item_path)
+                            dir_count += 1
+                        except Exception as e:
+                            print(f"[Cleanup] 删除目录失败 {item_path}: {e}")
+                
+            except Exception as e:
+                print(f"[Cleanup] 清理目录失败 {dir_path}: {e}")
+            
+            return file_count, dir_count, total_size
+        
+        # 清理 slice 目录
+        slice_dir = "slice"
+        if os.path.exists(slice_dir):
+            file_count, dir_count, size = cleanup_directory_recursive(slice_dir)
+            result['slice'] = (file_count, dir_count, size)
+            print(f"[Cleanup] slice目录: 清理 {file_count} 个文件, {dir_count} 个目录, 释放 {size/1024/1024:.2f} MB")
+        
+        # 清理 exports 目录
+        exports_dir = "exports"
+        if os.path.exists(exports_dir):
+            file_count, dir_count, size = cleanup_directory_recursive(exports_dir)
+            result['exports'] = (file_count, dir_count, size)
+            print(f"[Cleanup] exports目录: 清理 {file_count} 个文件, {dir_count} 个目录, 释放 {size/1024/1024:.2f} MB")
+        
+        # 清理 visualize 目录
+        visualize_dir = "visualize"
+        if os.path.exists(visualize_dir):
+            file_count, dir_count, size = cleanup_directory_recursive(visualize_dir)
+            result['visualize'] = (file_count, dir_count, size)
+            print(f"[Cleanup] visualize目录: 清理 {file_count} 个文件, {dir_count} 个目录, 释放 {size/1024/1024:.2f} MB")
+        
+        total_files = result['slice'][0] + result['exports'][0] + result['visualize'][0]
+        total_dirs = result['slice'][1] + result['exports'][1] + result['visualize'][1]
+        total_size = result['slice'][2] + result['exports'][2] + result['visualize'][2]
+        print(f"[Cleanup] 总计: 清理 {total_files} 个文件, {total_dirs} 个目录, 释放 {total_size/1024/1024:.2f} MB")
+        
+        return result
 
 
 def run_asd_btn_func(audio_files, algorithm_choice: str, device_choice: str, progress=gr.Progress()):
     """主处理函数 - 离线模式批量检测"""
+    global model_manager
+    
     print("\n" + "=" * 60)
     print("[离线模式] 开始批量异常检测")
     print(f"[离线模式] 选择设备: {device_choice}")
@@ -684,35 +926,58 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, device_choice: str, pro
     if not os.path.isabs(ref_file):
         ref_file = os.path.join(project_root, ref_file)
     
+    # 获取预处理配置
+    split_method = config.config.get('preprocessing', {}).get('split_method', 'mfcc_dtw')
+    shazam_config = config.config.get('preprocessing', {}).get('shazam', {})
+    shazam_threshold = shazam_config.get('threshold', 10)
+    shazam_auto_match = shazam_config.get('auto_match', False)
+    max_workers = shazam_config.get('max_workers', 1)
+    
     print(f"[离线模式] 上传文件数量: {len(audio_files) if audio_files else 0}")
     print(f"[离线模式] 选择算法: {algorithm_choice}")
     print(f"[离线模式] 参考音频: {ref_file}")
+    print(f"[离线模式] 切分方法: {split_method}")
     
     # 初始化组件
-    p = Preprocessor(ref_file=ref_file)
+    p = Preprocessor(
+        ref_file=ref_file,
+        split_method=split_method,
+        shazam_threshold=shazam_threshold,
+        shazam_auto_match=shazam_auto_match,
+        max_workers=max_workers
+    )
     lm = LogManager()
-    am_offline = UnifiedAlgorithmManager(device=device_choice)  # 使用局部变量避免与全局am冲突，传递设备参数
+    # 使用全局模型实例 model_manager，与在线模式共享
     
-    # 资源释放标志
+    # 资源释放标志（仅用于清理，不销毁模型）
     model_loaded = False
     
     try:
         if not audio_files:
             print("[离线模式] ✗ 错误: 未上传音频文件")
             yield from lm.update_log_and_action("请上传至少一个音频文件", gr.update(interactive=True))
-            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
+            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True), gr.update()
         
-        # 加载算法
-        print(f"\n[离线模式] 步骤1/4: 加载算法模型...")
+        # 加载算法（使用全局实例 model_manager）
+        print(f"\n{'='*60}")
+        print(f"[离线模式] 步骤1/4: 加载算法模型...")
+        print(f"[离线模式] 算法: {algorithm_choice}")
+        print(f"[离线模式] 设备: {device_choice}")
+        print(f"{'='*60}")
         try:
-            am_offline.update_algorithm(algorithm_choice)
-            am_offline.detector.load_model()
+            model_manager.update_algorithm(algorithm_choice, device=device_choice)
+            print(f"[离线模式] 🏗️ 调用 load_model() 加载模型权重...")
+            model_manager.load_model()  # 使用封装方法，会设置 _model_loaded 标志
             model_loaded = True
             print(f"[离线模式] ✓ 算法模型加载成功: {algorithm_choice}")
+            print(f"[离线模式] 模型状态: 已加载 (与在线模式共享实例)")
+            print(f"{'='*60}")
         except Exception as e:
             print(f"[离线模式] ✗ 算法加载失败: {e}")
+            import traceback
+            traceback.print_exc()
             yield from lm.update_log_and_action(f"算法加载失败: {str(e)}", gr.update(interactive=True))
-            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
+            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True), gr.update()
         
         # [1] 音频预处理
         print(f"\n[离线模式] 步骤2/4: 音频预处理...")
@@ -725,12 +990,12 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, device_choice: str, pro
             import traceback
             traceback.print_exc()
             yield from lm.update_log_and_action(f"音频预处理失败: {str(e)}", gr.update(interactive=True))
-            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
+            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True), gr.update()
         
         if picture_file_dict is None or not picture_file_dict:
             print("[离线模式] ✗ 预处理返回空结果")
             yield from lm.update_log_and_action("音频预处理返回空结果，请检查音频文件格式", gr.update(interactive=True))
-            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
+            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True), gr.update()
         
         yield from lm.update_log("完成目标音频搜索和切分！！")
         
@@ -749,18 +1014,18 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, device_choice: str, pro
         if not picture_file_list:
             print("[离线模式] ✗ 未找到目标音频片段")
             yield from lm.update_log_and_action("上传的素材中没有找到目标音频，请检查!", gr.update(interactive=True))
-            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
+            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True), gr.update()
         
         # [3] 执行异常检测
         print(f"\n[离线模式] 步骤4/4: 执行异常检测...")
-        print(f"[离线模式] 使用算法: {am_offline.algorithm_chosen}")
+        print(f"[离线模式] 使用算法: {model_manager.algorithm_chosen}")
         print(f"[离线模式] 待检测图像数量: {len(picture_file_list)}")
-        yield from lm.update_log(f"使用算法: {am_offline.algorithm_chosen}")
+        yield from lm.update_log(f"使用算法: {model_manager.algorithm_chosen}")
         yield from lm.update_log("执行异常预测...")
         
         try:
             # 使用统一接口批量推理
-            detection_results = am_offline.detector.predict_batch(picture_file_list)
+            detection_results = model_manager.detector.predict_batch(picture_file_list)
             print(f"[离线模式] ✓ 检测完成，返回 {len(detection_results)} 个结果")
             
             # 构建结果字典和热力图路径字典
@@ -786,7 +1051,7 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, device_choice: str, pro
             yield from lm.update_log("检测完成!")
         except Exception as e:
             yield from lm.update_log_and_action(f"检测失败: {str(e)}", gr.update(interactive=True))
-            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True)
+            return None, gr.update(visible=False), None, None, None, gr.update(interactive=True), gr.update()
         
         # [4] 输出结果
         print(f"\n[离线模式] 整理输出结果...")
@@ -803,11 +1068,14 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, device_choice: str, pro
         
         print(f"[离线模式] 生成结果表格: {len(results)} 行数据")
         
-        temp_dir = tempfile.mkdtemp()
-        excel_path = Export.create_excel_report(results, temp_dir)
+        # 使用可控的 exports 目录存放导出文件
+        exports_dir = "exports"
+        os.makedirs(exports_dir, exist_ok=True)
+        
+        excel_path = Export.create_excel_report(results, exports_dir)
         print(f"[离线模式] ✓ Excel报告生成: {excel_path}")
         
-        zip_path = os.path.join(temp_dir, f'asd_results_{am_offline.algorithm_chosen}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip')
+        zip_path = os.path.join(exports_dir, f'asd_results_{model_manager.algorithm_chosen}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip')
         images_for_zip = picture_file_list
         zip_path = Export.create_zip_with_results(zip_path, excel_path, images_for_zip)
         print(f"[离线模式] ✓ ZIP包生成: {zip_path}")
@@ -845,18 +1113,19 @@ def run_asd_btn_func(audio_files, algorithm_choice: str, device_choice: str, pro
         
         lm.generate_log(f"处理完成! 共处理 {len(results)} 个文件，请查看下方结果!")
 
-        yield lm.log_messages, gr.update(visible=True), df_results, gallery_data, zip_path, gr.update(interactive=True)
+        # 返回结果，并同步算法选择到在线模式
+        yield lm.log_messages, gr.update(visible=True), df_results, gallery_data, zip_path, gr.update(interactive=True), gr.update(value=algorithm_choice)
         
     finally:
-        # 确保资源总是被释放
-        if model_loaded and am_offline.detector:
-            print("[离线模式] 释放模型资源...")
-            try:
-                am_offline.detector.release()
-                torch.cuda.empty_cache()
-                print("[离线模式] ✓ 资源已释放")
-            except Exception as e:
-                print(f"[离线模式] 资源释放失败: {e}")
+        # 模型由全局实例管理，离线模式检测完成后不释放模型
+        # 这样可以与在线模式共享模型，避免重复加载
+        if model_loaded:
+            print(f"\n{'='*60}")
+            print(f"[离线模式] 检测流程完成")
+            print(f"[离线模式] 模型状态: 保持加载（与在线模式共享）")
+            print(f"[离线模式] 当前算法: {model_manager.algorithm_chosen}")
+            print(f"[离线模式] 当前设备: {model_manager.device}")
+            print(f"{'='*60}")
 
 
 # 加载全局配置（使用绝对路径）
@@ -876,7 +1145,7 @@ if os.path.exists(_dinomaly_config_path):
             os.environ[key] = str(value)
             print(f"[DEBUG] Set environment variable: {key}={value}")
 
-am = UnifiedAlgorithmManager()
+model_manager = UnifiedAlgorithmManager()
 
 # 页面加载计数器和最后活跃时间（用于检测用户是否已离开）
 _session_count = 0
@@ -901,12 +1170,14 @@ def on_page_unload():
     with _session_lock:
         _session_count = max(0, _session_count - 1)
         _last_active_time = time.time()
-        print(f"[Session] 页面离开，当前会话数: {_session_count}")
+        print(f"\n[Session] 页面离开，当前会话数: {_session_count}")
         
         # 如果没有会话了，彻底清理资源
         if _session_count == 0 and monitor:
-            print("[Session] 所有会话已离开，执行完整资源清理...")
+            print(f"[Session] 所有会话已离开，执行完整资源清理...")
             monitor.cleanup()  # 使用新的cleanup方法
+        else:
+            print(f"[Session] 仍有 {_session_count} 个活跃会话，保持资源加载")
     # 不返回任何值
 
 # Gradio界面定义
@@ -987,8 +1258,8 @@ with gr.Blocks(title="音频异常检测工具") as demo:
                 )
 
                 algorithm_dropdown = gr.Dropdown(
-                    choices=am.available_algorithms,
-                    value=am.available_algorithms[0] if am.available_algorithms else None,
+                    choices=model_manager.available_algorithms,
+                    value=model_manager.available_algorithms[0] if model_manager.available_algorithms else None,
                     label="🔧 选择异常检测算法"
                 )
 
@@ -1048,13 +1319,11 @@ with gr.Blocks(title="音频异常检测工具") as demo:
         6. 可下载ZIP文件包含Excel报告和所有热力图图像
         """)
 
-        # 绑定按钮事件
-        run_button.click(
-            fn=run_asd_btn_func,
-            inputs=[audio_inputs, algorithm_dropdown, device_dropdown],
-            outputs=[output_text, results_section, results_table, heatmap_gallery, download_output, run_button],
-            queue=True
-        )
+        # 绑定按钮事件（事件绑定移到文件末尾，确保所有组件已定义）
+        # run_button.click 将在在线模式定义后统一绑定
+        
+        # 算法选择同步：离线模式改变时更新在线模式
+        # 注意：algorithm_dropdown.change 将在在线模式定义后统一绑定
 
         def on_select_row(evt: gr.SelectData, gallery_data):
             """
@@ -1094,7 +1363,7 @@ with gr.Blocks(title="音频异常检测工具") as demo:
         gr.Markdown("监控指定目录下的新增音频文件，自动进行异常检测")
         
         # 创建监控器实例（全局）
-        monitor = DirectoryMonitor(am)
+        monitor = DirectoryMonitor(model_manager)
         # monitor_logs 已在全局定义为 deque(maxlen=100)
         
         def update_monitor_status(message: str):
@@ -1105,8 +1374,8 @@ with gr.Blocks(title="音频异常检测工具") as demo:
         
         monitor.set_status_callback(update_monitor_status)
         
-        with gr.Row():
-            with gr.Column(scale=1):
+        with gr.Row(equal_height=False):
+            with gr.Column(scale=2, min_width=350):
                 # 监控设置
                 monitor_dir_input = gr.Textbox(
                     label="📁 监控目录路径",
@@ -1123,8 +1392,8 @@ with gr.Blocks(title="音频异常检测工具") as demo:
                 )
                 
                 monitor_algorithm = gr.Dropdown(
-                    choices=am.available_algorithms,
-                    value=am.available_algorithms[0] if am.available_algorithms else None,
+                    choices=model_manager.available_algorithms,
+                    value=model_manager.available_algorithms[0] if model_manager.available_algorithms else None,
                     label="🔧 检测算法"
                 )
                 
@@ -1140,8 +1409,11 @@ with gr.Blocks(title="音频异常检测工具") as demo:
                 with gr.Row():
                     start_monitor_btn = gr.Button("▶️ 开始监控", variant="primary")
                     stop_monitor_btn = gr.Button("⏹️ 停止监控", variant="secondary")
-                    clear_monitor_btn = gr.Button("🗑️ 清空结果", variant="secondary")
                     cleanup_temp_btn = gr.Button("🧹 清理临时文件", variant="secondary")
+                    export_zip_btn = gr.Button("📦 导出结果", variant="secondary")
+                
+                # 隐藏的 HTML 组件，用于触发自动下载
+                auto_download_html = gr.HTML(value="")
                 
                 # 统计信息
                 monitor_stats = gr.Textbox(
@@ -1157,12 +1429,12 @@ with gr.Blocks(title="音频异常检测工具") as demo:
                     interactive=False
                 )
 
-            with gr.Column(scale=2):
+            with gr.Column(scale=3, min_width=450):
                 # 监控日志
                 monitor_log_box = gr.Textbox(
                     label="📝 监控日志",
-                    lines=10,
-                    max_lines=15,
+                    lines=8,
+                    max_lines=12,
                     interactive=False,
                     autoscroll=True,
                     elem_id="monitor_log_box"
@@ -1223,12 +1495,12 @@ with gr.Blocks(title="音频异常检测工具") as demo:
             """开始监控 - 先检查是否有已有文件"""
             if not dir_path or not os.path.exists(dir_path):
                 monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 错误: 目录不存在")
-                return "\n".join(list(monitor_logs)), gr.update(), gr.update(), gr.update(visible=False), gr.update()
+                return "\n".join(list(monitor_logs)), gr.update(), gr.update(), gr.update(visible=False), gr.update(), gr.update()
             
             # 检查是否已在监控中
             if monitor.is_monitoring:
                 monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 监控已在运行中")
-                return "\n".join(list(monitor_logs)), gr.update(), gr.update(), gr.update(visible=False), gr.update()
+                return "\n".join(list(monitor_logs)), gr.update(), gr.update(), gr.update(visible=False), gr.update(), gr.update()
             
             # 扫描目录下的音频文件
             existing_files = get_audio_files_in_dir(dir_path)
@@ -1246,12 +1518,12 @@ with gr.Blocks(title="音频异常检测工具") as demo:
                 count_msg = f"发现 {len(existing_files)} 个音频文件"
                 monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {count_msg}，等待用户选择...")
                 # 注意：confirm_count是Markdown，通过gr.update(value=...)更新
-                return "\n".join(list(monitor_logs)), gr.update(), gr.update(), gr.update(visible=True), gr.update(value=f"**音频文件数量: {len(existing_files)} 个**")
+                return "\n".join(list(monitor_logs)), gr.update(), gr.update(), gr.update(visible=True), gr.update(value=f"**音频文件数量: {len(existing_files)} 个**"), gr.update(value=algorithm)
             
             # 没有已有文件，直接开始监控
             result = _do_start_monitoring(dir_path, interval, algorithm, device, detect_existing=False)
-            # _do_start_monitoring 返回5个值
-            return result[0], result[1], result[2], result[3], result[4]
+            # _do_start_monitoring 返回6个值（包括 algorithm_dropdown）
+            return result[0], result[1], result[2], result[3], result[4], result[5]
         
         def _do_start_monitoring(dir_path, interval, algorithm, device='auto', detect_existing=False):
             """执行实际开始监控的操作"""
@@ -1266,16 +1538,34 @@ with gr.Blocks(title="音频异常检测工具") as demo:
             if not os.path.isabs(ref_file):
                 ref_file = os.path.join(project_root, ref_file)
             
-            monitor.set_preprocessor(ref_file)
+            # 获取预处理配置
+            split_method = config.config.get('preprocessing', {}).get('split_method', 'mfcc_dtw')
+            shazam_config = config.config.get('preprocessing', {}).get('shazam', {})
+            shazam_threshold = shazam_config.get('threshold', 10)
+            shazam_auto_match = shazam_config.get('auto_match', False)
+            max_workers = shazam_config.get('max_workers', 1)
+            
+            monitor.set_preprocessor(
+                ref_file=ref_file,
+                split_method=split_method,
+                shazam_threshold=shazam_threshold,
+                shazam_auto_match=shazam_auto_match,
+                max_workers=max_workers
+            )
             monitor.set_monitor_params(dir_path, interval)
             
             # 切换算法并指定设备
             try:
-                am.update_algorithm(algorithm, device=device)
+                print(f"\n[在线模式] 🔄 监控启动前切换算法...")
+                model_manager.update_algorithm(algorithm, device=device)
+                print(f"[在线模式] ✓ 算法切换完成，准备加载模型...")
                 monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 使用设备: {device}")
             except Exception as e:
+                print(f"[在线模式] ✗ 算法切换失败: {e}")
+                import traceback
+                traceback.print_exc()
                 monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 算法切换失败: {e}")
-                return "\n".join(list(monitor_logs)), gr.update(interactive=True), gr.update(interactive=False), gr.update(visible=False), gr.update(interactive=False)
+                return "\n".join(list(monitor_logs)), gr.update(interactive=True), gr.update(interactive=False), gr.update(visible=False), gr.update(interactive=False), gr.update()
 
             # 设置是否检测已有文件的标志
             monitor.detect_existing_on_start = detect_existing
@@ -1290,74 +1580,213 @@ with gr.Blocks(title="音频异常检测工具") as demo:
             success = monitor.start_monitoring()
 
             if success:
-                return "\n".join(list(monitor_logs)), gr.update(interactive=False), gr.update(interactive=True), gr.update(visible=False), gr.update(interactive=False)
+                return "\n".join(list(monitor_logs)), gr.update(interactive=False), gr.update(interactive=True), gr.update(visible=False), gr.update(interactive=False), gr.update(value=algorithm)
             else:
-                return "\n".join(list(monitor_logs)), gr.update(interactive=True), gr.update(interactive=False), gr.update(visible=False), gr.update(interactive=True)
+                return "\n".join(list(monitor_logs)), gr.update(interactive=True), gr.update(interactive=False), gr.update(visible=False), gr.update(interactive=True), gr.update()
         
         def confirm_detect_existing_fn():
             """确认检测已有文件"""
             global pending_monitor_params
             
             if not pending_monitor_params:
-                return "\n".join(list(monitor_logs)), gr.update(interactive=True), gr.update(interactive=False), gr.update(visible=False), gr.update(interactive=True)
+                return "\n".join(list(monitor_logs)), gr.update(interactive=True), gr.update(interactive=False), gr.update(visible=False), gr.update(interactive=True), gr.update()
             
             monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 选择：检测已有文件")
             
             params = pending_monitor_params
             pending_monitor_params = {}  # 清空
             
-            return _do_start_monitoring(
+            result = _do_start_monitoring(
                 params['dir_path'], 
                 params['interval'], 
                 params['algorithm'],
                 params.get('device', 'auto'),
                 detect_existing=True
             )
+            # 添加 algorithm_dropdown 同步
+            return result[0], result[1], result[2], result[3], result[4], gr.update(value=params['algorithm'])
         
         def confirm_skip_existing_fn():
             """确认跳过已有文件"""
             global pending_monitor_params
             
             if not pending_monitor_params:
-                return "\n".join(list(monitor_logs)), gr.update(interactive=True), gr.update(interactive=False), gr.update(visible=False), gr.update(interactive=True)
+                return "\n".join(list(monitor_logs)), gr.update(interactive=True), gr.update(interactive=False), gr.update(visible=False), gr.update(interactive=True), gr.update()
             
             monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 选择：跳过已有文件")
             
             params = pending_monitor_params
             pending_monitor_params = {}  # 清空
             
-            return _do_start_monitoring(
+            result = _do_start_monitoring(
                 params['dir_path'], 
                 params['interval'], 
                 params['algorithm'],
                 params.get('device', 'auto'),
                 detect_existing=False
             )
+            # 添加 algorithm_dropdown 同步
+            return result[0], result[1], result[2], result[3], result[4], gr.update(value=params['algorithm'])
         
         def stop_monitoring_fn():
             """停止监控并释放资源"""
+            print(f"\n{'='*60}")
+            print(f"[在线模式] ⏹️ 用户请求停止监控")
+            print(f"{'='*60}")
+            
             monitor.stop_monitoring()
-            # 停止后释放模型资源
-            if monitor.algorithm_manager and monitor.algorithm_manager.detector:
+            
+            # 停止后释放模型资源（共享模型，也需要释放）
+            if monitor.algorithm_manager and monitor.algorithm_manager.is_model_loaded():
                 try:
-                    monitor.algorithm_manager.detector.release()
+                    print(f"[在线模式] 🧹 释放模型资源...")
+                    print(f"[在线模式] 当前算法: {monitor.algorithm_manager.algorithm_chosen}")
+                    monitor.algorithm_manager.unload_model()  # 使用封装方法
                     torch.cuda.empty_cache()
+                    print(f"[在线模式] ✓ 模型资源已释放")
                     monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 模型资源已释放")
                 except Exception as e:
+                    print(f"[在线模式] ⚠ 资源释放失败: {e}")
                     monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 资源释放失败: {e}")
-            return "\n".join(list(monitor_logs)), gr.update(interactive=True), gr.update(interactive=False), gr.update(interactive=True)
-        
-        def clear_monitor_results_fn():
-            """清空结果"""
-            monitor.clear_results()
-            return pd.DataFrame(columns=['时间', '文件名', '异常分数', '是否异常', '状态']), [], "总检测: 0 | 异常: 0 | 正常: 0"
+            else:
+                print(f"[在线模式] ℹ 模型未加载，无需释放")
+            
+            print(f"{'='*60}\n")
+            # 返回5个值（包括 algorithm_dropdown 保持当前值）
+            return "\n".join(list(monitor_logs)), gr.update(interactive=True), gr.update(interactive=False), gr.update(interactive=True), gr.update()
         
         def cleanup_temp_files_fn():
-            """手动清理临时文件"""
-            # 清理slice目录下超过1小时的临时文件
-            monitor._cleanup_temp_files(max_age_hours=1)
-            monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 临时文件清理完成")
+            """手动清理所有临时文件（slice/、exports/ 和 visualize/ 目录）"""
+            result = DirectoryMonitor.cleanup_all_temp_files()
+            
+            slice_files, slice_dirs, slice_size = result['slice']
+            exports_files, exports_dirs, exports_size = result['exports']
+            visualize_files, visualize_dirs, visualize_size = result['visualize']
+            total_files = slice_files + exports_files + visualize_files
+            total_dirs = slice_dirs + exports_dirs + visualize_dirs
+            total_size = slice_size + exports_size + visualize_size
+            
+            if total_files > 0 or total_dirs > 0:
+                monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ 临时文件清理完成: {total_files}个文件, {total_dirs}个目录, 共释放 {total_size/1024/1024:.1f} MB")
+            else:
+                monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] ℹ 没有需要清理的临时文件")
             return "\n".join(list(monitor_logs))
+        
+        def export_monitor_results_fn():
+            """导出监控结果为Excel"""
+            print(f"\n{'='*60}")
+            print(f"[在线模式] 📊 导出Excel报告...")
+            
+            results = list(monitor.detection_results)
+            if not results:
+                print(f"[在线模式] ⚠ 暂无检测结果可导出")
+                monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 导出失败: 暂无检测结果")
+                return "\n".join(list(monitor_logs)), None
+            
+            try:
+                # 使用可控的 exports 目录存放导出文件
+                exports_dir = "exports"
+                os.makedirs(exports_dir, exist_ok=True)
+                
+                # 准备导出数据
+                export_data = []
+                for r in results:
+                    export_data.append({
+                        'filename': r['filename'],
+                        'anomaly_score': r['anomaly_score'],
+                        'is_anomaly': r['is_anomaly'],
+                        'timestamp': r['timestamp'],
+                        'filepath': r['filepath']
+                    })
+                
+                # 创建Excel报告
+                excel_path = Export.create_excel_report(export_data, exports_dir)
+                print(f"[在线模式] ✓ Excel报告生成: {excel_path}")
+                print(f"[在线模式]   记录数: {len(export_data)}")
+                
+                monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Excel报告导出成功: {len(export_data)}条记录")
+                print(f"{'='*60}\n")
+                
+                return "\n".join(list(monitor_logs)), excel_path
+            except Exception as e:
+                print(f"[在线模式] ✗ Excel导出失败: {e}")
+                import traceback
+                traceback.print_exc()
+                monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 导出失败: {str(e)}")
+                return "\n".join(list(monitor_logs)), None
+        
+        def export_monitor_zip_fn():
+            """打包下载Excel和所有热力图"""
+            print(f"\n{'='*60}")
+            print(f"[在线模式] 📦 打包下载全部结果...")
+            
+            results = list(monitor.detection_results)
+            if not results:
+                print(f"[在线模式] ⚠ 暂无检测结果可打包")
+                monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 打包失败: 暂无检测结果")
+                return "\n".join(list(monitor_logs)), None
+            
+            try:
+                # 使用可控的 exports 目录存放导出文件
+                exports_dir = "exports"
+                os.makedirs(exports_dir, exist_ok=True)
+                
+                # 准备导出数据
+                export_data = []
+                heatmap_paths = []
+                for r in results:
+                    export_data.append({
+                        'filename': r['filename'],
+                        'anomaly_score': r['anomaly_score'],
+                        'is_anomaly': r['is_anomaly'],
+                        'timestamp': r['timestamp'],
+                        'filepath': r['filepath']
+                    })
+                    # 收集热力图路径
+                    if r.get('heatmap_path') and os.path.exists(r['heatmap_path']):
+                        heatmap_paths.append(r['heatmap_path'])
+                    # 收集所有处理过的图像
+                    if r.get('processed_images'):
+                        for img_path in r['processed_images']:
+                            if os.path.exists(img_path) and img_path not in heatmap_paths:
+                                heatmap_paths.append(img_path)
+                
+                # 创建Excel报告
+                excel_path = Export.create_excel_report(export_data, exports_dir)
+                print(f"[在线模式] ✓ Excel报告生成: {excel_path}")
+                
+                # 创建ZIP包
+                zip_filename = f"monitor_results_{model_manager.algorithm_chosen}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+                zip_path = os.path.join(exports_dir, zip_filename)
+                Export.create_zip_with_results(zip_path, excel_path, heatmap_paths)
+                print(f"[在线模式] ✓ ZIP包生成: {zip_path}")
+                print(f"[在线模式]   记录数: {len(export_data)}, 图像数: {len(heatmap_paths)}")
+                
+                monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ 打包下载成功: {len(export_data)}条记录, {len(heatmap_paths)}张图像")
+                print(f"{'='*60}\n")
+                
+                # 生成自动下载的 HTML 脚本
+                zip_filename = os.path.basename(zip_path)
+                download_html = f"""<script>
+setTimeout(function() {{
+    var link = document.createElement('a');
+    link.href = '/file={zip_path}';
+    link.download = '{zip_filename}';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    console.log('[AutoDownload] Triggered download for: {zip_filename}');
+}}, 500);
+</script>"""
+
+                return "\n".join(list(monitor_logs)), download_html
+            except Exception as e:
+                print(f"[在线模式] ✗ 打包失败: {e}")
+                import traceback
+                traceback.print_exc()
+                monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 打包失败: {str(e)}")
+                return "\n".join(list(monitor_logs)), ""
         
         def get_memory_stats():
             """获取内存和显存使用情况"""
@@ -1438,7 +1867,7 @@ with gr.Blocks(title="音频异常检测工具") as demo:
         start_monitor_btn.click(
             fn=start_monitoring_fn,
             inputs=[monitor_dir_input, monitor_interval, monitor_algorithm, monitor_device],
-            outputs=[monitor_log_box, start_monitor_btn, stop_monitor_btn, confirm_dialog, confirm_count]
+            outputs=[monitor_log_box, start_monitor_btn, stop_monitor_btn, confirm_dialog, confirm_count, algorithm_dropdown]
         )
         
         # 检测间隔动态更新 - 监控运行时实时生效
@@ -1457,27 +1886,28 @@ with gr.Blocks(title="音频异常检测工具") as demo:
         # 绑定确认对话框按钮 - 注意这里不需要更新 confirm_count，所以只返回4个值
         detect_existing_btn.click(
             fn=confirm_detect_existing_fn,
-            outputs=[monitor_log_box, start_monitor_btn, stop_monitor_btn, confirm_dialog, monitor_algorithm]
+            outputs=[monitor_log_box, start_monitor_btn, stop_monitor_btn, confirm_dialog, monitor_algorithm, algorithm_dropdown]
         )
         
         skip_existing_btn.click(
             fn=confirm_skip_existing_fn,
-            outputs=[monitor_log_box, start_monitor_btn, stop_monitor_btn, confirm_dialog, monitor_algorithm]
+            outputs=[monitor_log_box, start_monitor_btn, stop_monitor_btn, confirm_dialog, monitor_algorithm, algorithm_dropdown]
         )
         
         stop_monitor_btn.click(
             fn=stop_monitoring_fn,
-            outputs=[monitor_log_box, start_monitor_btn, stop_monitor_btn, monitor_algorithm]
-        )
-        
-        clear_monitor_btn.click(
-            fn=clear_monitor_results_fn,
-            outputs=[monitor_results_table, recent_anomaly_gallery, monitor_stats]
+            outputs=[monitor_log_box, start_monitor_btn, stop_monitor_btn, monitor_algorithm, algorithm_dropdown]
         )
         
         cleanup_temp_btn.click(
             fn=cleanup_temp_files_fn,
             outputs=[monitor_log_box]
+        )
+        
+        # 绑定导出按钮事件
+        export_zip_btn.click(
+            fn=export_monitor_zip_fn,
+            outputs=[monitor_log_box, auto_download_html]
         )
         
         # 在线模式：点击表格行跳转到对应热力图
@@ -1520,14 +1950,15 @@ with gr.Blocks(title="音频异常检测工具") as demo:
                 current_algo = monitor.algorithm_manager.algorithm_chosen
                 monitor_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] 警告: 监控运行中无法切换算法，请先停止监控")
                 # 返回日志更新，并恢复算法选择器的值为当前使用的算法
-                return "\n".join(list(monitor_logs)), gr.update(value=current_algo)
-            # 未监控时允许切换，不做任何阻止
-            return gr.update(), gr.update()
+                return "\n".join(list(monitor_logs)), gr.update(value=current_algo), gr.update()
+            # 未监控时允许切换，同步到离线模式
+            print(f"[算法同步] 在线模式 -> 离线模式: {algorithm}")
+            return gr.update(), gr.update(value=algorithm), gr.update(value=algorithm)
         
         monitor_algorithm.change(
             fn=on_algorithm_change,
             inputs=[monitor_algorithm],
-            outputs=[monitor_log_box, monitor_algorithm]
+            outputs=[monitor_log_box, monitor_algorithm, algorithm_dropdown]
         )
         
         # 使用gr.Timer定期刷新状态（Gradio 4.0+支持）
@@ -1547,6 +1978,28 @@ with gr.Blocks(title="音频异常检测工具") as demo:
                 fn=refresh_monitor_status,
                 outputs=[monitor_log_box, monitor_results_table, recent_anomaly_gallery, monitor_stats, memory_stats]
             )
+
+    # 统一绑定事件（确保所有组件已定义）
+    # 离线模式按钮事件
+    run_button.click(
+        fn=run_asd_btn_func,
+        inputs=[audio_inputs, algorithm_dropdown, device_dropdown],
+        outputs=[output_text, results_section, results_table, heatmap_gallery, download_output, run_button, monitor_algorithm],
+        queue=True
+    )
+    
+    # 算法选择同步：离线模式改变时更新在线模式
+    def sync_algorithm_to_online(algorithm):
+        """同步算法选择到在线模式"""
+        if algorithm and algorithm != model_manager.algorithm_chosen:
+            print(f"[算法同步] 离线模式 -> 在线模式: {algorithm}")
+        return gr.update(value=algorithm)
+    
+    algorithm_dropdown.change(
+        fn=sync_algorithm_to_online,
+        inputs=[algorithm_dropdown],
+        outputs=[monitor_algorithm]
+    )
 
     # 页面加载事件绑定（用于资源管理）
     demo.load(fn=on_page_load, inputs=None, outputs=None)
@@ -1574,7 +2027,7 @@ with gr.Blocks(title="音频异常检测工具") as demo:
                 "",  # 监控目录
                 30,  # 默认间隔30秒
                 gr.update(
-                    value=am.available_algorithms[0] if am.available_algorithms else None,
+                    value=model_manager.available_algorithms[0] if model_manager.available_algorithms else None,
                     interactive=True
                 ),  # 默认算法（启用选择）
                 gr.update(interactive=True),   # 开始按钮启用
@@ -1599,18 +2052,32 @@ with gr.Blocks(title="音频异常检测工具") as demo:
 # 全局资源清理函数
 def cleanup_resources():
     """应用退出时清理资源"""
+    print(f"\n{'='*60}")
+    print(f"[全局清理] 🧹 应用退出，执行全局资源清理...")
+    print(f"{'='*60}")
+    
     global monitor
     if monitor:
+        print(f"[全局清理] 调用 monitor.cleanup()...")
         monitor.cleanup()  # 使用完整的cleanup方法
     else:
+        print(f"[全局清理] ℹ 监控器未初始化，执行备用清理...")
         # 备用清理
         if torch.cuda.is_available():
             try:
+                print(f"[全局清理] 清空 CUDA 缓存...")
+                for i in range(torch.cuda.device_count()):
+                    allocated = torch.cuda.memory_allocated(i) / 1024**2
+                    print(f"[全局清理]   GPU {i}: {allocated:.1f}MB -> 0MB")
                 torch.cuda.empty_cache()
-            except:
-                pass
+                print(f"[全局清理] ✓ CUDA缓存已清空")
+            except Exception as e:
+                print(f"[全局清理] ⚠ CUDA缓存清空失败: {e}")
         gc.collect()
-    print("[Cleanup] 资源已清理")
+        print(f"[全局清理] ✓ 垃圾回收已执行")
+    
+    print(f"[全局清理] ✓ 全局资源清理完成")
+    print(f"{'='*60}\n")
 
 # 注册退出清理
 import atexit

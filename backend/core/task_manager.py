@@ -76,7 +76,20 @@ class TaskManager:
             if not os.path.isabs(ref_file):
                 ref_file = os.path.join(project_root, ref_file)
             
-            self.preprocessor = Preprocessor(ref_file=ref_file)
+            # 获取预处理配置
+            split_method = self.config.config.get('preprocessing', {}).get('split_method', 'mfcc_dtw')
+            shazam_config = self.config.config.get('preprocessing', {}).get('shazam', {})
+            shazam_threshold = shazam_config.get('threshold', 10)
+            shazam_auto_match = shazam_config.get('auto_match', False)
+            max_workers = shazam_config.get('max_workers', 1)
+            
+            self.preprocessor = Preprocessor(
+                ref_file=ref_file,
+                split_method=split_method,
+                shazam_threshold=shazam_threshold,
+                shazam_auto_match=shazam_auto_match,
+                max_workers=max_workers
+            )
             self.detector = None
             self.current_algorithm = None
             

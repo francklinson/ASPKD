@@ -128,6 +128,10 @@ inference:
 # 预处理配置
 preprocessing:
   ref_file: "ref/渡口片段10s.wav"
-  split_method: "mfcc_dtw"  # mfcc_dtw, corr
+  split_method: "shazam"  # shazam, mfcc_dtw, corr
+  shazam:
+    threshold: 10
+    auto_match: false
+    max_workers: 4  # 1为串行，>1启用并行
   output_size: [600, 600]
   sample_rate: 22050
