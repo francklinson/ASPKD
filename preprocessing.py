@@ -535,7 +535,7 @@ class Preprocessor:
         else:
             return -1
 
-    def process_audio(self, file_list, save_dir):
+    def process_audio(self, file_list, save_dir, original_names=None):
         """
         处理file_list中的所有音频文件，并保存到save_dir文件夹下
         图片保存到 save_dir/picture/ 目录
@@ -543,6 +543,7 @@ class Preprocessor:
         Args:
             file_list: 音频文件路径列表
             save_dir: 保存目录
+            original_names: 原始文件名映射 {临时路径: 原始文件名}，用于Gradio上传的文件
         Returns:
             dict: 处理结果字典，格式为 {原始音频路径: {"dk": 图片路径, "qzgy": 图片路径}}
         """
@@ -586,9 +587,15 @@ class Preprocessor:
                     # 提取目标片段
 
                     # 生成直观的文件名
-                    # 格式: {父文件夹}_{原始文件名}_{参考音频名}_pos{定位位置}s_{短随机后缀}
-                    original_name = os.path.splitext(os.path.basename(_file))[0]
-                    parent_dir = os.path.basename(os.path.dirname(_file))
+                    # 格式: {父文件夹}_{原始文件名}_{参考音频名}_pos{定位位置}s
+                    # 使用原始文件名（如果有映射），否则使用临时文件名
+                    if hasattr(self, '_original_names') and self._original_names and _file in self._original_names:
+                        original_name = os.path.splitext(self._original_names[_file])[0]
+                        # 对于Gradio上传的文件，不使用额外的父目录前缀
+                        parent_dir = ""
+                    else:
+                        original_name = os.path.splitext(os.path.basename(_file))[0]
+                        parent_dir = os.path.basename(os.path.dirname(_file))
 
                     # 获取参考音频名称
                     if self.shazam_auto_match and self._shazam_finder:
@@ -610,11 +617,12 @@ class Preprocessor:
                     original_name_clean = sanitize_name(original_name)
                     ref_name_clean = sanitize_name(ref_name)
 
-                    # 生成短随机后缀(4字节=8个hex字符)
-                    short_hash = secrets.token_hex(4)
-
-                    # 组合文件名
-                    new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s_{short_hash}"
+                    # 组合文件名（去掉随机hash，使文件名更可读）
+                    # 如果parent_dir为空，则不添加前缀
+                    if parent_dir_clean:
+                        new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s"
+                    else:
+                        new_file_name = f"{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s"
 
                     # 计算切片时长
                     slice_duration = min(10.0, self.target_segment_duration)
@@ -762,8 +770,12 @@ class Preprocessor:
             print(f"       位置: {found_position:.2f}s, 匹配: {matched_name}")
 
             # 生成文件名
-            original_name = os.path.splitext(os.path.basename(_file))[0]
-            parent_dir = os.path.basename(os.path.dirname(_file))
+            if hasattr(self, '_original_names') and self._original_names and _file in self._original_names:
+                original_name = os.path.splitext(self._original_names[_file])[0]
+                parent_dir = ""
+            else:
+                original_name = os.path.splitext(os.path.basename(_file))[0]
+                parent_dir = os.path.basename(os.path.dirname(_file))
 
             if self.shazam_auto_match:
                 ref_name = matched_name or 'unknown'
@@ -780,9 +792,12 @@ class Preprocessor:
             parent_dir_clean = sanitize_name(parent_dir)
             original_name_clean = sanitize_name(original_name)
             ref_name_clean = sanitize_name(ref_name)
-            short_hash = secrets.token_hex(4)
 
-            new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s_{short_hash}"
+            # 如果parent_dir为空，则不添加前缀
+            if parent_dir_clean:
+                new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s"
+            else:
+                new_file_name = f"{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s"
             slice_duration = min(10.0, self.target_segment_duration)
 
             # 保存图片
@@ -821,7 +836,7 @@ class Preprocessor:
         print(f"[并行处理完成] 成功处理 {len(result_dict)} 个文件")
         return result_dict
 
-    def process_audio(self, file_list, save_dir, use_parallel=None):
+    def process_audio(self, file_list, save_dir, use_parallel=None, original_names=None):
         """
         处理file_list中的所有音频文件，并保存到save_dir文件夹下
         
@@ -831,9 +846,13 @@ class Preprocessor:
             file_list: 音频文件路径列表
             save_dir: 保存目录
             use_parallel: 是否强制使用并行处理，None表示自动决定
+            original_names: 原始文件名映射 {临时路径: 原始文件名}
         Returns:
             dict: 处理结果字典
         """
+        # 保存original_names供内部方法使用
+        self._original_names = original_names or {}
+        
         # 决定是否使用并行处理
         should_use_parallel = (
                 use_parallel is True or
@@ -883,8 +902,12 @@ class Preprocessor:
                     # 提取目标片段
 
                     # 生成直观的文件名
-                    original_name = os.path.splitext(os.path.basename(_file))[0]
-                    parent_dir = os.path.basename(os.path.dirname(_file))
+                    if hasattr(self, '_original_names') and self._original_names and _file in self._original_names:
+                        original_name = os.path.splitext(self._original_names[_file])[0]
+                        parent_dir = ""
+                    else:
+                        original_name = os.path.splitext(os.path.basename(_file))[0]
+                        parent_dir = os.path.basename(os.path.dirname(_file))
 
                     if self.shazam_auto_match and self._shazam_finder:
                         ref_name = getattr(self._shazam_finder, '_last_matched_name', 'unknown')
@@ -901,9 +924,12 @@ class Preprocessor:
                     parent_dir_clean = sanitize_name(parent_dir)
                     original_name_clean = sanitize_name(original_name)
                     ref_name_clean = sanitize_name(ref_name)
-                    short_hash = secrets.token_hex(4)
 
-                    new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s_{short_hash}"
+                    # 如果parent_dir为空，则不添加前缀
+                    if parent_dir_clean:
+                        new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s"
+                    else:
+                        new_file_name = f"{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s"
 
                     slice_duration = min(10.0, self.target_segment_duration)
 
