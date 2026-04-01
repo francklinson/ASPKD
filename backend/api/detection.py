@@ -7,6 +7,7 @@ import zipfile
 import shutil
 from datetime import datetime
 from typing import List, Optional
+from urllib.parse import quote
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -278,11 +279,14 @@ async def export_task_results(task_id: str):
         # 4. 清理临时目录
         shutil.rmtree(export_dir)
         
+        # 使用纯英文文件名避免编码问题
+        export_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+        safe_filename = f"result_{export_id}.zip"
+        
         return FileResponse(
             path=zip_path,
-            filename=zip_filename,
-            media_type='application/zip',
-            content_disposition=f'attachment; filename="{zip_filename}"'
+            filename=safe_filename,
+            media_type='application/zip'
         )
         
     except Exception as e:

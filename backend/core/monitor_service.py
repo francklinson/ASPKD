@@ -58,7 +58,7 @@ class AudioFileHandler(FileSystemEventHandler):
                 self.loop
             )
     
-    async def _delayed_process(self, file_path: str, delay: float = 2.0):
+    async def _delayed_process(self, file_path: str, delay: float = 1.0):
         """延迟处理，等待文件写入完成"""
         await asyncio.sleep(delay)
         
@@ -92,7 +92,7 @@ class MonitorService:
         self._pending_files: List[str] = []
         self._batch_lock = asyncio.Lock()
         self._batch_task: Optional[asyncio.Task] = None
-        self._batch_delay: float = 2.0  # 等待2秒收集文件
+        self._batch_delay: float = 3.0  # 等待3秒收集文件（给文件写入留足时间）
     
     async def start(
         self,
@@ -285,10 +285,12 @@ class MonitorService:
         
         async with self._batch_lock:
             self._pending_files.append(file_path)
+            queue_length = len(self._pending_files)
             
             # 启动批量处理任务（如果未启动）
             if self._batch_task is None or self._batch_task.done():
                 self._batch_task = asyncio.create_task(self._batch_process())
+                print(f"[Monitor] 启动批量处理任务，当前队列: {queue_length} 个文件")
         
         # 发送队列日志
         filename = os.path.basename(file_path)
@@ -296,7 +298,7 @@ class MonitorService:
             "type": "monitor_log",
             "data": {
                 "level": "info",
-                "message": f"📥 文件加入队列: {filename} (队列长度: {len(self._pending_files)})"
+                "message": f"📥 文件加入队列: {filename} (队列长度: {queue_length})"
             }
         })
     

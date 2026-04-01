@@ -13,7 +13,7 @@ from PIL import Image
 
 # 在导入Dinomaly模块之前设置环境变量
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_dinomaly_config_path = os.path.join(_project_root, "config", "asd_gui_config.yaml")
+_dinomaly_config_path = os.path.join(_project_root, "config", "algorithms.yaml")
 if os.path.exists(_dinomaly_config_path):
     import yaml
     with open(_dinomaly_config_path, 'r', encoding='utf-8') as f:

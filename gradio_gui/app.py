@@ -62,7 +62,7 @@ def create_demo():
     config = ConfigManager(config_path)
 
     # 设置环境变量
-    dinomaly_config_path = os.path.join(project_root, "config", "asd_gui_config.yaml")
+    dinomaly_config_path = os.path.join(project_root, "config", "algorithms.yaml")
     if os.path.exists(dinomaly_config_path):
         with open(dinomaly_config_path, 'r', encoding='utf-8') as f:
             dinomaly_config = yaml.safe_load(f) or {}

@@ -1,6 +1,11 @@
 # 算法统一配置文件
 # 所有检测算法的配置、模型路径、阈值等在此管理
 
+# 参考文件配置
+ref_file: "ref/渡口片段10s.wav"
+example_audio_file: "ref/asd_src_audio.wav"
+pic_output_dir: "slice"
+
 # 算法通用配置
 algorithms:
   dinomaly_dinov3_small:
@@ -135,3 +140,48 @@ preprocessing:
     max_workers: 4  # 1为串行，>1启用并行
   output_size: [600, 600]
   sample_rate: 22050
+
+# 模型架构详细配置
+model_architectures:
+  dinov2:
+    weights_dir: "algorithms/Dinomaly/weights"
+    small:
+      encoder_name: "dinov2reg_vit_small_14"
+      target_layers: [2, 3, 4, 5, 6, 7, 8, 9]
+      embed_dim: 384
+      num_heads: 6
+    base:
+      encoder_name: "dinov2reg_vit_base_14"
+      target_layers: [2, 3, 4, 5, 6, 7, 8, 9]
+      embed_dim: 768
+      num_heads: 12
+    large:
+      encoder_name: "dinov2reg_vit_large_14"
+      target_layers: [4, 6, 8, 10, 12, 14, 16, 18]
+      embed_dim: 1024
+      num_heads: 16
+  dinov3:
+    weights_dir: "algorithms/Dinomaly/weights"
+    small:
+      encoder_name: "dinov3_vits16"
+      encoder_weight: "dinov3_vits16_pretrain_lvd1689m-08c60483.pth"
+      target_layers: [2, 3, 4, 5, 6, 7, 8, 9]
+      embed_dim: 384
+      num_heads: 6
+    base:
+      encoder_name: "dinov3_vitb16"
+      encoder_weight: "dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth"
+      target_layers: [2, 3, 4, 5, 6, 7, 8, 9]
+      embed_dim: 768
+      num_heads: 12
+    large:
+      encoder_name: "dinov3_vitl16"
+      encoder_weight: "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"
+      target_layers: [4, 6, 8, 10, 12, 14, 16, 18]
+      embed_dim: 1024
+      num_heads: 16
+
+# 环境变量配置
+environments:
+  DINOMALY_ENCODER_DIR: "algorithms/Dinomaly/weights"
+  CUDA_VISIBLE_DEVICES: "0"

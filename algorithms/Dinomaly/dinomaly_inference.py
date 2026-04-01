@@ -32,7 +32,7 @@ class ModelConfig:
             # 获取项目根目录 (从 algorithms/Dinomaly/dinomaly_inference.py 向上3层)
             current_file = os.path.abspath(__file__)
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
-            config_path = os.path.join(project_root, 'config', 'asd_gui_config.yaml')
+            config_path = os.path.join(project_root, 'config', 'algorithms.yaml')
             
             with open(config_path, 'r', encoding='utf-8') as f:
                 cls._config = yaml.safe_load(f)
@@ -60,7 +60,7 @@ class ModelConfig:
         print(f"[DEBUG] arch_config before: {arch_config}")
         
         if not arch_config:
-            raise ValueError(f"未找到DINOv3 {model_size}配置，请检查 config/asd_gui_config.yaml")
+            raise ValueError(f"未找到DINOv3 {model_size}配置，请检查 config/algorithms.yaml")
         
         # 拼接完整的权重路径
         weights_dir = dinov3_config.get('weights_dir')
