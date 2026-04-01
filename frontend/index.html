@@ -614,6 +614,7 @@
             <button class="tab active" onclick="switchTab('offline')">💻 离线检测</button>
             <button class="tab" onclick="switchTab('monitor')">📡 实时监控</button>
             <button class="tab" onclick="switchTab('tasks')">📋 任务管理</button>
+            <button class="tab" onclick="switchTab('reference')">🎵 参考音频库</button>
         </div>
         
         <!-- 离线检测 -->
@@ -824,6 +825,100 @@
                 </div>
             </div>
         </div>
+        
+        <!-- 参考音频库管理 -->
+        <div id="reference" class="content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="refTotalCount">-</div>
+                    <div class="stat-label">参考音频总数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="refTotalHashes">-</div>
+                    <div class="stat-label">指纹哈希总数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="refAvgHashes">-</div>
+                    <div class="stat-label">平均哈希数</div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="card">
+                    <div class="card-title">📤 添加参考音频</div>
+                    
+                    <div class="dropzone" id="refDropzone">
+                        <div>📁 拖拽音频文件到此处，或点击选择</div>
+                        <div style="color: #999; font-size: 14px; margin-top: 8px;">支持 WAV, MP3, FLAC 等格式</div>
+                        <input type="file" id="refFileInput" accept="audio/*" style="display: none;">
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label>音频名称（可选）</label>
+                        <input type="text" class="form-control" id="refAudioName" placeholder="默认使用文件名">
+                    </div>
+                    
+                    <div id="refSelectedFile" style="margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 6px; display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span id="refFileName"></span>
+                            <span id="refFileSize" style="color: #666; font-size: 13px;"></span>
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-primary" id="addRefBtn" onclick="addReferenceAudio()" style="margin-top: 16px;" disabled>
+                        ➕ 添加到指纹库
+                    </button>
+                    
+                    <div class="progress" id="refProgress" style="display: none; margin-top: 16px;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="refProgressFill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text" id="refProgressText">上传中...</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">📊 使用说明</div>
+                    <div style="color: #666; line-height: 1.8; font-size: 14px;">
+                        <p><strong>什么是参考音频？</strong></p>
+                        <p>参考音频是用于 Shazam 音频指纹识别的标准音频片段。系统会将这些音频的特征（指纹）存储在数据库中，用于后续的音频识别和定位。</p>
+                        <br>
+                        <p><strong>使用建议：</strong></p>
+                        <ul style="margin-left: 20px; margin-top: 8px;">
+                            <li>建议音频时长在 5-30 秒之间</li>
+                            <li>选择音频中特征明显的片段</li>
+                            <li>避免使用过于相似的不同音频</li>
+                            <li>为音频设置易于识别的名称</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>🎵 参考音频列表</span>
+                    <button class="btn btn-secondary" onclick="loadReferenceList()" style="padding: 6px 12px; font-size: 12px;">
+                        🔄 刷新
+                    </button>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="results-table" id="referenceList">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>名称</th>
+                                <th>指纹哈希数</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div id="refEmptyState" style="text-align: center; padding: 40px; color: #999;">
+                    暂无参考音频，请添加音频到指纹库
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- 热力图放大模态框 -->
@@ -856,17 +951,21 @@
         let wsConnection = null;
         let monitorWs = null;
         let isDetecting = false; // 标记是否正在检测中
+        let selectedRefFile = null; // 选中的参考音频文件
         
         // 标签切换
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
-            
+
             event.target.classList.add('active');
             document.getElementById(tabName).classList.add('active');
-            
+
             if (tabName === 'tasks') {
                 loadTaskList();
+            } else if (tabName === 'reference') {
+                loadReferenceList();
+                loadReferenceStats();
             }
         }
         
@@ -1823,6 +1922,297 @@
         log('系统就绪，等待文件上传...');
         updateDetectionContext(); // 立即执行一次
         initMonitorOnLoad(); // 检查监控状态并恢复连接
+        
+        // ==================== 参考音频库管理功能 ====================
+        
+        // 参考音频文件上传处理
+        const refDropzone = document.getElementById('refDropzone');
+        const refFileInput = document.getElementById('refFileInput');
+        
+        refDropzone.addEventListener('click', () => refFileInput.click());
+        
+        refDropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            refDropzone.classList.add('dragover');
+        });
+        
+        refDropzone.addEventListener('dragleave', () => {
+            refDropzone.classList.remove('dragover');
+        });
+        
+        refDropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            refDropzone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleRefFile(files[0]);
+            }
+        });
+        
+        refFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleRefFile(e.target.files[0]);
+            }
+        });
+        
+        function handleRefFile(file) {
+            // 验证文件格式
+            const allowedExtensions = ['.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a'];
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            if (!allowedExtensions.includes(ext)) {
+                showModal('不支持的文件格式，仅支持 WAV, MP3, FLAC, AAC, OGG, M4A', '错误');
+                return;
+            }
+            
+            selectedRefFile = file;
+            
+            // 显示选中的文件
+            document.getElementById('refSelectedFile').style.display = 'block';
+            document.getElementById('refFileName').textContent = '📄 ' + file.name;
+            document.getElementById('refFileSize').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+            
+            // 启用添加按钮
+            document.getElementById('addRefBtn').disabled = false;
+            
+            // 如果没有填写名称，自动填充文件名
+            const nameInput = document.getElementById('refAudioName');
+            if (!nameInput.value) {
+                nameInput.value = file.name.replace(/\.[^/.]+$/, '');
+            }
+        }
+        
+        // 添加参考音频
+        async function addReferenceAudio() {
+            if (!selectedRefFile) {
+                await showModal('请先选择音频文件', '提示');
+                return;
+            }
+            
+            const btn = document.getElementById('addRefBtn');
+            const progress = document.getElementById('refProgress');
+            const progressFill = document.getElementById('refProgressFill');
+            const progressText = document.getElementById('refProgressText');
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ 上传中...';
+            progress.style.display = 'block';
+            progressFill.style.width = '50%';
+            progressText.textContent = '正在上传文件...';
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedRefFile);
+                
+                const name = document.getElementById('refAudioName').value.trim();
+                if (name) {
+                    formData.append('name', name);
+                }
+                
+                progressFill.style.width = '70%';
+                progressText.textContent = '正在生成指纹...';
+                
+                const response = await fetch(`${API_BASE}/api/reference-audio/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    progressFill.style.width = '100%';
+                    progressText.textContent = '完成!';
+                    
+                    // 清除缓存，强制刷新
+                    referenceListCache = null;
+                    referenceStatsCache = null;
+                    
+                    await showModal(result.message, '添加成功');
+                    
+                    // 重置表单
+                    selectedRefFile = null;
+                    document.getElementById('refFileInput').value = '';
+                    document.getElementById('refAudioName').value = '';
+                    document.getElementById('refSelectedFile').style.display = 'none';
+                    document.getElementById('addRefBtn').disabled = true;
+                    document.getElementById('addRefBtn').textContent = '➕ 添加到指纹库';
+                    progress.style.display = 'none';
+                    
+                    // 强制刷新列表
+                    loadReferenceList(true);
+                    loadReferenceStats(true);
+                } else {
+                    throw new Error(result.detail || '添加失败');
+                }
+            } catch (error) {
+                console.error('添加参考音频失败:', error);
+                await showModal('添加失败: ' + error.message, '错误');
+                
+                btn.disabled = false;
+                btn.textContent = '➕ 添加到指纹库';
+                progress.style.display = 'none';
+            }
+        }
+        
+        // 参考音频列表缓存
+        let referenceListCache = null;
+        let referenceListCacheTime = 0;
+        const REFERENCE_CACHE_TTL = 30000; // 缓存30秒
+        let isLoadingReferenceList = false;
+        
+        // 加载参考音频列表
+        async function loadReferenceList(forceRefresh = false) {
+            // 防止重复加载
+            if (isLoadingReferenceList) {
+                console.log('[Reference] 列表正在加载中，跳过重复请求');
+                return;
+            }
+            
+            // 检查缓存
+            const now = Date.now();
+            if (!forceRefresh && referenceListCache && (now - referenceListCacheTime) < REFERENCE_CACHE_TTL) {
+                console.log('[Reference] 使用缓存数据');
+                renderReferenceList(referenceListCache);
+                return;
+            }
+            
+            isLoadingReferenceList = true;
+            
+            // 显示加载状态
+            const tbody = document.querySelector('#referenceList tbody');
+            const emptyState = document.getElementById('refEmptyState');
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 40px;">
+                <div style="color: #667eea;">⏳ 加载中...</div>
+            </td></tr>`;
+            emptyState.style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/reference-audio/list`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // 更新缓存
+                referenceListCache = data;
+                referenceListCacheTime = now;
+                
+                renderReferenceList(data);
+            } catch (error) {
+                console.error('加载参考音频列表失败:', error);
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ff4d4f; padding: 40px;">加载失败: ${error.message}</td></tr>`;
+            } finally {
+                isLoadingReferenceList = false;
+            }
+        }
+        
+        // 渲染参考音频列表
+        function renderReferenceList(data) {
+            const tbody = document.querySelector('#referenceList tbody');
+            const emptyState = document.getElementById('refEmptyState');
+
+            if (!data.references || data.references.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            tbody.innerHTML = data.references.map(ref => `
+                <tr>
+                    <td>${ref.music_id}</td>
+                    <td>${escapeHtml(ref.name)}</td>
+                    <td>${ref.hash_count.toLocaleString()}</td>
+                    <td>
+                        <button class="btn btn-danger" onclick="deleteReferenceAudio(${ref.music_id}, '${escapeHtml(ref.name).replace(/'/g, "\\'")}')" style="padding: 4px 8px; font-size: 12px;">
+                            🗑️ 删除
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        // HTML转义函数
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 参考音频统计缓存
+        let referenceStatsCache = null;
+        let referenceStatsCacheTime = 0;
+        const REFERENCE_STATS_CACHE_TTL = 30000; // 缓存30秒
+        
+        // 加载参考音频统计
+        async function loadReferenceStats(forceRefresh = false) {
+            // 检查缓存
+            const now = Date.now();
+            if (!forceRefresh && referenceStatsCache && (now - referenceStatsCacheTime) < REFERENCE_STATS_CACHE_TTL) {
+                console.log('[Reference] 使用缓存的统计信息');
+                renderReferenceStats(referenceStatsCache);
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/reference-audio/stats`);
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                
+                // 更新缓存
+                referenceStatsCache = data;
+                referenceStatsCacheTime = now;
+                
+                renderReferenceStats(data);
+            } catch (error) {
+                console.error('加载统计信息失败:', error);
+            }
+        }
+        
+        // 渲染参考音频统计
+        function renderReferenceStats(data) {
+            document.getElementById('refTotalCount').textContent = data.total_references;
+            document.getElementById('refTotalHashes').textContent = data.total_hashes.toLocaleString();
+            document.getElementById('refAvgHashes').textContent = Math.round(data.average_hashes).toLocaleString();
+        }
+        
+        // 删除参考音频
+        async function deleteReferenceAudio(musicId, name) {
+            const confirmed = await showModal(
+                `确定要删除参考音频 "${name}" (ID=${musicId}) 吗？\n\n这将同时删除其指纹数据。`,
+                '确认删除',
+                'danger'
+            );
+            
+            if (!confirmed) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/reference-audio/${musicId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('删除失败');
+                }
+                
+                const result = await response.json();
+                
+                // 清除缓存，强制刷新
+                referenceListCache = null;
+                referenceStatsCache = null;
+                
+                await showModal(result.message, '删除成功');
+                
+                // 强制刷新列表
+                loadReferenceList(true);
+                loadReferenceStats(true);
+            } catch (error) {
+                console.error('删除参考音频失败:', error);
+                await showModal('删除失败: ' + error.message, '错误');
+            }
+        }
     </script>
 </body>
 </html>
