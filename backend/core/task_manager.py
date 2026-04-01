@@ -285,64 +285,58 @@ class TaskManager:
                 "message": "模型加载完成"
             })
 
-        # 2. 预处理音频文件
+        # 2. 预处理音频文件（批量并行处理）
         all_images = []
         file_image_map = {}
 
         await websocket_manager.send_progress(task.id, {
             "progress": 5,
             "status": "preprocessing",
-            "message": f"开始音频预处理，共 {total_files} 个文件..."
+            "message": f"开始音频预处理，共 {total_files} 个文件，使用多线程并行处理..."
         })
 
-        for idx, audio_file in enumerate(task.files):
-            task.current_file = os.path.basename(audio_file)
-            task.progress = 5 + (idx / total_files) * 45  # 预处理占5%-50%
-
-            await websocket_manager.send_progress(task.id, {
-                "progress": task.progress,
-                "current": idx + 1,
-                "total": total_files,
-                "current_file": task.current_file,
-                "status": "preprocessing",
-                "message": f"预处理 [{idx+1}/{total_files}]: {task.current_file}"
-            })
-
-            # 预处理
-            result = self.preprocessor.process_audio([audio_file], save_dir="slice")
-
-            if result:
+        # 一次性传入所有文件进行批量并行处理
+        task.current_file = f"批量处理 {total_files} 个文件"
+        
+        try:
+            # 批量预处理（自动使用多线程）
+            result = self.preprocessor.process_audio(task.files, save_dir="slice")
+            
+            # 处理结果
+            processed_count = 0
+            for audio_file, file_result in result.items():
                 images = []
-                for k, v in result.items():
-                    if isinstance(v, dict):
-                        if v.get("dk"):
-                            images.append(v["dk"])
-                        if v.get("qzgy"):
-                            images.append(v["qzgy"])
-
+                if isinstance(file_result, dict):
+                    if file_result.get("dk"):
+                        images.append(file_result["dk"])
+                    if file_result.get("qzgy"):
+                        images.append(file_result["qzgy"])
+                
                 if images:
                     file_image_map[audio_file] = images
                     all_images.extend(images)
+                    processed_count += 1
                 else:
-                    # 未找到指定片段
+                    # 记录未找到片段的文件
                     await websocket_manager.send_progress(task.id, {
-                        "progress": task.progress,
-                        "current": idx + 1,
-                        "total": total_files,
-                        "current_file": task.current_file,
+                        "progress": 25,
                         "status": "preprocessing",
-                        "message": f"⚠️ {task.current_file}: 未找到指定片段"
+                        "message": f"⚠️ {os.path.basename(audio_file)}: 未找到指定片段"
                     })
-            else:
-                # 预处理结果为空
-                await websocket_manager.send_progress(task.id, {
-                    "progress": task.progress,
-                    "current": idx + 1,
-                    "total": total_files,
-                    "current_file": task.current_file,
-                    "status": "preprocessing",
-                    "message": f"⚠️ {task.current_file}: 未找到指定片段"
-                })
+            
+            await websocket_manager.send_progress(task.id, {
+                "progress": 50,
+                "status": "preprocessing",
+                "message": f"✅ 预处理完成: {processed_count}/{total_files} 个文件成功，共生成 {len(all_images)} 张图片"
+            })
+            
+        except Exception as e:
+            await websocket_manager.send_progress(task.id, {
+                "progress": 0,
+                "status": "failed",
+                "message": f"❌ 预处理失败: {str(e)}"
+            })
+            raise
 
         print(f"[TaskManager] 预处理完成，共生成 {len(all_images)} 张图片")
 
@@ -390,6 +384,9 @@ class TaskManager:
                                 heatmap_path = heatmap_path[len(project_root)+1:]
                             # 确保路径使用正斜杠，用于URL
                             heatmap_path = heatmap_path.replace('\\', '/')
+                            print(f"[TaskManager] 生成热力图: {heatmap_path}, 异常: {is_anomaly}")
+                        else:
+                            print(f"[TaskManager] 无热力图: metadata={result.metadata is not None}, score={result.anomaly_score:.4f}")
 
                 if is_anomaly:
                     anomaly_count += 1

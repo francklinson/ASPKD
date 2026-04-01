@@ -87,6 +87,12 @@ class MonitorService:
         self.start_time: Optional[datetime] = None
         
         self._scan_task: Optional[asyncio.Task] = None
+        
+        # 批量处理队列
+        self._pending_files: List[str] = []
+        self._batch_lock = asyncio.Lock()
+        self._batch_task: Optional[asyncio.Task] = None
+        self._batch_delay: float = 2.0  # 等待2秒收集文件
     
     async def start(
         self,
@@ -219,6 +225,28 @@ class MonitorService:
                 pass
             self._scan_task = None
         
+        # 处理队列中剩余的文件
+        if self._batch_task and not self._batch_task.done():
+            self._batch_task.cancel()
+            try:
+                await self._batch_task
+            except asyncio.CancelledError:
+                pass
+        
+        # 处理剩余待处理文件
+        async with self._batch_lock:
+            if self._pending_files:
+                remaining_files = self._pending_files.copy()
+                self._pending_files.clear()
+                await websocket_manager.broadcast({
+                    "type": "monitor_log",
+                    "data": {
+                        "level": "info",
+                        "message": f"🔄 停止前处理剩余 {len(remaining_files)} 个文件"
+                    }
+                })
+                await self._process_files_batch(remaining_files)
+        
         print("[Monitor] 监控已停止")
         return True
     
@@ -251,26 +279,63 @@ class MonitorService:
                 print(f"[Monitor] 扫描出错: {e}")
     
     async def process_file(self, file_path: str):
-        """处理单个文件"""
+        """处理单个文件（加入批量队列）"""
         if file_path in self.processed_files:
             return
         
-        filename = os.path.basename(file_path)
-        result = None
+        async with self._batch_lock:
+            self._pending_files.append(file_path)
+            
+            # 启动批量处理任务（如果未启动）
+            if self._batch_task is None or self._batch_task.done():
+                self._batch_task = asyncio.create_task(self._batch_process())
         
-        # 发送开始处理日志
+        # 发送队列日志
+        filename = os.path.basename(file_path)
         await websocket_manager.broadcast({
             "type": "monitor_log",
             "data": {
                 "level": "info",
-                "message": f"🚀 开始处理: {filename}"
+                "message": f"📥 文件加入队列: {filename} (队列长度: {len(self._pending_files)})"
+            }
+        })
+    
+    async def _batch_process(self):
+        """批量处理队列中的文件"""
+        # 等待一段时间收集文件
+        await asyncio.sleep(self._batch_delay)
+        
+        async with self._batch_lock:
+            if not self._pending_files:
+                return
+            
+            # 获取当前队列中的所有文件
+            files_to_process = self._pending_files.copy()
+            self._pending_files.clear()
+        
+        # 批量处理
+        await self._process_files_batch(files_to_process)
+    
+    async def _process_files_batch(self, file_paths: List[str]):
+        """批量处理多个文件"""
+        if not file_paths:
+            return
+        
+        batch_size = len(file_paths)
+        filenames = [os.path.basename(f) for f in file_paths]
+        
+        await websocket_manager.broadcast({
+            "type": "monitor_log",
+            "data": {
+                "level": "info",
+                "message": f"🚀 开始批量处理 {batch_size} 个文件: {', '.join(filenames[:3])}{'...' if batch_size > 3 else ''}"
             }
         })
         
         try:
-            # 创建检测任务
+            # 创建批量检测任务
             task_id = await task_manager.create_batch_task(
-                file_paths=[file_path],
+                file_paths=file_paths,
                 algorithm=self.algorithm,
                 device=self.device
             )
@@ -292,47 +357,65 @@ class MonitorService:
                     
                     if r.get("is_anomaly"):
                         self.anomaly_count += 1
+                    
+                    # 发送单个文件完成日志
+                    status_icon = "⚠️" if r.get("is_anomaly") else "✅"
+                    status_text = "异常" if r.get("is_anomaly") else "正常"
+                    await websocket_manager.broadcast({
+                        "type": "monitor_log",
+                        "data": {
+                            "level": "success" if not r.get("is_anomaly") else "warning",
+                            "message": f"{status_icon} {r.get('filename', '未知')} 检测完成: {status_text} (分数: {r.get('anomaly_score', 0):.4f})"
+                        }
+                    })
                 
-                # 发送处理完成日志
-                r = result["results"][0]
-                status_icon = "⚠️" if r.get("is_anomaly") else "✅"
-                status_text = "异常" if r.get("is_anomaly") else "正常"
                 await websocket_manager.broadcast({
                     "type": "monitor_log",
                     "data": {
-                        "level": "success" if not r.get("is_anomaly") else "warning",
-                        "message": f"{status_icon} {filename} 检测完成: {status_text} (分数: {r.get('anomaly_score', 0):.4f})"
+                        "level": "success",
+                        "message": f"✅ 批量处理完成: {len(result['results'])}/{batch_size} 个文件"
                     }
                 })
             
-            print(f"[Monitor] 文件处理完成: {filename}, 结果: {result.get('status')}")
+            print(f"[Monitor] 批量处理完成: {batch_size} 个文件, 结果: {result.get('status')}")
             
         except Exception as e:
-            print(f"[Monitor] 处理文件失败 {file_path}: {e}")
-            result = {"status": "failed", "error": str(e), "results": []}
-            # 发送错误日志
+            print(f"[Monitor] 批量处理失败: {e}")
             await websocket_manager.broadcast({
                 "type": "monitor_log",
                 "data": {
                     "level": "error",
-                    "message": f"❌ {filename} 处理失败: {str(e)}"
+                    "message": f"❌ 批量处理失败: {str(e)}"
                 }
             })
+            result = {"status": "failed", "error": str(e), "results": []}
         
         finally:
-            # 确保文件被记录，避免重复处理
-            self.processed_files.add(file_path)
-            self.total_processed += 1
+            # 确保所有文件被记录
+            for file_path in file_paths:
+                self.processed_files.add(file_path)
+                self.total_processed += 1
         
-        # 广播更新
-        await websocket_manager.broadcast({
-            "type": "monitor_update",
-            "data": {
-                "total_processed": self.total_processed,
-                "anomaly_count": self.anomaly_count,
-                "latest_result": result.get("results", [{}])[0] if result and result.get("results") else None
-            }
-        })
+        # 广播更新 - 为每个结果发送更新，确保所有热力图都被显示
+        if result and result.get("results"):
+            for r in result["results"]:
+                await websocket_manager.broadcast({
+                    "type": "monitor_update",
+                    "data": {
+                        "total_processed": self.total_processed,
+                        "anomaly_count": self.anomaly_count,
+                        "latest_result": r
+                    }
+                })
+        else:
+            await websocket_manager.broadcast({
+                "type": "monitor_update",
+                "data": {
+                    "total_processed": self.total_processed,
+                    "anomaly_count": self.anomaly_count,
+                    "latest_result": None
+                }
+            })
     
     def _get_audio_files(self) -> List[str]:
         """获取目录下的音频文件"""

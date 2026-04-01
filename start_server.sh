@@ -10,7 +10,7 @@ VENV_PYTHON="$PROJECT_DIR/.venv/bin/python"
 LOG_FILE="$PROJECT_DIR/backend.log"
 PID_FILE="$PROJECT_DIR/.service.pid"
 HOST="0.0.0.0"
-PORT="8000"
+PORT="8004"
 
 # 颜色输出
 RED='\033[0;31m'

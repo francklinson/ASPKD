@@ -44,6 +44,34 @@ class MonitorStatus(BaseModel):
 async def start_monitoring(config: MonitorConfig):
     """启动目录监控"""
     try:
+        from backend.core.task_manager import task_manager
+        
+        # 检查是否有运行中的离线检测任务
+        running_count = task_manager.get_running_count()
+        queued_count = task_manager.get_queued_count()
+        
+        if running_count > 0 or queued_count > 0:
+            # 获取当前正在运行的任务信息
+            current_task = None
+            for task in task_manager.tasks.values():
+                if task.status in ["running", "pending"]:
+                    current_task = task
+                    break
+            
+            if current_task:
+                # 检查算法是否匹配
+                if current_task.algorithm != config.algorithm:
+                    raise HTTPException(
+                        status_code=409, 
+                        detail=f"存在运行中的离线检测任务使用算法 '{current_task.algorithm}'，监控必须使用相同算法。请等待任务完成或取消任务后再启动监控。"
+                    )
+                # 检查设备是否匹配
+                if current_task.device != config.device:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"存在运行中的离线检测任务使用设备 '{current_task.device}'，监控必须使用相同设备。请等待任务完成或取消任务后再启动监控。"
+                    )
+        
         success = await monitor_service.start(
             directory=config.directory,
             interval=config.interval,
@@ -62,6 +90,8 @@ async def start_monitoring(config: MonitorConfig):
             "config": config.dict()
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"启动失败: {str(e)}")
 
@@ -81,6 +111,37 @@ async def get_monitor_status():
     """获取监控状态"""
     status = monitor_service.get_status()
     return MonitorStatus(**status)
+
+
+@router.get("/detection-context")
+async def get_detection_context():
+    """
+    获取当前检测上下文信息
+    用于监控启动前检查是否可以使用指定的算法和设备
+    """
+    from backend.core.task_manager import task_manager
+    
+    running_count = task_manager.get_running_count()
+    queued_count = task_manager.get_queued_count()
+    
+    context = {
+        "has_running_task": running_count > 0 or queued_count > 0,
+        "running_count": running_count,
+        "queued_count": queued_count,
+        "current_algorithm": None,
+        "current_device": None,
+        "current_task_id": None
+    }
+    
+    # 获取当前运行中的任务信息
+    for task in task_manager.tasks.values():
+        if task.status in ["running", "pending"]:
+            context["current_algorithm"] = task.algorithm
+            context["current_device"] = task.device
+            context["current_task_id"] = task.id
+            break
+    
+    return context
 
 
 @router.get("/results")

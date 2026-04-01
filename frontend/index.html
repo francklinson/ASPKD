@@ -734,6 +734,21 @@
                         </select>
                     </div>
                     
+                    <div class="form-group">
+                        <label>运行设备</label>
+                        <select class="form-control" id="monitorDevice">
+                            <option value="auto">自动选择 (GPU优先)</option>
+                            <option value="cpu">CPU (纯CPU运行)</option>
+                            <option value="cuda:0">GPU 0</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 检测上下文信息显示 -->
+                    <div id="detectionContext" class="alert alert-info" style="display: none; margin-bottom: 16px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">📋 当前检测状态</div>
+                        <div id="contextContent"></div>
+                    </div>
+                    
                     <div style="display: flex; gap: 10px;">
                         <button class="btn btn-primary" id="startMonitorBtn" onclick="startMonitor()">
                             ▶️ 开始监控
@@ -1191,12 +1206,55 @@
                 return;
             }
 
-            // 直接启动监控，跳过已有文件，只监控新文件
+            const selectedAlgorithm = document.getElementById('monitorAlgorithm').value;
+            const selectedDevice = document.getElementById('monitorDevice').value;
+
+            // 先检查检测上下文
+            try {
+                const contextResponse = await fetch(`${API_BASE}/api/monitor/detection-context`);
+                const context = await contextResponse.json();
+                
+                // 如果有运行中的任务，检查算法和设备是否匹配
+                if (context.has_running_task) {
+                    let mismatchMessage = '';
+                    
+                    if (context.current_algorithm && context.current_algorithm !== selectedAlgorithm) {
+                        mismatchMessage += `• 离线检测使用算法: ${context.current_algorithm}\n`;
+                        mismatchMessage += `• 监控选择算法: ${selectedAlgorithm}\n\n`;
+                    }
+                    
+                    if (context.current_device && context.current_device !== selectedDevice) {
+                        mismatchMessage += `• 离线检测使用设备: ${context.current_device}\n`;
+                        mismatchMessage += `• 监控选择设备: ${selectedDevice}\n\n`;
+                    }
+                    
+                    if (mismatchMessage) {
+                        const fullMessage = `检测到运行中的离线检测任务，配置不匹配！\n\n${mismatchMessage}为保证检测准确性，监控必须使用与离线检测相同的算法和设备。\n\n请选择以下操作：`;
+                        
+                        const action = await showMismatchModal(fullMessage, context.current_algorithm, context.current_device);
+                        
+                        if (action === 'cancel') {
+                            return;
+                        } else if (action === 'sync') {
+                            // 自动同步算法和设备
+                            document.getElementById('monitorAlgorithm').value = context.current_algorithm;
+                            document.getElementById('monitorDevice').value = context.current_device;
+                            monitorLog(`已自动同步为离线检测配置: 算法=${context.current_algorithm}, 设备=${context.current_device}`);
+                            // 继续执行启动
+                        }
+                        // 如果 action === 'force'，继续执行启动（后端会再次检查并阻止）
+                    }
+                }
+            } catch (error) {
+                console.error('检查检测上下文失败:', error);
+            }
+
+            // 启动监控
             const config = {
                 directory: dir,
                 interval: parseInt(document.getElementById('monitorInterval').value),
                 algorithm: document.getElementById('monitorAlgorithm').value,
-                device: 'auto',
+                device: document.getElementById('monitorDevice').value,
                 detect_existing: false
             };
 
@@ -1218,7 +1276,12 @@
                     // 连接监控 WebSocket
                     connectMonitorWebSocket();
                 } else {
-                    monitorLog(`启动失败: ${result.detail}`);
+                    // 处理 409 冲突错误
+                    if (response.status === 409) {
+                        await showModal(result.detail, '配置冲突', 'alert');
+                    } else {
+                        monitorLog(`启动失败: ${result.detail}`);
+                    }
                 }
             } catch (error) {
                 monitorLog(`错误: ${error.message}`);
@@ -1321,6 +1384,38 @@
 
                 modal.classList.add('active');
             });
+        }
+
+        // 配置不匹配弹窗
+        let mismatchModalResolve = null;
+
+        function showMismatchModal(message, currentAlgorithm, currentDevice) {
+            return new Promise((resolve) => {
+                mismatchModalResolve = resolve;
+                const modal = document.getElementById('customModal');
+                const modalTitle = document.getElementById('modalTitle');
+                const modalMessage = document.getElementById('modalMessage');
+                const modalFooter = document.getElementById('modalFooter');
+
+                modalTitle.textContent = '⚠️ 配置冲突';
+                modalMessage.textContent = message;
+
+                modalFooter.innerHTML = `
+                    <button class="modal-btn modal-btn-secondary" onclick="closeMismatchModal('cancel')">取消启动</button>
+                    <button class="modal-btn modal-btn-primary" onclick="closeMismatchModal('sync')">🔄 同步为离线配置</button>
+                `;
+
+                modal.classList.add('active');
+            });
+        }
+
+        function closeMismatchModal(result) {
+            const modal = document.getElementById('customModal');
+            modal.classList.remove('active');
+            if (mismatchModalResolve) {
+                mismatchModalResolve(result);
+                mismatchModalResolve = null;
+            }
         }
 
         function closeModal(result = true) {
@@ -1477,16 +1572,18 @@
             const heatmapResults = document.getElementById('monitorHeatmapResults');
 
             // 只显示有热力图的结果
-            const heatmapData = monitorResults.filter(r => r.heatmap_path);
-
+            const heatmapData = monitorResults.filter(r => r && r.heatmap_path);
+            
+            console.log('[Monitor] 更新热力图:', heatmapData.length, '个, 总结果:', monitorResults.length);
+            
             if (heatmapData.length > 0) {
                 heatmapCard.style.display = 'block';
                 heatmapResults.innerHTML = `
                     <div class="gallery">
                         ${heatmapData.map(r => `
                             <div class="gallery-item">
-                                <img src="${API_BASE}/${r.heatmap_path}" alt="${r.filename}" loading="lazy" onclick="openHeatmapModal('${API_BASE}/${r.heatmap_path}', '${r.filename}')">
-                                <div class="caption">${r.filename}</div>
+                                <img src="${API_BASE}/${r.heatmap_path}" alt="${r.filename || 'unknown'}" loading="lazy" onerror="console.error('[Heatmap] 加载失败:', '${r.heatmap_path}')" onclick="openHeatmapModal('${API_BASE}/${r.heatmap_path}', '${r.filename || 'unknown'}')">
+                                <div class="caption">${r.filename || 'unknown'}</div>
                             </div>
                         `).join('')}
                     </div>
@@ -1603,7 +1700,7 @@
         
         async function cleanupOldTasks() {
             const confirmed = await showModal(
-                '确定要清理所有已完成的任务缓存吗？\n\n这将删除所有已完成/失败/取消的任务记录，保留运行中的任务。',
+                '确定要清理所有已完成的任务及相关文件吗？\n\n这将删除：\n• 已完成/失败/取消的任务记录\n• 上传的音频文件 (uploads/)\n• 临时切片文件 (slice/)\n• 生成的热力图 (visualize/)\n• 导出的Excel/Zip文件 (exports/)\n\n⚠️ 此操作不可恢复！',
                 '确认清理',
                 'danger'
             );
@@ -1611,20 +1708,70 @@
                 return;
             }
             try {
-                const response = await fetch(`${API_BASE}/api/tasks/cleanup?clear_all=true`, {
+                const response = await fetch(`${API_BASE}/api/tasks/cleanup?clear_all=true&include_files=true`, {
                     method: 'POST'
                 });
                 if (!response.ok) {
                     throw new Error('清理任务失败');
                 }
                 const result = await response.json();
-                await showModal(`已清理 ${result.removed_count || 0} 个任务`, '清理完成');
+                const stats = result.file_stats || {};
+                const message = `清理完成！\n\n任务记录: ${result.removed_count || 0} 个\n上传文件: ${stats.uploads || 0} 个\n临时切片: ${stats.slice || 0} 个\n热力图: ${stats.visualize || 0} 个\n导出文件: ${stats.exports || 0} 个`;
+                await showModal(message, '清理完成');
                 loadTaskList();
             } catch (error) {
                 console.error('清理任务失败:', error);
                 await showModal('清理任务失败: ' + error.message, '错误');
             }
         }
+        
+        // 更新检测上下文显示
+        async function updateDetectionContext() {
+            try {
+                const response = await fetch(`${API_BASE}/api/monitor/detection-context`);
+                const context = await response.json();
+                
+                const contextDiv = document.getElementById('detectionContext');
+                const contextContent = document.getElementById('contextContent');
+                
+                if (context.has_running_task) {
+                    contextDiv.style.display = 'block';
+                    contextDiv.className = 'alert alert-warning';
+                    contextContent.innerHTML = `
+                        <div>🔴 有 ${context.running_count} 个离线检测任务运行中</div>
+                        <div style="margin-top: 4px; font-size: 13px;">
+                            算法: <strong>${context.current_algorithm || '未知'}</strong> | 
+                            设备: <strong>${context.current_device || '未知'}</strong>
+                        </div>
+                        <div style="margin-top: 4px; font-size: 12px; color: #666;">
+                            提示: 监控将强制使用与离线检测相同的算法和设备
+                        </div>
+                    `;
+                    
+                    // 自动同步算法和设备选择
+                    if (context.current_algorithm) {
+                        document.getElementById('monitorAlgorithm').value = context.current_algorithm;
+                    }
+                    if (context.current_device) {
+                        document.getElementById('monitorDevice').value = context.current_device;
+                    }
+                    
+                    // 禁用算法和设备选择
+                    document.getElementById('monitorAlgorithm').disabled = true;
+                    document.getElementById('monitorDevice').disabled = true;
+                } else {
+                    contextDiv.style.display = 'none';
+                    // 启用算法和设备选择
+                    document.getElementById('monitorAlgorithm').disabled = false;
+                    document.getElementById('monitorDevice').disabled = false;
+                }
+            } catch (error) {
+                console.error('更新检测上下文失败:', error);
+            }
+        }
+        
+        // 定期刷新检测上下文
+        setInterval(updateDetectionContext, 3000);
         
         // 定期刷新监控状态
         setInterval(async () => {
@@ -1642,8 +1789,40 @@
             }
         }, 5000);
         
+        // 页面加载时检查监控状态并恢复WebSocket连接
+        async function initMonitorOnLoad() {
+            try {
+                const response = await fetch(`${API_BASE}/api/monitor/status`);
+                const status = await response.json();
+
+                if (status.is_running) {
+                    console.log('[Init] 检测到监控正在运行，恢复WebSocket连接');
+                    monitorLog('检测到监控正在运行，恢复连接...');
+
+                    // 更新UI状态
+                    document.getElementById('monitorStatus').textContent = '运行中';
+                    document.getElementById('monitorTotal').textContent = status.total_processed;
+                    document.getElementById('monitorAnomaly').textContent = status.anomaly_count;
+                    document.getElementById('startMonitorBtn').disabled = true;
+                    document.getElementById('stopMonitorBtn').disabled = false;
+
+                    // 恢复监控目录显示（如果后端返回）
+                    if (status.directory) {
+                        document.getElementById('monitorDir').value = status.directory;
+                    }
+
+                    // 重新连接WebSocket
+                    connectMonitorWebSocket();
+                }
+            } catch (error) {
+                console.error('[Init] 检查监控状态失败:', error);
+            }
+        }
+
         // 初始化
         log('系统就绪，等待文件上传...');
+        updateDetectionContext(); // 立即执行一次
+        initMonitorOnLoad(); // 检查监控状态并恢复连接
     </script>
 </body>
 </html>
