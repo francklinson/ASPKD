@@ -1,7 +1,24 @@
 """
 UI组件定义 - 共享的Gradio组件和回调函数
 """
+import os
 import gradio as gr
+
+# 获取参考音频文件路径
+def get_ref_audio_path():
+    """获取参考音频文件路径"""
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config_path = os.path.join(project_root, "config", "algorithms.yaml")
+    try:
+        import yaml
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        ref_file = config.get('preprocessing', {}).get('ref_file', 'ref/渡口片段10s.wav')
+        if not os.path.isabs(ref_file):
+            ref_file = os.path.join(project_root, ref_file)
+        return ref_file if os.path.exists(ref_file) else None
+    except:
+        return None
 
 
 # JavaScript 用于自动滚动监控日志到底部
@@ -52,8 +69,13 @@ def create_offline_tab_components(model_manager):
     gr.Markdown("上传WAV格式音频文件进行批量异常检测")
 
     # 参考音频区域
+    ref_audio_path = get_ref_audio_path()
     with gr.Accordion("📁 参考音频文件（点击展开）", open=False):
-        gr.Markdown("点击下方链接下载示例音频文件用于测试")
+        if ref_audio_path:
+            gr.Audio(value=ref_audio_path, label="参考音频 (渡口片段10s)", interactive=False)
+            gr.File(value=ref_audio_path, label="下载参考音频")
+        else:
+            gr.Markdown("⚠️ 未找到参考音频文件")
         gr.Markdown("💡 目前仅适用于使用该标准音频得到的测试音频")
 
     # 主界面
