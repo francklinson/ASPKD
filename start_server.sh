@@ -7,8 +7,8 @@ set -e
 # 配置
 PROJECT_DIR="/home/zhouchenghao/PycharmProjects/ASD_for_SPK"
 VENV_PYTHON="$PROJECT_DIR/.venv/bin/python"
-LOG_FILE="$PROJECT_DIR/backend.log"
 PID_FILE="$PROJECT_DIR/.service.pid"
+CURRENT_LOG_FILE="$PROJECT_DIR/.current_log"  # 记录当前日志文件路径
 HOST="0.0.0.0"
 PORT="8004"
 
@@ -64,6 +64,15 @@ is_running() {
     return 1
 }
 
+# 获取当前日志文件路径
+get_log_file() {
+    if [ -f "$CURRENT_LOG_FILE" ]; then
+        cat "$CURRENT_LOG_FILE" 2>/dev/null || echo ""
+    else
+        echo ""
+    fi
+}
+
 # 启动服务
 start_service() {
     check_venv
@@ -78,10 +87,15 @@ start_service() {
     
     cd "$PROJECT_DIR"
     
-    # 清理旧日志
-    if [ -f "$LOG_FILE" ]; then
-        mv "$LOG_FILE" "${LOG_FILE}.old" 2>/dev/null || true
-    fi
+    # 生成带时间戳的日志文件名
+    local timestamp=$(date +"%Y%m%d_%H%M%S")
+    local LOG_FILE="$PROJECT_DIR/logs/backend_${timestamp}.log"
+    
+    # 创建 logs 目录
+    mkdir -p "$PROJECT_DIR/logs"
+    
+    # 保存当前日志文件路径
+    echo "$LOG_FILE" > "$CURRENT_LOG_FILE"
     
     # 启动服务
     nohup "$VENV_PYTHON" "$PROJECT_DIR/start_server.py" > "$LOG_FILE" 2>&1 &
@@ -165,6 +179,7 @@ restart_service() {
 # 查看状态
 show_status() {
     local pid=$(get_pid)
+    local LOG_FILE=$(get_log_file)
     
     echo -e "${BLUE}=== 服务状态 ===${NC}"
     echo ""
@@ -211,18 +226,32 @@ show_status() {
     if [ -f "$LOG_FILE" ]; then
         echo ""
         local log_size=$(du -h "$LOG_FILE" 2>/dev/null | cut -f1)
-        echo -e "${BLUE}日志文件:${NC} $LOG_FILE ($log_size)"
+        echo -e "${BLUE}当前日志文件:${NC} $LOG_FILE ($log_size)"
+    fi
+    
+    # 显示日志目录统计
+    if [ -d "$PROJECT_DIR/logs" ]; then
+        echo ""
+        local log_count=$(ls -1 "$PROJECT_DIR/logs"/backend_*.log 2>/dev/null | wc -l)
+        echo -e "${BLUE}历史日志文件:${NC} $log_count 个"
+        echo "  目录: $PROJECT_DIR/logs/"
     fi
 }
 
 # 查看日志
 show_logs() {
-    if [ ! -f "$LOG_FILE" ]; then
-        echo -e "${YELLOW}日志文件不存在${NC}"
-        return 1
+    local LOG_FILE=$(get_log_file)
+    
+    if [ -z "$LOG_FILE" ] || [ ! -f "$LOG_FILE" ]; then
+        # 尝试查找最新的日志文件
+        LOG_FILE=$(ls -t "$PROJECT_DIR/logs"/backend_*.log 2>/dev/null | head -1)
+        if [ -z "$LOG_FILE" ]; then
+            echo -e "${YELLOW}日志文件不存在${NC}"
+            return 1
+        fi
     fi
     
-    echo -e "${BLUE}正在监听日志 (按 Ctrl+C 退出)...${NC}"
+    echo -e "${BLUE}正在监听日志: $LOG_FILE (按 Ctrl+C 退出)...${NC}"
     echo ""
     tail -f "$LOG_FILE"
 }
