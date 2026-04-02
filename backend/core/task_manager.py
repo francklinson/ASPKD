@@ -298,9 +298,14 @@ class TaskManager:
         # 一次性传入所有文件进行批量并行处理
         task.current_file = f"批量处理 {total_files} 个文件"
         
+        # 构建原始文件名映射，避免使用 task_id 作为文件名前缀
+        original_names = {}
+        for file_path in task.files:
+            original_names[file_path] = os.path.basename(file_path)
+        
         try:
-            # 批量预处理（自动使用多线程）
-            result = self.preprocessor.process_audio(task.files, save_dir="slice")
+            # 批量预处理（自动使用多线程），传入 original_names 避免 task_id 作为前缀
+            result = self.preprocessor.process_audio(task.files, save_dir="slice", original_names=original_names)
             
             # 处理结果
             processed_count = 0

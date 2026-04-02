@@ -739,11 +739,13 @@ class AnomalyDetector:
         distances = np.linalg.norm(X_scaled - centers[cluster_labels], axis=1)
         self.threshold = np.percentile(distances, self.config.outlier_threshold_percentile)
 
-        # 动态调整perplexity值，确保它小于样本数量
+        # 动态调整perplexity值，确保它严格小于样本数量
         n_samples = X.shape[0]
-        perplexity = min(self.config.tsne_perplexity, n_samples - 1)
-        # 确保perplexity至少为5
-        perplexity = max(perplexity, 5)
+        # t-SNE要求: perplexity < n_samples
+        max_perplexity = max(1, n_samples - 1)  # 至少留出1的余地
+        perplexity = min(self.config.tsne_perplexity, max_perplexity)
+        # 确保perplexity至少为1（最小有效值）
+        perplexity = max(perplexity, 1)
         print(f"Adjusting perplexity to {perplexity} (n_samples={n_samples})")
 
         # 初始化t-SNE
@@ -772,7 +774,7 @@ class AnomalyDetector:
 
         return cluster_labels, outlier_mask
 
-    def visualize(self, X: np.ndarray, outlier_mask: np.ndarray, file_labels: List[str] = None) -> None:
+    def visualize(self, X: np.ndarray, outlier_mask: np.ndarray, file_labels: List[str] = None, use_3d: bool = False) -> None:
         """
         可视化聚类结果 - 三种说话人用不同颜色，检测到的异常用黑色圆圈标记
 
@@ -780,13 +782,28 @@ class AnomalyDetector:
             X: 特征数组
             outlier_mask: 异常掩码（检测到的异常）
             file_labels: 文件标签列表（用于识别说话人）
+            use_3d: 是否使用3D可视化
         """
-        print("Generating visualization...")
+        print(f"Generating visualization... (3D={use_3d})")
         X_scaled = self.scaler.transform(X)
-        X_tsne = self.tsne.fit_transform(X_scaled)
+        
+        if use_3d:
+            # 3D t-SNE
+            print("  Using 3D t-SNE projection...")
+            tsne_3d = TSNE(n_components=3, random_state=42, perplexity=self.tsne.perplexity, max_iter=self.config.tsne_max_iter)
+            X_tsne = tsne_3d.fit_transform(X_scaled)
+            print(f"  3D projection shape: {X_tsne.shape}")
+        else:
+            X_tsne = self.tsne.fit_transform(X_scaled)
+            print(f"  2D projection shape: {X_tsne.shape}")
 
-        # 创建单图
-        fig, ax = plt.subplots(figsize=(12, 10))
+        # 创建图
+        if use_3d:
+            from mpl_toolkits.mplot3d import Axes3D
+            fig = plt.figure(figsize=(14, 11))
+            ax = fig.add_subplot(111, projection='3d')
+        else:
+            fig, ax = plt.subplots(figsize=(12, 10))
 
         # 根据文件名识别说话人
         if file_labels:
@@ -822,64 +839,256 @@ class AnomalyDetector:
             }
 
             # 绘制每个说话人的样本
-            if np.sum(speaker_01_mask) > 0:
-                ax.scatter(
-                    X_tsne[speaker_01_mask, 0], X_tsne[speaker_01_mask, 1],
-                    c=colors['speaker_01'], label=f'Speaker 01 ({np.sum(speaker_01_mask)})',
-                    alpha=0.6, s=40, edgecolors='white', linewidth=0.5
-                )
-            if np.sum(speaker_02_mask) > 0:
-                ax.scatter(
-                    X_tsne[speaker_02_mask, 0], X_tsne[speaker_02_mask, 1],
-                    c=colors['speaker_02'], label=f'Speaker 02 ({np.sum(speaker_02_mask)})',
-                    alpha=0.6, s=40, edgecolors='white', linewidth=0.5
-                )
-            if np.sum(speaker_03_mask) > 0:
-                ax.scatter(
-                    X_tsne[speaker_03_mask, 0], X_tsne[speaker_03_mask, 1],
-                    c=colors['speaker_03'], label=f'Speaker 03 ({np.sum(speaker_03_mask)})',
-                    alpha=0.6, s=40, edgecolors='white', linewidth=0.5
-                )
+            if use_3d:
+                if np.sum(speaker_01_mask) > 0:
+                    ax.scatter(
+                        X_tsne[speaker_01_mask, 0], X_tsne[speaker_01_mask, 1], X_tsne[speaker_01_mask, 2],
+                        c=colors['speaker_01'], label=f'Speaker 01 ({np.sum(speaker_01_mask)})',
+                        alpha=0.6, s=40, edgecolors='white', linewidth=0.5
+                    )
+                if np.sum(speaker_02_mask) > 0:
+                    ax.scatter(
+                        X_tsne[speaker_02_mask, 0], X_tsne[speaker_02_mask, 1], X_tsne[speaker_02_mask, 2],
+                        c=colors['speaker_02'], label=f'Speaker 02 ({np.sum(speaker_02_mask)})',
+                        alpha=0.6, s=40, edgecolors='white', linewidth=0.5
+                    )
+                if np.sum(speaker_03_mask) > 0:
+                    ax.scatter(
+                        X_tsne[speaker_03_mask, 0], X_tsne[speaker_03_mask, 1], X_tsne[speaker_03_mask, 2],
+                        c=colors['speaker_03'], label=f'Speaker 03 ({np.sum(speaker_03_mask)})',
+                        alpha=0.6, s=40, edgecolors='white', linewidth=0.5
+                    )
+            else:
+                if np.sum(speaker_01_mask) > 0:
+                    ax.scatter(
+                        X_tsne[speaker_01_mask, 0], X_tsne[speaker_01_mask, 1],
+                        c=colors['speaker_01'], label=f'Speaker 01 ({np.sum(speaker_01_mask)})',
+                        alpha=0.6, s=40, edgecolors='white', linewidth=0.5
+                    )
+                if np.sum(speaker_02_mask) > 0:
+                    ax.scatter(
+                        X_tsne[speaker_02_mask, 0], X_tsne[speaker_02_mask, 1],
+                        c=colors['speaker_02'], label=f'Speaker 02 ({np.sum(speaker_02_mask)})',
+                        alpha=0.6, s=40, edgecolors='white', linewidth=0.5
+                    )
+                if np.sum(speaker_03_mask) > 0:
+                    ax.scatter(
+                        X_tsne[speaker_03_mask, 0], X_tsne[speaker_03_mask, 1],
+                        c=colors['speaker_03'], label=f'Speaker 03 ({np.sum(speaker_03_mask)})',
+                        alpha=0.6, s=40, edgecolors='white', linewidth=0.5
+                    )
         else:
             # 如果没有文件名标签，使用聚类标签着色
             cluster_labels = self.kmeans.predict(X_scaled)
-            ax.scatter(
-                X_tsne[:, 0], X_tsne[:, 1],
-                c=cluster_labels, cmap='tab10', alpha=0.6, s=40,
-                edgecolors='white', linewidth=0.5
-            )
+            if use_3d:
+                ax.scatter(
+                    X_tsne[:, 0], X_tsne[:, 1], X_tsne[:, 2],
+                    c=cluster_labels, cmap='tab10', alpha=0.6, s=40,
+                    edgecolors='white', linewidth=0.5
+                )
+            else:
+                ax.scatter(
+                    X_tsne[:, 0], X_tsne[:, 1],
+                    c=cluster_labels, cmap='tab10', alpha=0.6, s=40,
+                    edgecolors='white', linewidth=0.5
+                )
 
         # 绘制检测到的异常（黑色圆圈标记）
         if np.sum(outlier_mask) > 0:
-            ax.scatter(
-                X_tsne[outlier_mask, 0], X_tsne[outlier_mask, 1],
-                facecolors='none', edgecolors='black', linewidths=2.5,
-                label=f'Detected Anomalies ({np.sum(outlier_mask)})', s=120
-            )
+            if use_3d:
+                ax.scatter(
+                    X_tsne[outlier_mask, 0], X_tsne[outlier_mask, 1], X_tsne[outlier_mask, 2],
+                    facecolors='none', edgecolors='black', linewidths=2.5,
+                    label=f'Detected Anomalies ({np.sum(outlier_mask)})', s=120
+                )
+            else:
+                ax.scatter(
+                    X_tsne[outlier_mask, 0], X_tsne[outlier_mask, 1],
+                    facecolors='none', edgecolors='black', linewidths=2.5,
+                    label=f'Detected Anomalies ({np.sum(outlier_mask)})', s=120
+                )
 
         # 设置标题和标签
+        dim_str = "3D" if use_3d else "2D"
         ax.set_title(
-            f'Audio Anomaly Detection - {self.config.feature_extractor_type.upper()} + t-SNE\n'
+            f'Audio Anomaly Detection - {self.config.feature_extractor_type.upper()} + t-SNE ({dim_str})\n'
             f'Total: {len(X)} samples | Detected: {np.sum(outlier_mask)} outliers',
             fontsize=14, fontweight='bold'
         )
         ax.set_xlabel("t-SNE Dimension 1", fontsize=12)
         ax.set_ylabel("t-SNE Dimension 2", fontsize=12)
+        if use_3d:
+            ax.set_zlabel("t-SNE Dimension 3", fontsize=12)
 
         # 添加图例
         ax.legend(loc='best', fontsize=10, framealpha=0.9)
 
         # 添加网格
-        ax.grid(True, linestyle='--', alpha=0.4)
+        if use_3d:
+            ax.grid(True, linestyle='--', alpha=0.3)
+        else:
+            ax.grid(True, linestyle='--', alpha=0.4)
 
         # 设置背景色
-        ax.set_facecolor('#f8f9fa')
+        if not use_3d:
+            ax.set_facecolor('#f8f9fa')
         fig.patch.set_facecolor('white')
 
         plt.tight_layout()
         plt.savefig(self.config.output_image, dpi=300, bbox_inches='tight')
         print(f"Visualization saved to '{self.config.output_image}'")
         plt.close()
+
+    def visualize_interactive(self, X: np.ndarray, outlier_mask: np.ndarray, file_labels: List[str] = None) -> str:
+        """
+        生成交互式 3D 可视化 (使用 Plotly)
+        
+        返回:
+            HTML 文件路径
+        """
+        try:
+            import plotly.graph_objects as go
+            from plotly.subplots import make_subplots
+        except ImportError:
+            print("[警告] Plotly 未安装，无法生成交互式图表")
+            return None
+        
+        print("Generating interactive 3D visualization with Plotly...")
+        X_scaled = self.scaler.transform(X)
+        
+        # 3D t-SNE
+        tsne_3d = TSNE(n_components=3, random_state=42, perplexity=self.tsne.perplexity, max_iter=self.config.tsne_max_iter)
+        X_tsne = tsne_3d.fit_transform(X_scaled)
+        print(f"  3D projection shape: {X_tsne.shape}")
+        
+        # 创建 Plotly 图表
+        fig = go.Figure()
+        
+        # 根据文件名识别说话人或使用聚类标签
+        if file_labels:
+            # 识别说话人
+            speaker_01_mask = np.array(['speaker_01' in label for label in file_labels])
+            speaker_02_mask = np.array(['speaker_02' in label for label in file_labels])
+            speaker_03_mask = np.array(['speaker_03' in label for label in file_labels])
+            
+            colors = {
+                'speaker_01': '#E63946',
+                'speaker_02': '#457B9D',
+                'speaker_03': '#2A9D8F'
+            }
+            
+            # 添加每个说话人的散点
+            if np.sum(speaker_01_mask) > 0:
+                fig.add_trace(go.Scatter3d(
+                    x=X_tsne[speaker_01_mask, 0],
+                    y=X_tsne[speaker_01_mask, 1],
+                    z=X_tsne[speaker_01_mask, 2],
+                    mode='markers',
+                    name=f'Speaker 01 ({np.sum(speaker_01_mask)})',
+                    marker=dict(size=6, color=colors['speaker_01'], opacity=0.8),
+                    text=[file_labels[i] for i in np.where(speaker_01_mask)[0]],
+                    hovertemplate='<b>%{text}</b><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
+                ))
+            
+            if np.sum(speaker_02_mask) > 0:
+                fig.add_trace(go.Scatter3d(
+                    x=X_tsne[speaker_02_mask, 0],
+                    y=X_tsne[speaker_02_mask, 1],
+                    z=X_tsne[speaker_02_mask, 2],
+                    mode='markers',
+                    name=f'Speaker 02 ({np.sum(speaker_02_mask)})',
+                    marker=dict(size=6, color=colors['speaker_02'], opacity=0.8),
+                    text=[file_labels[i] for i in np.where(speaker_02_mask)[0]],
+                    hovertemplate='<b>%{text}</b><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
+                ))
+            
+            if np.sum(speaker_03_mask) > 0:
+                fig.add_trace(go.Scatter3d(
+                    x=X_tsne[speaker_03_mask, 0],
+                    y=X_tsne[speaker_03_mask, 1],
+                    z=X_tsne[speaker_03_mask, 2],
+                    mode='markers',
+                    name=f'Speaker 03 ({np.sum(speaker_03_mask)})',
+                    marker=dict(size=6, color=colors['speaker_03'], opacity=0.8),
+                    text=[file_labels[i] for i in np.where(speaker_03_mask)[0]],
+                    hovertemplate='<b>%{text}</b><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
+                ))
+            
+            # 处理未分类样本
+            unclassified_mask = ~(speaker_01_mask | speaker_02_mask | speaker_03_mask)
+            if np.sum(unclassified_mask) > 0:
+                fig.add_trace(go.Scatter3d(
+                    x=X_tsne[unclassified_mask, 0],
+                    y=X_tsne[unclassified_mask, 1],
+                    z=X_tsne[unclassified_mask, 2],
+                    mode='markers',
+                    name=f'Others ({np.sum(unclassified_mask)})',
+                    marker=dict(size=6, color='#888888', opacity=0.6),
+                    text=[file_labels[i] for i in np.where(unclassified_mask)[0]],
+                    hovertemplate='<b>%{text}</b><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
+                ))
+        else:
+            # 使用聚类标签着色
+            cluster_labels = self.kmeans.predict(X_scaled)
+            unique_labels = np.unique(cluster_labels)
+            
+            for label in unique_labels:
+                mask = cluster_labels == label
+                fig.add_trace(go.Scatter3d(
+                    x=X_tsne[mask, 0],
+                    y=X_tsne[mask, 1],
+                    z=X_tsne[mask, 2],
+                    mode='markers',
+                    name=f'Cluster {label} ({np.sum(mask)})',
+                    marker=dict(size=6, opacity=0.8),
+                    hovertemplate='X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
+                ))
+        
+        # 添加异常点（黑色边框）
+        if np.sum(outlier_mask) > 0:
+            fig.add_trace(go.Scatter3d(
+                x=X_tsne[outlier_mask, 0],
+                y=X_tsne[outlier_mask, 1],
+                z=X_tsne[outlier_mask, 2],
+                mode='markers',
+                name=f'Anomalies ({np.sum(outlier_mask)})',
+                marker=dict(size=10, color='rgba(0,0,0,0)', opacity=1,
+                           line=dict(color='black', width=3)),
+                text=[file_labels[i] if file_labels else f'Sample {i}' for i in np.where(outlier_mask)[0]],
+                hovertemplate='<b>%{text}</b><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
+            ))
+        
+        # 设置布局
+        fig.update_layout(
+            title=dict(
+                text=f'Audio Anomaly Detection - {self.config.feature_extractor_type.upper()} + t-SNE (Interactive 3D)<br>'
+                     f'<sup>Total: {len(X)} samples | Detected: {np.sum(outlier_mask)} outliers</sup>',
+                x=0.5, xanchor='center'
+            ),
+            scene=dict(
+                xaxis_title='t-SNE Dimension 1',
+                yaxis_title='t-SNE Dimension 2',
+                zaxis_title='t-SNE Dimension 3',
+                aspectmode='cube'
+            ),
+            width=900,
+            height=700,
+            margin=dict(l=0, r=0, b=0, t=50),
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01,
+                bgcolor='rgba(255, 255, 255, 0.8)'
+            )
+        )
+        
+        # 保存为 HTML
+        html_path = self.config.output_image.replace('.png', '_interactive.html')
+        fig.write_html(html_path, include_plotlyjs='cdn')
+        print(f"Interactive visualization saved to '{html_path}'")
+        
+        return html_path
 
 
 class AnomalyReportGenerator:
