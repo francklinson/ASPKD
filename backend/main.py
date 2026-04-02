@@ -77,6 +77,15 @@ frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fronte
 if os.path.exists(frontend_path):
     app.mount("/static", StaticFiles(directory=frontend_path), name="static")
 
+# Favicon 路由
+@app.get("/favicon.ico")
+async def favicon():
+    """返回 favicon"""
+    favicon_path = os.path.join(frontend_path, "favicon.svg")
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path, media_type="image/svg+xml")
+    raise HTTPException(status_code=404, detail="Favicon not found")
+
 # 热力图静态文件服务
 visualize_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "visualize")
 if os.path.exists(visualize_path):

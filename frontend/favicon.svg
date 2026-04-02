@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <!-- 主渐变 -->
+    <linearGradient id="mainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#764ba2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f093fb;stop-opacity:1" />
+    </linearGradient>
+    <!-- 背景渐变 -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a3e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2d1b4e;stop-opacity:1" />
+    </linearGradient>
+    <!-- 发光效果 -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- 背景圆形 -->
+  <circle cx="50" cy="50" r="48" fill="url(#bgGradient)"/>
+  <circle cx="50" cy="50" r="46" fill="none" stroke="url(#mainGradient)" stroke-width="2" opacity="0.6"/>
+  
+  <!-- 音频波形 - 左侧 -->
+  <g filter="url(#glow)">
+    <rect x="22" y="45" width="4" height="10" rx="2" fill="url(#mainGradient)" opacity="0.8">
+      <animate attributeName="height" values="10;20;10" dur="1s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="45;40;45" dur="1s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="28" y="35" width="4" height="30" rx="2" fill="url(#mainGradient)" opacity="0.9">
+      <animate attributeName="height" values="30;40;30" dur="0.8s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="35;30;35" dur="0.8s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="34" y="40" width="4" height="20" rx="2" fill="url(#mainGradient)" opacity="0.85">
+      <animate attributeName="height" values="20;28;20" dur="0.9s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="40;36;40" dur="0.9s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+  
+  <!-- 中间检测图标 -->
+  <g filter="url(#glow)">
+    <!-- 音波符号 -->
+    <path d="M48 30 L48 70" stroke="url(#mainGradient)" stroke-width="4" stroke-linecap="round"/>
+    <path d="M48 40 Q58 35 58 50 Q58 65 48 60" fill="none" stroke="url(#mainGradient)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M48 45 Q54 42 54 50 Q54 58 48 55" fill="none" stroke="url(#mainGradient)" stroke-width="2" stroke-linecap="round"/>
+    
+    <!-- 检测点 -->
+    <circle cx="62" cy="50" r="4" fill="#f093fb">
+      <animate attributeName="r" values="4;6;4" dur="1.2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;0.6;1" dur="1.2s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+  
+  <!-- 右侧音波 -->
+  <g filter="url(#glow)" opacity="0.7">
+    <path d="M70 45 Q75 40 80 45 Q85 50 80 55 Q75 60 70 55" fill="none" stroke="url(#mainGradient)" stroke-width="2" stroke-linecap="round">
+      <animate attributeName="d" values="M70 45 Q75 40 80 45 Q85 50 80 55 Q75 60 70 55;M70 40 Q78 35 85 42 Q90 50 85 58 Q78 65 70 60;M70 45 Q75 40 80 45 Q85 50 80 55 Q75 60 70 55" dur="1.5s" repeatCount="indefinite"/>
+    </path>
+    <path d="M75 42 Q82 38 88 44 Q92 50 88 56 Q82 62 75 58" fill="none" stroke="url(#mainGradient)" stroke-width="1.5" stroke-linecap="round" opacity="0.5">
+      <animate attributeName="d" values="M75 42 Q82 38 88 44 Q92 50 88 56 Q82 62 75 58;M75 38 Q85 32 92 40 Q96 50 92 60 Q85 68 75 62;M75 42 Q82 38 88 44 Q92 50 88 56 Q82 62 75 58" dur="1.5s" repeatCount="indefinite"/>
+    </path>
+  </g>
+  
+  <!-- 装饰点 -->
+  <circle cx="15" cy="50" r="2" fill="#667eea" opacity="0.6">
+    <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="85" cy="50" r="2" fill="#f093fb" opacity="0.6">
+    <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite" begin="1s"/>
+  </circle>
+</svg>
