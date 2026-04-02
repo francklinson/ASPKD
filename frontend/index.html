@@ -1346,16 +1346,9 @@
             const exportBtn = document.getElementById('exportOfflineBtn');
             const MAX_TABLE_ROWS = 10; // 表格最多显示行数
 
-            // 检测完成后清除文件列表
-            if (data.status === 'completed') {
-                selectedFiles = [];
-                document.getElementById('fileInput').value = '';
-                updateFileList();
-
-                // 显示导出按钮
-                if (exportBtn) {
-                    exportBtn.style.display = 'inline-flex';
-                }
+            // 显示导出按钮
+            if (data.status === 'completed' && exportBtn) {
+                exportBtn.style.display = 'inline-flex';
             }
 
             if (data.status === 'completed' && data.results) {
@@ -2575,11 +2568,6 @@
                         btn.disabled = false;
                         btn.textContent = '🔬 开始聚类分析';
                         progress.style.display = 'none';
-                        
-                        // 清除文件列表
-                        clusterSelectedFiles = [];
-                        document.getElementById('clusterFileInput').value = '';
-                        updateClusterFileList();
                         
                     } else if (result.status === 'failed') {
                         // 分析失败

@@ -956,95 +956,70 @@ class AnomalyDetector:
         print("Generating interactive 3D visualization with Plotly...")
         X_scaled = self.scaler.transform(X)
         
+        # 获取聚类标签
+        cluster_labels = self.kmeans.predict(X_scaled)
+        unique_labels = np.unique(cluster_labels)
+        
         # 3D t-SNE
         tsne_3d = TSNE(n_components=3, random_state=42, perplexity=self.tsne.perplexity, max_iter=self.config.tsne_max_iter)
         X_tsne = tsne_3d.fit_transform(X_scaled)
         print(f"  3D projection shape: {X_tsne.shape}")
         
+        # 计算数据范围用于设置坐标轴范围
+        x_range = [np.min(X_tsne[:, 0]), np.max(X_tsne[:, 0])]
+        y_range = [np.min(X_tsne[:, 1]), np.max(X_tsne[:, 1])]
+        z_range = [np.min(X_tsne[:, 2]), np.max(X_tsne[:, 2])]
+        
+        # 添加一些边距
+        x_margin = (x_range[1] - x_range[0]) * 0.1
+        y_margin = (y_range[1] - y_range[0]) * 0.1
+        z_margin = (z_range[1] - z_range[0]) * 0.1
+        
+        x_range = [x_range[0] - x_margin, x_range[1] + x_margin]
+        y_range = [y_range[0] - y_margin, y_range[1] + y_margin]
+        z_range = [z_range[0] - z_margin, z_range[1] + z_margin]
+        
         # 创建 Plotly 图表
         fig = go.Figure()
         
-        # 根据文件名识别说话人或使用聚类标签
-        if file_labels:
-            # 识别说话人
-            speaker_01_mask = np.array(['speaker_01' in label for label in file_labels])
-            speaker_02_mask = np.array(['speaker_02' in label for label in file_labels])
-            speaker_03_mask = np.array(['speaker_03' in label for label in file_labels])
+        # 定义聚类颜色 - 使用鲜艳的颜色确保区分度
+        cluster_colors = [
+            '#E63946',  # 红色
+            '#457B9D',  # 蓝色
+            '#2A9D8F',  # 绿色
+            '#F4A261',  # 橙色
+            '#9B5DE5',  # 紫色
+            '#00BBF9',  # 青色
+            '#F15BB5',  # 粉色
+            '#3A86FF',  # 亮蓝
+        ]
+        
+        # 按聚类标签绘制，每个聚类使用不同颜色
+        for idx, label in enumerate(unique_labels):
+            mask = cluster_labels == label
+            color = cluster_colors[idx % len(cluster_colors)]
             
-            colors = {
-                'speaker_01': '#E63946',
-                'speaker_02': '#457B9D',
-                'speaker_03': '#2A9D8F'
-            }
+            # 过滤掉异常点（异常点单独显示）
+            normal_mask = mask & (~outlier_mask)
             
-            # 添加每个说话人的散点
-            if np.sum(speaker_01_mask) > 0:
+            if np.sum(normal_mask) > 0:
                 fig.add_trace(go.Scatter3d(
-                    x=X_tsne[speaker_01_mask, 0],
-                    y=X_tsne[speaker_01_mask, 1],
-                    z=X_tsne[speaker_01_mask, 2],
+                    x=X_tsne[normal_mask, 0],
+                    y=X_tsne[normal_mask, 1],
+                    z=X_tsne[normal_mask, 2],
                     mode='markers',
-                    name=f'Speaker 01 ({np.sum(speaker_01_mask)})',
-                    marker=dict(size=6, color=colors['speaker_01'], opacity=0.8),
-                    text=[file_labels[i] for i in np.where(speaker_01_mask)[0]],
-                    hovertemplate='<b>%{text}</b><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
-                ))
-            
-            if np.sum(speaker_02_mask) > 0:
-                fig.add_trace(go.Scatter3d(
-                    x=X_tsne[speaker_02_mask, 0],
-                    y=X_tsne[speaker_02_mask, 1],
-                    z=X_tsne[speaker_02_mask, 2],
-                    mode='markers',
-                    name=f'Speaker 02 ({np.sum(speaker_02_mask)})',
-                    marker=dict(size=6, color=colors['speaker_02'], opacity=0.8),
-                    text=[file_labels[i] for i in np.where(speaker_02_mask)[0]],
-                    hovertemplate='<b>%{text}</b><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
-                ))
-            
-            if np.sum(speaker_03_mask) > 0:
-                fig.add_trace(go.Scatter3d(
-                    x=X_tsne[speaker_03_mask, 0],
-                    y=X_tsne[speaker_03_mask, 1],
-                    z=X_tsne[speaker_03_mask, 2],
-                    mode='markers',
-                    name=f'Speaker 03 ({np.sum(speaker_03_mask)})',
-                    marker=dict(size=6, color=colors['speaker_03'], opacity=0.8),
-                    text=[file_labels[i] for i in np.where(speaker_03_mask)[0]],
-                    hovertemplate='<b>%{text}</b><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
-                ))
-            
-            # 处理未分类样本
-            unclassified_mask = ~(speaker_01_mask | speaker_02_mask | speaker_03_mask)
-            if np.sum(unclassified_mask) > 0:
-                fig.add_trace(go.Scatter3d(
-                    x=X_tsne[unclassified_mask, 0],
-                    y=X_tsne[unclassified_mask, 1],
-                    z=X_tsne[unclassified_mask, 2],
-                    mode='markers',
-                    name=f'Others ({np.sum(unclassified_mask)})',
-                    marker=dict(size=6, color='#888888', opacity=0.6),
-                    text=[file_labels[i] for i in np.where(unclassified_mask)[0]],
-                    hovertemplate='<b>%{text}</b><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
-                ))
-        else:
-            # 使用聚类标签着色
-            cluster_labels = self.kmeans.predict(X_scaled)
-            unique_labels = np.unique(cluster_labels)
-            
-            for label in unique_labels:
-                mask = cluster_labels == label
-                fig.add_trace(go.Scatter3d(
-                    x=X_tsne[mask, 0],
-                    y=X_tsne[mask, 1],
-                    z=X_tsne[mask, 2],
-                    mode='markers',
-                    name=f'Cluster {label} ({np.sum(mask)})',
-                    marker=dict(size=6, opacity=0.8),
-                    hovertemplate='X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
+                    name=f'Cluster {label} ({np.sum(normal_mask)})',
+                    marker=dict(
+                        size=8, 
+                        color=color, 
+                        opacity=0.85,
+                        line=dict(color='white', width=0.5)
+                    ),
+                    text=[file_labels[i] if file_labels else f'Sample {i}' for i in np.where(normal_mask)[0]],
+                    hovertemplate='<b>%{text}</b><br>Cluster: ' + str(label) + '<br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
                 ))
         
-        # 添加异常点（黑色边框）
+        # 添加异常点（黑色圆圈标记）
         if np.sum(outlier_mask) > 0:
             fig.add_trace(go.Scatter3d(
                 x=X_tsne[outlier_mask, 0],
@@ -1052,35 +1027,65 @@ class AnomalyDetector:
                 z=X_tsne[outlier_mask, 2],
                 mode='markers',
                 name=f'Anomalies ({np.sum(outlier_mask)})',
-                marker=dict(size=10, color='rgba(0,0,0,0)', opacity=1,
-                           line=dict(color='black', width=3)),
+                marker=dict(
+                    size=12, 
+                    color='rgba(255,255,255,0.1)',
+                    opacity=1,
+                    line=dict(color='black', width=3),
+                    symbol='circle-open'
+                ),
                 text=[file_labels[i] if file_labels else f'Sample {i}' for i in np.where(outlier_mask)[0]],
-                hovertemplate='<b>%{text}</b><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
+                hovertemplate='<b>%{text}</b><br><span style="color:red">ANOMALY</span><br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
             ))
         
-        # 设置布局
+        # 设置布局 - 优化居中显示
         fig.update_layout(
             title=dict(
                 text=f'Audio Anomaly Detection - {self.config.feature_extractor_type.upper()} + t-SNE (Interactive 3D)<br>'
-                     f'<sup>Total: {len(X)} samples | Detected: {np.sum(outlier_mask)} outliers</sup>',
-                x=0.5, xanchor='center'
+                     f'<sup>Total: {len(X)} samples | Clusters: {len(unique_labels)} | Detected: {np.sum(outlier_mask)} outliers</sup>',
+                x=0.5, 
+                xanchor='center'
             ),
             scene=dict(
                 xaxis_title='t-SNE Dimension 1',
                 yaxis_title='t-SNE Dimension 2',
                 zaxis_title='t-SNE Dimension 3',
-                aspectmode='cube'
+                aspectmode='cube',
+                xaxis=dict(
+                    range=x_range,
+                    backgroundcolor='rgba(240,240,240,0.3)',
+                    gridcolor='white',
+                    showbackground=True,
+                    zerolinecolor='white'
+                ),
+                yaxis=dict(
+                    range=y_range,
+                    backgroundcolor='rgba(240,240,240,0.3)',
+                    gridcolor='white',
+                    showbackground=True,
+                    zerolinecolor='white'
+                ),
+                zaxis=dict(
+                    range=z_range,
+                    backgroundcolor='rgba(240,240,240,0.3)',
+                    gridcolor='white',
+                    showbackground=True,
+                    zerolinecolor='white'
+                )
             ),
-            width=900,
-            height=700,
+            width=1000,
+            height=800,
             margin=dict(l=0, r=0, b=0, t=50),
             legend=dict(
                 yanchor="top",
                 y=0.99,
                 xanchor="left",
                 x=0.01,
-                bgcolor='rgba(255, 255, 255, 0.8)'
-            )
+                bgcolor='rgba(255, 255, 255, 0.9)',
+                bordercolor='gray',
+                borderwidth=1
+            ),
+            hovermode='closest'
         )
         
         # 保存为 HTML
