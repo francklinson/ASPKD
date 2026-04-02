@@ -85,11 +85,33 @@ if os.path.exists(visualize_path):
 
 @app.get("/")
 async def root():
-    """根路径返回前端页面"""
+    """根路径返回登录页面"""
+    login_path = os.path.join(frontend_path, "login.html")
+    if os.path.exists(login_path):
+        return FileResponse(login_path)
+    # 如果没有登录页面，返回主页面
     index_path = os.path.join(frontend_path, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"message": "音频异常检测 API 服务运行中", "docs": "/docs"}
+
+
+@app.get("/main")
+async def main_page():
+    """主页面入口"""
+    index_path = os.path.join(frontend_path, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"error": "主页面未找到"}
+
+
+@app.get("/login")
+async def login_page():
+    """登录页面入口"""
+    login_path = os.path.join(frontend_path, "login.html")
+    if os.path.exists(login_path):
+        return FileResponse(login_path)
+    return {"error": "登录页面未找到"}
 
 
 @app.get("/health")
