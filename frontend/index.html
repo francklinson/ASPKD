@@ -870,10 +870,13 @@
                         <br>
                         <p><strong>特征提取器说明：</strong></p>
                         <ul style="margin-left: 20px; margin-top: 8px;">
-                            <li><strong>MFCC/Mel</strong>：传统方法，速度快，适合快速预览</li>
-                            <li><strong>HuBERT/WavLM</strong>：深度学习模型，精度高</li>
-                            <li><strong>AST</strong>：音频Transformer，适合复杂场景</li>
-                            <li><strong>MERT</strong>：针对音乐优化的模型</li>
+                            <li><strong>MFCC (Mel-frequency cepstral coefficients)</strong>：传统声学特征，计算速度快，适合快速预览和语音分析</li>
+                            <li><strong>Mel Spectrogram</strong>：梅尔频谱图特征，反映人耳听觉特性，适合音乐分类和声音事件检测</li>
+                            <li><strong>HuBERT</strong>：Facebook自监督语音表示模型，在语音识别任务上表现优异，适合语音聚类</li>
+                            <li><strong>WavLM</strong>：微软自监督语音模型，具备语音内容和说话人信息建模能力，适合声纹识别</li>
+                            <li><strong>XLSR-Wav2Vec2</strong>：跨语言语音表示模型，支持多语言音频处理，适合多语种场景</li>
+                            <li><strong>AST (Audio Spectrogram Transformer)</strong>：音频Transformer模型，基于ImageNet预训练，适合复杂声学场景</li>
+                            <li><strong>MERT</strong>：音乐理解Transformer，针对音乐数据优化的模型，采样率24kHz，适合音乐分析</li>
                         </ul>
                         <br>
                         <p><strong>使用建议：</strong></p>
