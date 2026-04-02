@@ -112,13 +112,13 @@ ASD_for_SPK/
 
 ```mermaid
 graph TB
-    subgraph 用户层
+    subgraph UserLayer[用户层]
         User[用户/Browser]
     end
 
-    subgraph 前端层 [前端层 - Vanilla JavaScript]
+    subgraph FrontendLayer[前端层 Vanilla JavaScript]
         FE[index.html]
-        subgraph FE_Modules [功能模块]
+        subgraph FEModules[功能模块]
             FE_Detection[离线检测模块]
             FE_Monitor[实时监控模块]
             FE_Reference[参考音频管理]
@@ -127,50 +127,50 @@ graph TB
         FE_WS[WebSocket客户端]
     end
 
-    subgraph 后端层 [后端层 - FastAPI]
+    subgraph BackendLayer[后端层 FastAPI]
         API[API路由层]
-        subgraph API_Modules [API模块]
-            API_Detection[/api/detection/*]
-            API_Monitor[/api/monitor/*]
-            API_Reference[/api/reference/*]
-            API_Cluster[/api/cluster/*]
+        subgraph APIModules[API模块]
+            API_Detection["/api/detection"]
+            API_Monitor["/api/monitor"]
+            API_Reference["/api/reference"]
+            API_Cluster["/api/cluster"]
         end
         
-        subgraph Core_Services [核心服务层]
-            TaskMgr[TaskManager<br/>异步任务队列]
-            MonitorSvc[MonitorService<br/>目录监控]
-            WebSocket[WebSocketManager<br/>实时通信]
+        subgraph CoreServices[核心服务层]
+            TaskMgr[TaskManager 异步任务队列]
+            MonitorSvc[MonitorService 目录监控]
+            WebSocket[WebSocketManager 实时通信]
         end
     end
 
-    subgraph 核心组件层
+    subgraph CoreLayer[核心组件层]
         Shazam[Shazam指纹识别]
-        Preprocessor[音频预处理器<br/>MFCC+DTW/指纹定位]
-        FeatureExtractor[特征提取器<br/>HuBERT/MFCC/Mel/AST]
+        Preprocessor[音频预处理器 MFCC+DTW指纹定位]
+        FeatureExtractor[特征提取器 HuBERT/MFCC/Mel/AST]
     end
 
-    subgraph 算法层 [算法层 - 30+异常检测算法]
-        subgraph Anomalib_Algo [Anomalib]
+    subgraph AlgoLayer[算法层 30+异常检测算法]
+        subgraph AnomalibAlgo[Anomalib]
             PatchCore[PatchCore]
             Dinomaly[Dinomaly]
             EfficientAd[EfficientAd]
             DRAEM[DRAEM]
         end
-        subgraph ADer_Algo [ADer]
+        subgraph ADerAlgo[ADer]
             MambaAD[MambaAD]
             UniAD[UniAD]
             ViTAD[ViTAD]
         end
-        subgraph BaseASD_Algo [BaseASD]
+        subgraph BaseASDAlgo[BaseASD]
             VAE[VAE]
             CAE[CAE]
             DenseAE[DenseAE]
         end
     end
 
-    subgraph 数据存储层
-        MySQL[(MySQL<br/>Shazam指纹库)]
-        FileSystem[(文件系统<br/>ref/ slice/ uploads/)]
+    subgraph DataLayer[数据存储层]
+        MySQL[(MySQL Shazam指纹库)]
+        FileSystem[(文件系统 ref/slice/uploads)]
         JSON[JSON结果文件]
     end
 
@@ -181,26 +181,26 @@ graph TB
     
     FE_Modules --> API
     API --> API_Modules
-    API_Modules --> Core_Services
+    API_Modules --> CoreServices
     
-    Core_Services --> Preprocessor
-    Core_Services --> Shazam
-    Core_Services --> FeatureExtractor
+    CoreServices --> Preprocessor
+    CoreServices --> Shazam
+    CoreServices --> FeatureExtractor
     
-    Preprocessor --> Anomalib_Algo
-    Preprocessor --> ADer_Algo
-    Preprocessor --> BaseASD_Algo
+    Preprocessor --> AnomalibAlgo
+    Preprocessor --> ADerAlgo
+    Preprocessor --> BaseASDAlgo
     
     Shazam --> MySQL
-    Core_Services --> FileSystem
-    Core_Services --> JSON
+    CoreServices --> FileSystem
+    CoreServices --> JSON
 ```
 
 ### 详细模块架构
 
 ```mermaid
 graph LR
-    subgraph Frontend [前端层 frontend/]
+    subgraph Frontend[前端层 frontend]
         A[index.html] --> B[离线检测]
         A --> C[实时监控]
         A --> D[参考音频管理]
@@ -208,7 +208,7 @@ graph LR
         A --> F[WebSocket客户端]
     end
 
-    subgraph Backend [后端层 backend/]
+    subgraph Backend[后端层 backend]
         G[main.py] --> H[API路由]
         H --> I[detection.py]
         H --> J[monitor.py]
@@ -221,13 +221,13 @@ graph LR
         M --> P[websocket.py]
     end
 
-    subgraph Core [核心组件 core/]
-        Q[shazam/api.py] --> R[数据库连接器]
+    subgraph Core[核心组件 core]
+        Q[shazam-api.py] --> R[数据库连接器]
         S[预处理器] --> T[MFCC+DTW]
         S --> U[Shazam定位]
     end
 
-    subgraph Algorithms [算法层 algorithms/]
+    subgraph Algorithms[算法层 algorithms]
         V[Anomalib] 
         W[ADer]
         X[BaseASD]
@@ -249,17 +249,17 @@ sequenceDiagram
     participant TM as TaskManager
     participant Pre as 预处理器
     participant Algo as 异常检测算法
-    participant DB as MySQL/文件系统
+    participant DB as MySQL文件系统
 
-    %% 离线检测流程
+    离线检测流程
     User->>FE: 上传音频文件
-    FE->>API: POST /api/detection/upload
+    FE->>API: POST api-detection-upload
     API->>TM: 创建异步任务
     API-->>FE: 返回 task_id
     
     loop 任务执行
         TM->>Pre: 音频预处理
-        Pre->>Pre: MFCC+DTW定位
+        Pre->>Pre: MFCC-DTW定位
         Pre->>Pre: 生成时频图
         TM->>Algo: 异常检测推理
         Algo-->>TM: 返回结果
@@ -267,13 +267,13 @@ sequenceDiagram
         TM-->>FE: WebSocket推送进度
     end
     
-    FE->>API: GET /api/detection/result/{task_id}
+    FE->>API: GET api-detection-result
     API-->>FE: 返回检测结果
-    FE-->>User: 展示结果/热力图
+    FE-->>User: 展示结果热力图
 
-    %% 实时监控流程
+    实时监控流程
     User->>FE: 启动目录监控
-    FE->>API: POST /api/monitor/start
+    FE->>API: POST api-monitor-start
     API->>TM: 启动监控服务
     
     loop 文件监听
@@ -283,9 +283,9 @@ sequenceDiagram
         TM-->>FE: WebSocket通知结果
     end
 
-    %% 参考音频管理流程
+    参考音频管理流程
     User->>FE: 上传参考音频
-    FE->>API: POST /api/reference/upload
+    FE->>API: POST api-reference-upload
     API->>Core: Shazam生成指纹
     Core->>DB: 存储指纹到MySQL
     API-->>FE: 返回music_id
