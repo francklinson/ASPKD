@@ -652,10 +652,9 @@
                     <div class="form-group">
                         <label>运行设备</label>
                         <select class="form-control" id="device">
-                            <option value="auto">自动选择 (GPU优先)</option>
-                            <option value="cpu">CPU (纯CPU运行)</option>
-                            <option value="cuda:0">GPU 0</option>
+                            <option value="auto">正在加载设备列表...</option>
                         </select>
+                        <div id="deviceInfo" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
                     </div>
                     
                     <button class="btn btn-primary" id="startBtn" onclick="startDetection()">
@@ -739,10 +738,9 @@
                     <div class="form-group">
                         <label>运行设备</label>
                         <select class="form-control" id="monitorDevice">
-                            <option value="auto">自动选择 (GPU优先)</option>
-                            <option value="cpu">CPU (纯CPU运行)</option>
-                            <option value="cuda:0">GPU 0</option>
+                            <option value="auto">正在加载设备列表...</option>
                         </select>
+                        <div id="monitorDeviceInfo" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
                     </div>
                     
                     <!-- 检测上下文信息显示 -->
@@ -1941,6 +1939,84 @@
                 await showModal('清理任务失败: ' + error.message, '错误');
             }
         }
+        
+        // 动态加载可用设备列表
+        async function loadAvailableDevices() {
+            try {
+                const response = await fetch(`${API_BASE}/api/detection/devices`);
+                const data = await response.json();
+                
+                if (data.devices && data.devices.length > 0) {
+                    // 更新离线检测设备选择框
+                    const deviceSelect = document.getElementById('device');
+                    const deviceInfo = document.getElementById('deviceInfo');
+                    deviceSelect.innerHTML = '';
+                    
+                    // 更新监控设备选择框
+                    const monitorDeviceSelect = document.getElementById('monitorDevice');
+                    const monitorDeviceInfo = document.getElementById('monitorDeviceInfo');
+                    monitorDeviceSelect.innerHTML = '';
+                    
+                    data.devices.forEach(device => {
+                        // 构建设备选项文本
+                        let optionText = device.name;
+                        if (device.recommended) {
+                            optionText = '【推荐】' + device.name;
+                        }
+                        
+                        // 创建设备选项
+                        const option = document.createElement('option');
+                        option.value = device.id;
+                        option.textContent = optionText;
+                        option.title = device.info || '';  // 悬停提示
+                        
+                        // 添加到两个选择框
+                        deviceSelect.appendChild(option.cloneNode(true));
+                        monitorDeviceSelect.appendChild(option);
+                    });
+                    
+                    // 添加设备信息提示
+                    const gpuDevices = data.devices.filter(d => d.type === 'cuda');
+                    if (gpuDevices.length > 0) {
+                        const infoText = `检测到 ${data.gpu_count} 张GPU计算卡，已按可用显存排序`;
+                        deviceInfo.textContent = infoText;
+                        monitorDeviceInfo.textContent = infoText;
+                    } else {
+                        deviceInfo.textContent = '未检测到GPU，将使用CPU运行';
+                        monitorDeviceInfo.textContent = '未检测到GPU，将使用CPU运行';
+                    }
+                    
+                    // 绑定设备选择事件，显示详细信息
+                    deviceSelect.addEventListener('change', function() {
+                        const selected = data.devices.find(d => d.id === this.value);
+                        if (selected && selected.info) {
+                            deviceInfo.textContent = selected.info;
+                        }
+                    });
+                    
+                    monitorDeviceSelect.addEventListener('change', function() {
+                        const selected = data.devices.find(d => d.id === this.value);
+                        if (selected && selected.info) {
+                            monitorDeviceInfo.textContent = selected.info;
+                        }
+                    });
+                    
+                    console.log(`[设备] 已加载 ${data.devices.length} 个设备选项`);
+                }
+            } catch (error) {
+                console.error('加载设备列表失败:', error);
+                // 使用默认选项
+                const defaultOption = '<option value="auto">自动选择 (GPU优先)</option><option value="cpu">CPU</option>';
+                document.getElementById('device').innerHTML = defaultOption;
+                document.getElementById('monitorDevice').innerHTML = defaultOption;
+            }
+        }
+        
+        // 页面加载时获取设备列表
+        loadAvailableDevices();
+        
+        // 定期刷新设备列表（每30秒）
+        setInterval(loadAvailableDevices, 30000);
         
         // 更新检测上下文显示
         async function updateDetectionContext() {
