@@ -251,7 +251,7 @@ sequenceDiagram
     participant Algo as 异常检测算法
     participant DB as MySQL文件系统
 
-    离线检测流程
+    Note over User,DB: 离线检测流程
     User->>FE: 上传音频文件
     FE->>API: POST api-detection-upload
     API->>TM: 创建异步任务
@@ -271,7 +271,7 @@ sequenceDiagram
     API-->>FE: 返回检测结果
     FE-->>User: 展示结果热力图
 
-    实时监控流程
+    Note over User,DB: 实时监控流程
     User->>FE: 启动目录监控
     FE->>API: POST api-monitor-start
     API->>TM: 启动监控服务
@@ -283,7 +283,7 @@ sequenceDiagram
         TM-->>FE: WebSocket通知结果
     end
 
-    参考音频管理流程
+    Note over User,DB: 参考音频管理流程
     User->>FE: 上传参考音频
     FE->>API: POST api-reference-upload
     API->>Core: Shazam生成指纹
