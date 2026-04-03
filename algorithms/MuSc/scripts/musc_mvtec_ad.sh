@@ -1,5 +1,5 @@
 # MVTec AD
-python musc_main.py --device 0 \
+python3 musc_main.py --device 0 \
 --data_path ../data/mvtec/  --dataset_name mvtec_ad --class_name bottle \
 --backbone_name ViT-B-32 --pretrained openai --feature_layers 2 5 8 11 \
 --img_resize 512 --divide_num 1 --r_list 1 3 5 --batch_size 4 \

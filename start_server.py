@@ -44,8 +44,8 @@ import uvicorn
 print("\n" + "=" * 60)
 print("🎵 音频异常检测后端服务")
 print("=" * 60)
-print("服务地址: http://0.0.0.0:8000")
-print("API 文档: http://0.0.0.0:8000/docs")
+print("服务地址: http://0.0.0.0:8004")
+print("API 文档: http://0.0.0.0:8004/docs")
 print("=" * 60 + "\n")
 
 uvicorn.run(

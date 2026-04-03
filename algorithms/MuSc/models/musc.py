@@ -82,7 +82,13 @@ class MuSc:
     def __init__(self, cfg, seed=0):
         self.cfg = cfg
         self.seed = seed
-        self.device = torch.device("cuda:{}".format(cfg['device']) if torch.cuda.is_available() else "cpu")
+        # 支持CPU模式：如果cfg['device']是'cpu'字符串，则使用CPU
+        if isinstance(cfg['device'], str) and cfg['device'].lower() == 'cpu':
+            self.device = torch.device("cpu")
+        elif torch.cuda.is_available():
+            self.device = torch.device("cuda:{}".format(cfg['device']))
+        else:
+            self.device = torch.device("cpu")
         self.path = cfg['datasets']['data_path']
         self.dataset = cfg['datasets']['dataset_name']
         self.vis = cfg['testing']['vis']

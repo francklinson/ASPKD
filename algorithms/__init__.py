@@ -38,6 +38,11 @@ try:
 except Exception as e:
     print(f"[algorithms] other_adapters 导入失败: {e}")
 
+try:
+    from . import musc_adapter
+except Exception as e:
+    print(f"[algorithms] musc_adapter 导入失败: {e}")
+
 __all__ = [
     'BaseDetector',
     'DetectionResult',

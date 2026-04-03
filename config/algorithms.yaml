@@ -110,6 +110,59 @@ algorithms:
     thresholds:
       default: 0.5
 
+  # MuSc系列 (零样本检测)
+  # CLIP ViT-B系列 (小模型，更快)
+  musc_clip_b32_512:
+    name: "MuSc CLIP ViT-B/32@512px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  musc_clip_b16_512:
+    name: "MuSc CLIP ViT-B/16@512px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  # CLIP ViT-L系列 (大模型，高精度)
+  musc_clip_l14_336:
+    name: "MuSc CLIP ViT-L/14@336px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  musc_clip_l14_518:
+    name: "MuSc CLIP ViT-L/14@518px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  # DINOv2 ViT-B系列 (Base模型)
+  musc_dinov2_b14_336:
+    name: "MuSc DINOv2 ViT-B/14@336px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  musc_dinov2_b14_518:
+    name: "MuSc DINOv2 ViT-B/14@518px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  # DINOv2 ViT-L系列 (Large模型)
+  musc_dinov2_l14_336:
+    name: "MuSc DINOv2 ViT-L/14@336px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  musc_dinov2_l14_518:
+    name: "MuSc DINOv2 ViT-L/14@518px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
 # 模型权重路径配置
 models:
   dinomaly:
@@ -123,6 +176,40 @@ models:
     
   patchcore:
     default: "algorithms/Anomalib/ckpts/patchcore_best.pth"
+  
+  # MuSc预训练模型配置
+  musc:
+    pretrained_models_dir: "pre_trained"  # 预训练模型目录 (CLIP/DINOv2模型将自动下载到这里)
+    # Backbone详细配置
+    backbones:
+      # CLIP ViT-B系列
+      ViT-B-32:
+        img_resize: 512
+        feature_layers: [2, 5, 8, 11]
+        pretrained: openai
+      ViT-B-16:
+        img_resize: 512
+        feature_layers: [2, 5, 8, 11]
+        pretrained: openai
+      # CLIP ViT-L系列
+      ViT-L-14:
+        img_resize: 518
+        feature_layers: [5, 11, 17, 23]
+        pretrained: openai
+      ViT-L-14-336:
+        img_resize: 336
+        feature_layers: [5, 11, 17, 23]
+        pretrained: openai
+      # DINOv2 ViT-B系列
+      dinov2_vitb14:
+        img_resize: 518
+        feature_layers: [2, 5, 8, 11]
+        pretrained: laion400m_e31
+      # DINOv2 ViT-L系列
+      dinov2_vitl14:
+        img_resize: 518
+        feature_layers: [5, 11, 17, 23]
+        pretrained: laion400m_e31
 
 # 推理配置
 inference:
