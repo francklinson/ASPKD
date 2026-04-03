@@ -1104,6 +1104,89 @@ def visualize_when_predict(model, dataloader, device, _class_='None', save_name=
     return save_img_path_list
 
 
+def visualize_when_predict_with_all_images(model, dataloader, device, _class_='None', save_name='save'):
+    """
+    可视化模型预测结果并保存三种图像：原图、叠加图、纯热力图
+    在预测阶段使用，没有gt和label
+
+    参数:
+        model: 要评估的模型
+        dataloader: 数据加载器
+        device: 计算设备 (CPU/GPU)
+        _class_: 数据类别，默认为'None'
+        save_name: 保存结果的目录名，默认为'save'
+
+    返回:
+        dict: 键为原始文件名（不含扩展名），值为包含三种图像路径的字典
+              {'original': path, 'overlay': path, 'heatmap': path}
+    """
+    model.eval()  # 将模型设置为评估模式
+    save_dir = os.path.join('./visualize', save_name)  # 设置保存目录
+    if not os.path.exists(save_dir):  # 如果目录不存在则创建
+        os.makedirs(save_dir)
+    gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(device)  # 获取高斯核并移动到指定设备
+
+    with torch.no_grad():  # 禁用梯度计算
+        result_dict = {}  # 存储每个文件对应的三种图像路径
+        
+        for img, img_path in dataloader:  # 遍历数据加载器
+            img = img.to(device)  # 将图像移动到指定设备
+            output = model(img)  # 获取模型输出
+            en, de = output[0], output[1]  # 分离编码器和解码器的输出
+            anomaly_map, _ = cal_anomaly_maps(en, de, img.shape[-1])  # 计算异常图
+            anomaly_map = gaussian_kernel(anomaly_map)  # 应用高斯核平滑异常图
+
+            # 批量处理图像
+            for i in range(0, anomaly_map.shape[0]):
+                # 归一化异常图并转换为热力图
+                heatmap = min_max_norm(anomaly_map[i, 0].cpu().numpy())
+                heatmap = cvt2heatmap(heatmap * 255)
+
+                # 获取文件名（用于在图像上标记）
+                name = os.path.splitext(os.path.basename(img_path[i]))[0]
+
+                # 处理原始图像
+                im = img[i].permute(1, 2, 0).cpu().numpy()  # 调整维度并转到CPU
+                im = im * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])  # 反标准化
+                im = (im * 255).astype('uint8')  # 转换为8位整数
+                im = im[:, :, ::-1]  # RGB转BGR (OpenCV格式)
+                
+                # 将热力图叠加到原始图像上
+                overlay_img = show_cam_on_image(im, heatmap)
+
+                # 创建类别保存目录
+                save_dir_class = os.path.join(save_dir, str(_class_))
+                if not os.path.exists(save_dir_class):
+                    os.makedirs(save_dir_class)
+
+                # 保存三种图像
+                # 1. 原图
+                original_path = os.path.join(save_dir_class, name + '_original.png')
+                original_path = os.path.abspath(original_path)
+                cv2.imencode('.png', im)[1].tofile(original_path)
+                
+                # 2. 叠加图
+                overlay_path = os.path.join(save_dir_class, name + '_overlay.png')
+                overlay_path = os.path.abspath(overlay_path)
+                cv2.imencode('.png', overlay_img)[1].tofile(overlay_path)
+                
+                # 3. 纯热力图
+                heatmap_path = os.path.join(save_dir_class, name + '_heatmap.png')
+                heatmap_path = os.path.abspath(heatmap_path)
+                cv2.imencode('.png', heatmap)[1].tofile(heatmap_path)
+
+                print(f"[Visualize] Saved 3 images for {name}: original={original_path}, overlay={overlay_path}, heatmap={heatmap_path}")
+
+                # 存储路径字典
+                result_dict[name] = {
+                    'original': original_path,
+                    'overlay': overlay_path,
+                    'heatmap': heatmap_path
+                }
+                
+    return result_dict
+
+
 def visualize_noseg(model, dataloader, device, _class_='None', save_name='save'):
     """
     可视化无分割结果的异常检测模型输出

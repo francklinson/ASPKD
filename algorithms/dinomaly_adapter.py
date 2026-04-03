@@ -141,27 +141,46 @@ class DinomalyBaseAdapter(BaseDetector):
         """批量推理"""
         if not self.is_loaded:
             self.load_model()
+        
+        # 延迟导入Dinomaly模块，避免循环导入问题
+        from Dinomaly.utils import visualize_when_predict_with_all_images
+        from Dinomaly.dataset import get_data_transforms, PredictDataset
             
         start_time = time.time()
-        result_dict, heatmap_paths = self._inferencer.predict(image_paths)
+        
+        # 使用新的可视化函数生成三种图像
+        # 1. 准备数据加载器
+        data_transform, _ = get_data_transforms(512, 448)
+        pred_data = PredictDataset(input_img_pth=image_paths, transform=data_transform)
+        pred_dataloader = torch.utils.data.DataLoader(
+            pred_data,
+            batch_size=1,
+            shuffle=False,
+            num_workers=4
+        )
+        
+        # 2. 调用推理获取分数
+        result_dict, _ = self._inferencer.predict(image_paths)
+        
+        # 3. 生成三种图像（原图、叠加图、纯热力图）
+        visualize_save_dir = f"dinomaly_{self.dinov_version}_{self.model_size}_predict"
+        image_paths_dict = visualize_when_predict_with_all_images(
+            self._inferencer.model,
+            dataloader=pred_dataloader,
+            device=self._inferencer.device,
+            _class_="predict",
+            save_name=visualize_save_dir
+        )
+        
         total_time = (time.time() - start_time) * 1000
         
         results = []
         avg_time = total_time / len(image_paths) if image_paths else 0
         
-        # 创建热力图路径字典（文件名（不含_heatmap） -> 热力图路径）
-        heatmap_dict = {}
-        if heatmap_paths:
-            for heatmap_path in heatmap_paths:
-                # 从热力图路径中提取文件名
-                heatmap_filename = os.path.basename(heatmap_path)
-                # 移除 _heatmap 后缀得到原始文件名
-                original_filename = heatmap_filename.replace('_heatmap.png', '.png')
-                heatmap_dict[original_filename] = heatmap_path
-                print(f"[DEBUG] Heatmap mapping: {original_filename} -> {heatmap_path}")
-        
         for path in image_paths:
             filename = os.path.basename(path)
+            name = os.path.splitext(filename)[0]  # 不含扩展名的文件名
+            
             # 尝试匹配结果
             result_key = None
             for key in result_dict.keys():
@@ -174,12 +193,16 @@ class DinomalyBaseAdapter(BaseDetector):
             else:
                 score, is_anomaly = 0.0, False
             
-            # 查找对应的热力图路径
-            heatmap_path = heatmap_dict.get(filename)
+            # 获取三种图像路径
+            paths = image_paths_dict.get(name, {})
+            original_path = paths.get('original')
+            overlay_path = paths.get('overlay')
+            heatmap_path = paths.get('heatmap')
+            
             if heatmap_path:
-                print(f"[DEBUG] Found heatmap for {filename}: {heatmap_path}")
+                print(f"[DEBUG] Found images for {filename}: original={original_path}, overlay={overlay_path}, heatmap={heatmap_path}")
             else:
-                print(f"[DEBUG] No heatmap found for {filename}")
+                print(f"[DEBUG] No images found for {filename}")
                 
             results.append(DetectionResult(
                 is_anomaly=bool(is_anomaly),
@@ -188,7 +211,9 @@ class DinomalyBaseAdapter(BaseDetector):
                 inference_time=avg_time,
                 metadata={
                     'model': f'dinov{self.dinov_version}_{self.model_size}',
-                    'heatmap_path': heatmap_path  # 在metadata中存储热力图路径
+                    'original_path': original_path,
+                    'overlay_path': overlay_path,
+                    'heatmap_path': heatmap_path
                 }
             ))
         

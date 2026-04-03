@@ -840,32 +840,17 @@
                 </div>
             </div>
             
-            <div class="card">
+            <div class="card" id="monitorResultsCard">
                 <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
                     <span>🔍 检测结果列表</span>
                     <button class="btn btn-secondary" onclick="exportMonitorResults()" style="padding: 6px 12px; font-size: 12px;">
                         📥 导出结果
                     </button>
                 </div>
-                <div style="overflow-x: auto; max-height: 300px; overflow-y: auto;">
-                    <table class="results-table" id="monitorResults">
-                        <thead>
-                            <tr>
-                                <th>时间</th>
-                                <th>文件名</th>
-                                <th>异常分数</th>
-                                <th>状态</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card" id="monitorHeatmapCard" style="display: none;">
-                <div class="card-title">🔥 异常热力图</div>
-                <div id="monitorHeatmapResults" style="max-height: 340px; overflow-y: auto;">
-                    <div style="text-align: center; color: #999; padding: 20px;">暂无热力图</div>
+                <div id="monitorResults" style="max-height: 600px; overflow-y: auto;">
+                    <div style="text-align: center; color: #999; padding: 40px;">
+                        暂无检测结果，请启动监控后开始检测
+                    </div>
                 </div>
             </div>
         </div>
@@ -1550,71 +1535,160 @@
             // 注意：任务成功创建后，按钮保持禁用状态，直到收到结果
         }
         
+        // 存储离线检测结果用于视图切换
+        let offlineResultsData = [];
+
         // 显示结果
         function showResults(data) {
             const resultsDiv = document.getElementById('results');
             const heatmapCard = document.getElementById('heatmapCard');
-            const heatmapResults = document.getElementById('heatmapResults');
             const exportBtn = document.getElementById('exportOfflineBtn');
-            const MAX_TABLE_ROWS = 10; // 表格最多显示行数
 
             // 显示导出按钮
             if (data.status === 'completed' && exportBtn) {
                 exportBtn.style.display = 'inline-flex';
             }
 
+            // 隐藏旧的热力图卡片（使用新的统一展示方式）
+            if (heatmapCard) {
+                heatmapCard.style.display = 'none';
+            }
+
             if (data.status === 'completed' && data.results) {
                 const totalCount = data.results.length;
-                const displayResults = data.results.slice(0, MAX_TABLE_ROWS);
-
-                const tableRows = displayResults.map(r => `
-                    <tr>
-                        <td>${r.filename}</td>
-                        <td>${r.anomaly_score.toFixed(4)}</td>
-                        <td><span class="badge ${r.is_anomaly ? 'badge-danger' : 'badge-success'}">${r.status}</span></td>
-                    </tr>
-                `).join('');
-
-                // 显示结果表格
-                resultsDiv.innerHTML = `
-                    <div class="alert alert-success">
-                        检测完成! 共 ${totalCount} 个文件
-                        ${data.results.filter(r => r.is_anomaly).length > 0 ? `，发现 ${data.results.filter(r => r.is_anomaly).length} 个异常` : ''}
-                    </div>
-                    <div class="results-container">
-                        <table class="results-table">
-                            <thead>
-                                <tr>
-                                    <th>文件名</th>
-                                    <th>异常分数</th>
-                                    <th>状态</th>
-                                </tr>
-                            </thead>
-                            <tbody>${tableRows}</tbody>
-                        </table>
+                const anomalyCount = data.results.filter(r => r.is_anomaly).length;
+                const normalCount = totalCount - anomalyCount;
+                
+                // 保存结果数据
+                offlineResultsData = data.results;
+                
+                // 生成摘要
+                let summaryHtml = `
+                    <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                        <h3 style="margin: 0 0 12px 0; font-size: 16px;">📊 检测摘要</h3>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; font-size: 14px;">
+                            <div><strong>总文件数:</strong> ${totalCount}</div>
+                            <div><strong>异常数:</strong> <span style="color: #dc3545;">${anomalyCount}</span></div>
+                            <div><strong>正常数:</strong> <span style="color: #28a745;">${normalCount}</span></div>
+                            <div><strong>算法:</strong> ${data.algorithm || '未知'}</div>
+                        </div>
                     </div>
                 `;
 
-                // 单独处理热力图显示（不限制数量，通过滚动条显示）
-                const heatmapData = data.results.filter(r => r.heatmap_path);
-                if (heatmapData.length > 0) {
-                    heatmapCard.style.display = 'block';
-                    heatmapResults.innerHTML = `
-                        <div class="gallery">
-                            ${heatmapData.map(r => `
-                                <div class="gallery-item">
-                                    <img src="${API_BASE}/${r.heatmap_path}" alt="${r.filename}" loading="lazy" onclick="openHeatmapModal('${API_BASE}/${r.heatmap_path}', '${r.filename}')">
-                                    <div class="caption">${r.filename}</div>
+                // 生成卡片式详细结果
+                let resultsHtml = `
+                    <h4 style="margin: 16px 0 12px 0; font-size: 15px;">📋 详细结果</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+                `;
+
+                data.results.forEach((r, index) => {
+                    const uniqueId = `offline-${index}`;
+                    const isAnomaly = r.is_anomaly;
+                    const statusColor = isAnomaly ? '#dc3545' : '#28a745';
+                    const statusBg = isAnomaly ? '#f8d7da' : '#d4edda';
+                    const hasHeatmap = r.heatmap_path !== null && r.heatmap_path !== undefined;
+                    const hasOriginal = r.original_path !== null && r.original_path !== undefined;
+                    const hasOverlay = r.overlay_path !== null && r.overlay_path !== undefined;
+                    
+                    // 使用叠加图作为默认显示，如果没有则使用热力图
+                    const displayUrl = hasOverlay ? `${API_BASE}/${r.overlay_path}` : 
+                                      (hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '');
+                    const originalUrl = hasOriginal ? `${API_BASE}/${r.original_path}` : '';
+                    const overlayUrl = hasOverlay ? `${API_BASE}/${r.overlay_path}` : 
+                                      (hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '');
+                    const heatmapUrl = hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '';
+
+                    resultsHtml += `
+                        <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
+                            <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa;">
+                                <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.filename}">
+                                    🎵 ${r.filename}
                                 </div>
-                            `).join('')}
+                            </div>
+                            <div style="padding: 12px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 12px;">
+                                    <div><strong>异常分数:</strong> ${r.anomaly_score.toFixed(4)}</div>
+                                    <div><strong>状态:</strong> 
+                                        <span style="background: ${statusBg}; color: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+                                            ${isAnomaly ? '🔴 异常' : '🟢 正常'}
+                                        </span>
+                                    </div>
+                                    <div><strong>序号:</strong> #${index + 1}</div>
+                                </div>
+                                ${hasHeatmap ? `
+                                    <div style="margin-top: 8px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                            <div style="font-size: 11px; color: #666;">🔥 异常热力图:</div>
+                                            <div style="display: flex; gap: 4px;">
+                                                <button id="btn-offline-original-${uniqueId}" 
+                                                        onclick="toggleOfflineHeatmapMode('${uniqueId}', 'original')"
+                                                        style="padding: 2px 8px; font-size: 10px; border: 1px solid #d9d9d9; background: white; color: #666; border-radius: 4px; cursor: pointer;">原图</button>
+                                                <button id="btn-offline-overlay-${uniqueId}" 
+                                                        onclick="toggleOfflineHeatmapMode('${uniqueId}', 'overlay')"
+                                                        style="padding: 2px 8px; font-size: 10px; border: 1px solid #667eea; background: #667eea; color: white; border-radius: 4px; cursor: pointer;">叠加</button>
+                                                <button id="btn-offline-heatmap-${uniqueId}" 
+                                                        onclick="toggleOfflineHeatmapMode('${uniqueId}', 'heatmap')"
+                                                        style="padding: 2px 8px; font-size: 10px; border: 1px solid #d9d9d9; background: white; color: #666; border-radius: 4px; cursor: pointer;">纯热力图</button>
+                                            </div>
+                                        </div>
+                                        <img id="offline-heatmap-img-${uniqueId}"
+                                             src="${displayUrl}" 
+                                             data-original="${originalUrl}"
+                                             data-overlay="${overlayUrl}"
+                                             data-heatmap="${heatmapUrl}"
+                                             style="width: 100%; border-radius: 4px; border: 1px solid #e0e0e0; cursor: pointer;"
+                                             onclick="showHeatmapModal('${overlayUrl}', '${r.filename}', ${r.anomaly_score})"
+                                             title="点击查看大图">
+                                    </div>
+                                ` : `
+                                    <div style="margin-top: 8px; padding: 20px; background: #f5f5f5; border-radius: 4px; text-align: center; color: #999; font-size: 12px;">
+                                        暂无热力图
+                                    </div>
+                                `}
+                            </div>
                         </div>
                     `;
-                } else {
-                    heatmapCard.style.display = 'none';
-                }
+                });
+
+                resultsHtml += `</div>`;
+                resultsDiv.innerHTML = summaryHtml + resultsHtml;
+
             } else if (data.status === 'failed') {
                 resultsDiv.innerHTML = `<div class="alert alert-error">检测失败: ${data.error}</div>`;
-                heatmapCard.style.display = 'none';
+                if (heatmapCard) heatmapCard.style.display = 'none';
+            }
+        }
+
+        // 离线检测热力图模式切换
+        function toggleOfflineHeatmapMode(uniqueId, mode) {
+            const img = document.getElementById(`offline-heatmap-img-${uniqueId}`);
+            const btnOriginal = document.getElementById(`btn-offline-original-${uniqueId}`);
+            const btnOverlay = document.getElementById(`btn-offline-overlay-${uniqueId}`);
+            const btnHeatmap = document.getElementById(`btn-offline-heatmap-${uniqueId}`);
+            
+            if (!img || !btnOverlay || !btnHeatmap || !btnOriginal) return;
+            
+            // 重置所有按钮样式
+            const inactiveStyle = { background: 'white', color: '#666', borderColor: '#d9d9d9' };
+            const activeStyle = { background: '#667eea', color: 'white', borderColor: '#667eea' };
+            
+            Object.assign(btnOriginal.style, inactiveStyle);
+            Object.assign(btnOverlay.style, inactiveStyle);
+            Object.assign(btnHeatmap.style, inactiveStyle);
+            
+            if (mode === 'original') {
+                if (!img.dataset.original) {
+                    showModal('原图未成功保存，请检查后端日志', '提示');
+                    return;
+                }
+                img.src = img.dataset.original;
+                Object.assign(btnOriginal.style, activeStyle);
+            } else if (mode === 'overlay') {
+                img.src = img.dataset.overlay;
+                Object.assign(btnOverlay.style, activeStyle);
+            } else {
+                img.src = img.dataset.heatmap;
+                Object.assign(btnHeatmap.style, activeStyle);
             }
         }
         
@@ -1692,6 +1766,10 @@
                     document.getElementById('monitorStatus').textContent = '运行中';
                     document.getElementById('startMonitorBtn').disabled = true;
                     document.getElementById('stopMonitorBtn').disabled = false;
+                    
+                    // 禁用算法和设备选择
+                    document.getElementById('monitorAlgorithm').disabled = true;
+                    document.getElementById('monitorDevice').disabled = true;
 
                     // 连接监控 WebSocket
                     connectMonitorWebSocket();
@@ -1719,6 +1797,10 @@
                     document.getElementById('monitorStatus').textContent = '停止';
                     document.getElementById('startMonitorBtn').disabled = false;
                     document.getElementById('stopMonitorBtn').disabled = true;
+                    
+                    // 启用算法和设备选择
+                    document.getElementById('monitorAlgorithm').disabled = false;
+                    document.getElementById('monitorDevice').disabled = false;
 
                     if (monitorWs) {
                         monitorWs.close();
@@ -1966,56 +2048,153 @@
             }
         });
 
+        // 实时监控结果计数器
+        let monitorResultIdCounter = 0;
+
         function updateMonitorStats(data) {
             document.getElementById('monitorTotal').textContent = data.total_processed;
             document.getElementById('monitorAnomaly').textContent = data.anomaly_count;
 
             if (data.latest_result) {
-                const tbody = document.querySelector('#monitorResults tbody');
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${new Date().toLocaleTimeString()}</td>
-                    <td>${data.latest_result.filename}</td>
-                    <td>${data.latest_result.anomaly_score.toFixed(4)}</td>
-                    <td><span class="badge ${data.latest_result.is_anomaly ? 'badge-danger' : 'badge-success'}">${data.latest_result.status}</span></td>
-                `;
-                tbody.insertBefore(row, tbody.firstChild);
-
                 // 保存结果用于显示热力图
                 monitorResults.push(data.latest_result);
-                updateMonitorHeatmap();
+                // 更新卡片式展示
+                updateMonitorResultsDisplay();
             }
         }
 
-        function updateMonitorHeatmap() {
-            const heatmapCard = document.getElementById('monitorHeatmapCard');
-            const heatmapResults = document.getElementById('monitorHeatmapResults');
-
-            // 只显示有热力图的结果
-            const heatmapData = monitorResults.filter(r => r && r.heatmap_path);
+        function updateMonitorResultsDisplay() {
+            const resultsDiv = document.getElementById('monitorResults');
             
-            console.log('[Monitor] 更新热力图:', heatmapData.length, '个, 总结果:', monitorResults.length);
-            
-            if (heatmapData.length > 0) {
-                heatmapCard.style.display = 'block';
-                heatmapResults.innerHTML = `
-                    <div class="gallery">
-                        ${heatmapData.map(r => `
-                            <div class="gallery-item">
-                                <img src="${API_BASE}/${r.heatmap_path}" alt="${r.filename || 'unknown'}" loading="lazy" onerror="console.error('[Heatmap] 加载失败:', '${r.heatmap_path}')" onclick="openHeatmapModal('${API_BASE}/${r.heatmap_path}', '${r.filename || 'unknown'}')">
-                                <div class="caption">${r.filename || 'unknown'}</div>
-                            </div>
-                        `).join('')}
+            if (monitorResults.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div style="text-align: center; color: #999; padding: 40px;">
+                        暂无检测结果，请启动监控后开始检测
                     </div>
                 `;
+                return;
+            }
+
+            // 生成卡片式详细结果（倒序显示，最新的在前）
+            let resultsHtml = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">`;
+            
+            // 倒序遍历，最新的结果显示在前面
+            for (let i = monitorResults.length - 1; i >= 0; i--) {
+                const r = monitorResults[i];
+                const uniqueId = `monitor-${i}`;
+                const isAnomaly = r.is_anomaly;
+                const statusColor = isAnomaly ? '#dc3545' : '#28a745';
+                const statusBg = isAnomaly ? '#f8d7da' : '#d4edda';
+                const hasHeatmap = r.heatmap_path !== null && r.heatmap_path !== undefined;
+                const hasOriginal = r.original_path !== null && r.original_path !== undefined;
+                const hasOverlay = r.overlay_path !== null && r.overlay_path !== undefined;
+                const timestamp = r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+                
+                // 使用叠加图作为默认显示，如果没有则使用热力图
+                const displayUrl = hasOverlay ? `${API_BASE}/${r.overlay_path}` : 
+                                  (hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '');
+                const originalUrl = hasOriginal ? `${API_BASE}/${r.original_path}` : '';
+                const overlayUrl = hasOverlay ? `${API_BASE}/${r.overlay_path}` : 
+                                  (hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '');
+                const heatmapUrl = hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '';
+
+                resultsHtml += `
+                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
+                        <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa;">
+                            <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.filename}">
+                                🎵 ${r.filename}
+                            </div>
+                        </div>
+                        <div style="padding: 12px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 12px;">
+                                <div><strong>异常分数:</strong> ${r.anomaly_score.toFixed(4)}</div>
+                                <div><strong>状态:</strong> 
+                                    <span style="background: ${statusBg}; color: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+                                        ${isAnomaly ? '🔴 异常' : '🟢 正常'}
+                                    </span>
+                                </div>
+                                <div><strong>时间:</strong> ${timestamp}</div>
+                                <div><strong>序号:</strong> #${monitorResults.length - i}</div>
+                            </div>
+                            ${hasHeatmap ? `
+                                <div style="margin-top: 8px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                        <div style="font-size: 11px; color: #666;">🔥 异常热力图:</div>
+                                        <div style="display: flex; gap: 4px;">
+                                            <button id="btn-monitor-original-${uniqueId}" 
+                                                    onclick="toggleMonitorHeatmapMode('${uniqueId}', 'original')"
+                                                    style="padding: 2px 8px; font-size: 10px; border: 1px solid #d9d9d9; background: white; color: #666; border-radius: 4px; cursor: pointer;">原图</button>
+                                            <button id="btn-monitor-overlay-${uniqueId}" 
+                                                    onclick="toggleMonitorHeatmapMode('${uniqueId}', 'overlay')"
+                                                    style="padding: 2px 8px; font-size: 10px; border: 1px solid #667eea; background: #667eea; color: white; border-radius: 4px; cursor: pointer;">叠加</button>
+                                            <button id="btn-monitor-heatmap-${uniqueId}" 
+                                                    onclick="toggleMonitorHeatmapMode('${uniqueId}', 'heatmap')"
+                                                    style="padding: 2px 8px; font-size: 10px; border: 1px solid #d9d9d9; background: white; color: #666; border-radius: 4px; cursor: pointer;">纯热力图</button>
+                                        </div>
+                                    </div>
+                                    <img id="monitor-heatmap-img-${uniqueId}"
+                                         src="${displayUrl}" 
+                                         data-original="${originalUrl}"
+                                         data-overlay="${overlayUrl}"
+                                         data-heatmap="${heatmapUrl}"
+                                         style="width: 100%; border-radius: 4px; border: 1px solid #e0e0e0; cursor: pointer;"
+                                         onclick="showHeatmapModal('${overlayUrl}', '${r.filename}', ${r.anomaly_score})"
+                                         title="点击查看大图">
+                                </div>
+                            ` : `
+                                <div style="margin-top: 8px; padding: 20px; background: #f5f5f5; border-radius: 4px; text-align: center; color: #999; font-size: 12px;">
+                                    暂无热力图
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+
+            resultsHtml += `</div>`;
+            resultsDiv.innerHTML = resultsHtml;
+        }
+
+        // 实时监控热力图模式切换
+        function toggleMonitorHeatmapMode(uniqueId, mode) {
+            const img = document.getElementById(`monitor-heatmap-img-${uniqueId}`);
+            const btnOriginal = document.getElementById(`btn-monitor-original-${uniqueId}`);
+            const btnOverlay = document.getElementById(`btn-monitor-overlay-${uniqueId}`);
+            const btnHeatmap = document.getElementById(`btn-monitor-heatmap-${uniqueId}`);
+            
+            if (!img || !btnOverlay || !btnHeatmap || !btnOriginal) return;
+            
+            // 重置所有按钮样式
+            const inactiveStyle = { background: 'white', color: '#666', borderColor: '#d9d9d9' };
+            const activeStyle = { background: '#667eea', color: 'white', borderColor: '#667eea' };
+            
+            Object.assign(btnOriginal.style, inactiveStyle);
+            Object.assign(btnOverlay.style, inactiveStyle);
+            Object.assign(btnHeatmap.style, inactiveStyle);
+            
+            if (mode === 'original') {
+                if (!img.dataset.original) {
+                    showModal('原图未成功保存，请检查后端日志', '提示');
+                    return;
+                }
+                img.src = img.dataset.original;
+                Object.assign(btnOriginal.style, activeStyle);
+            } else if (mode === 'overlay') {
+                img.src = img.dataset.overlay;
+                Object.assign(btnOverlay.style, activeStyle);
+            } else {
+                img.src = img.dataset.heatmap;
+                Object.assign(btnHeatmap.style, activeStyle);
             }
         }
         
         function clearMonitorResults() {
-            document.querySelector('#monitorResults tbody').innerHTML = '';
             monitorResults = []; // 清除存储的结果
-            document.getElementById('monitorHeatmapCard').style.display = 'none';
-            document.getElementById('monitorHeatmapResults').innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">暂无热力图</div>';
+            document.getElementById('monitorResults').innerHTML = `
+                <div style="text-align: center; color: #999; padding: 40px;">
+                    暂无检测结果，请启动监控后开始检测
+                </div>
+            `;
             monitorLog('结果已清空');
         }
         
@@ -2232,6 +2411,9 @@
                 const contextDiv = document.getElementById('detectionContext');
                 const contextContent = document.getElementById('contextContent');
                 
+                // 检查实时监控是否正在运行
+                const isMonitorRunning = document.getElementById('monitorStatus').textContent === '运行中';
+                
                 if (context.has_running_task) {
                     contextDiv.style.display = 'block';
                     contextDiv.className = 'alert alert-warning';
@@ -2259,9 +2441,11 @@
                     document.getElementById('monitorDevice').disabled = true;
                 } else {
                     contextDiv.style.display = 'none';
-                    // 启用算法和设备选择
-                    document.getElementById('monitorAlgorithm').disabled = false;
-                    document.getElementById('monitorDevice').disabled = false;
+                    // 只有在实时监控也未运行时才启用算法和设备选择
+                    if (!isMonitorRunning) {
+                        document.getElementById('monitorAlgorithm').disabled = false;
+                        document.getElementById('monitorDevice').disabled = false;
+                    }
                 }
             } catch (error) {
                 console.error('更新检测上下文失败:', error);
@@ -2303,6 +2487,10 @@
                     document.getElementById('monitorAnomaly').textContent = status.anomaly_count;
                     document.getElementById('startMonitorBtn').disabled = true;
                     document.getElementById('stopMonitorBtn').disabled = false;
+                    
+                    // 禁用算法和设备选择
+                    document.getElementById('monitorAlgorithm').disabled = true;
+                    document.getElementById('monitorDevice').disabled = true;
 
                     // 恢复监控目录显示（如果后端返回）
                     if (status.directory) {

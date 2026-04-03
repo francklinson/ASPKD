@@ -374,24 +374,40 @@ class TaskManager:
                 # 找出最高异常分数
                 max_score = 0
                 is_anomaly = False
+                original_path = None
+                overlay_path = None
                 heatmap_path = None
 
                 for result in file_results:
                     if result.anomaly_score > max_score:
                         max_score = result.anomaly_score
                         is_anomaly = result.is_anomaly
-                        # 获取热力图路径并转换为相对路径
-                        heatmap_path = result.metadata.get('heatmap_path') if result.metadata else None
-                        if heatmap_path:
+                        # 获取三种图像路径并转换为相对路径
+                        if result.metadata:
+                            original_path = result.metadata.get('original_path')
+                            overlay_path = result.metadata.get('overlay_path')
+                            heatmap_path = result.metadata.get('heatmap_path')
+                            
                             # 将绝对路径转换为相对路径，便于前端访问
                             project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                            if heatmap_path.startswith(project_root):
-                                heatmap_path = heatmap_path[len(project_root)+1:]
-                            # 确保路径使用正斜杠，用于URL
-                            heatmap_path = heatmap_path.replace('\\', '/')
-                            print(f"[TaskManager] 生成热力图: {heatmap_path}, 异常: {is_anomaly}")
-                        else:
-                            print(f"[TaskManager] 无热力图: metadata={result.metadata is not None}, score={result.anomaly_score:.4f}")
+                            
+                            if original_path:
+                                if original_path.startswith(project_root):
+                                    original_path = original_path[len(project_root)+1:]
+                                original_path = original_path.replace('\\', '/')
+                            
+                            if overlay_path:
+                                if overlay_path.startswith(project_root):
+                                    overlay_path = overlay_path[len(project_root)+1:]
+                                overlay_path = overlay_path.replace('\\', '/')
+                            
+                            if heatmap_path:
+                                if heatmap_path.startswith(project_root):
+                                    heatmap_path = heatmap_path[len(project_root)+1:]
+                                heatmap_path = heatmap_path.replace('\\', '/')
+                                print(f"[TaskManager] 生成图像: original={original_path}, overlay={overlay_path}, heatmap={heatmap_path}, 异常: {is_anomaly}")
+                            else:
+                                print(f"[TaskManager] 无热力图: metadata={result.metadata is not None}, score={result.anomaly_score:.4f}")
 
                 if is_anomaly:
                     anomaly_count += 1
@@ -402,6 +418,8 @@ class TaskManager:
                     "anomaly_score": max_score,
                     "is_anomaly": is_anomaly,
                     "status": "异常" if is_anomaly else "正常",
+                    "original_path": original_path,
+                    "overlay_path": overlay_path,
                     "heatmap_path": heatmap_path
                 })
 
