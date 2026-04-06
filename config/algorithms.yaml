@@ -163,23 +163,65 @@ algorithms:
     thresholds:
       default: 0.5
 
-# 模型权重路径配置
+# 模型权重路径配置 - 统一从 pre_trained 目录读取
 models:
-  dinomaly:
-    dinov3_small: "algorithms/Dinomaly/saved_results/dinomaly_dinov3_small_dk_qzgy_epoch_1000_Sat Mar 28 22:35:13 2026.pth"
-    dinov3_large: null
-    dinov2_small: "algorithms/Dinomaly/saved_results/dinomaly_dinov2_small_dk_qzgy_epoch_1000_Sat Mar 28 22:42:01 2026.pth"
-    dinov2_large: null
-    
-  mambaad:
-    default: "algorithms/ADer/ckpts/mambaad_best.pth"
-    
-  patchcore:
-    default: "algorithms/Anomalib/ckpts/patchcore_best.pth"
+  # 预训练模型根目录
+  pretrained_dir: "pre_trained"
   
-  # MuSc预训练模型配置
+  # Dinomaly 系列
+  dinomaly:
+    dinov3_small: "pre_trained/dinomaly_dinov3_small.pth"
+    dinov3_large: "pre_trained/dinov2_vitl14_pretrain.pth"
+    dinov2_small: "pre_trained/dinomaly_dinov2_small.pth"
+    dinov2_large: "pre_trained/dinov2_vitl14_pretrain.pth"
+    dinov2_base: "pre_trained/dinov2_vitb14_pretrain.pth"
+    
+  # ADer 系列
+  mambaad:
+    default: "pre_trained/mambaad_best.pth"
+    
+  invad:
+    default: "pre_trained/invad_best.pth"
+    
+  vitad:
+    default: "pre_trained/vitad_best.pth"
+    
+  unad:
+    default: "pre_trained/unad_best.pth"
+    
+  cflow:
+    default: "pre_trained/cflow_best.pth"
+    
+  pyramidflow:
+    default: "pre_trained/pyramidflow_best.pth"
+    
+  simplenet:
+    default: "pre_trained/simplenet_best.pth"
+    
+  # Anomalib 系列
+  patchcore:
+    default: "pre_trained/patchcore_best.pth"
+    
+  efficient_ad:
+    default: "pre_trained/efficientad_best.pth"
+    teacher_small: "pre_trained/efficientad_pretrained_weights/pretrained_teacher_small.pth"
+    teacher_medium: "pre_trained/efficientad_pretrained_weights/pretrained_teacher_medium.pth"
+    
+  padim:
+    default: "pre_trained/padim_best.pth"
+  
+  # MuSc 零样本检测系列
   musc:
-    pretrained_models_dir: "pre_trained"  # 预训练模型目录 (CLIP/DINOv2模型将自动下载到这里)
+    pretrained_models_dir: "pre_trained"
+    # CLIP 模型
+    ViT-B-32: "pre_trained/ViT-B-32.pt"
+    ViT-B-16: "pre_trained/ViT-B-16.pt"
+    ViT-L-14: "pre_trained/ViT-L-14.pt"
+    ViT-L-14-336: "pre_trained/ViT-L-14-336px.pt"
+    # DINOv2 模型
+    dinov2_vits14: "pre_trained/dinov2_vits14_pretrain.pth"
+    dinov2_vitb14: "pre_trained/dinov2_vitb14_pretrain.pth"
+    dinov2_vitl14: "pre_trained/dinov2_vitl14_pretrain.pth"
     # Backbone详细配置
     backbones:
       # CLIP ViT-B系列
@@ -210,6 +252,26 @@ models:
         img_resize: 518
         feature_layers: [5, 11, 17, 23]
         pretrained: laion400m_e31
+      # DINOv2 ViT-S系列
+      dinov2_vits14:
+        img_resize: 518
+        feature_layers: [2, 5, 8, 11]
+        pretrained: laion400m_e31
+  
+  # BaseASD 系列
+  denseae:
+    default: "pre_trained/denseae_best.pth"
+    
+  cae:
+    default: "pre_trained/cae_best.pth"
+    
+  vae:
+    default: "pre_trained/vae_best.pth"
+    
+  # ResNet 骨干网络
+  resnet:
+    resnet18: "pre_trained/resnet18-f37072fd.pth"
+    wide_resnet50_2: "pre_trained/wide_resnet50_2-95faca4d.pth"
 
 # 推理配置
 inference:
@@ -270,5 +332,7 @@ model_architectures:
 
 # 环境变量配置
 environments:
-  DINOMALY_ENCODER_DIR: "algorithms/Dinomaly/weights"
+  DINOMALY_ENCODER_DIR: "pre_trained"
   CUDA_VISIBLE_DEVICES: "0"
+  PRETRAINED_MODELS_DIR: "pre_trained"
+  TORCH_HOME: "pre_trained"

@@ -43,6 +43,11 @@ try:
 except Exception as e:
     print(f"[algorithms] musc_adapter 导入失败: {e}")
 
+try:
+    from . import subspacead_adapter
+except Exception as e:
+    print(f"[algorithms] subspacead_adapter 导入失败: {e}")
+
 __all__ = [
     'BaseDetector',
     'DetectionResult',

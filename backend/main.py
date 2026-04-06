@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from backend.api import detection, monitor, tasks, reference_audio, feature_cluster, zero_shot
+from backend.api import detection, monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot
 from backend.core.websocket import websocket_manager
 from backend.core.task_manager import task_manager
 
@@ -66,6 +66,7 @@ app.include_router(tasks.router, prefix="/api/tasks", tags=["任务管理"])
 app.include_router(reference_audio.router, prefix="/api/reference-audio", tags=["参考音频库"])
 app.include_router(feature_cluster.router, prefix="/api/cluster", tags=["特征聚类"])
 app.include_router(zero_shot.router, prefix="/api/zero-shot", tags=["零样本检测"])
+app.include_router(few_shot.router, prefix="/api/few-shot", tags=["少样本检测"])
 
 # WebSocket 路由 - 使用标准装饰器方式
 @app.websocket("/ws/progress/{task_id}")

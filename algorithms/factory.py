@@ -59,8 +59,11 @@ def create_detector(algorithm_name: str,
     if not model_path:
         raise ValueError(f"模型路径无效: {model_path}")
     
-    # 从算法配置中获取阈值
-    threshold = config_manager.get_threshold(algorithm_name)
+    # 从算法配置中获取阈值（如果 kwargs 中未提供）
+    if 'threshold' in kwargs:
+        threshold = kwargs.pop('threshold')
+    else:
+        threshold = config_manager.get_threshold(algorithm_name)
     
     # 创建实例
     detector = AlgorithmRegistry.create(
