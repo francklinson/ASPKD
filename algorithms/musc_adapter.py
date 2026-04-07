@@ -42,22 +42,35 @@ class MuScBaseAdapter(BaseDetector):
         
     def load_model(self) -> None:
         """加载MuSc模型"""
-        print(f"[MuSc] Loading MuSc model with {self.backbone} backbone, image size: {self.img_size}")
+        import time
+        start_time = time.time()
+        
+        print(f"[MuSc] {'='*60}")
+        print(f"[MuSc] [MODEL LOAD START] MuSc Zero-Shot Detector")
+        print(f"[MuSc] {'='*60}")
+        print(f"[MuSc] Configuration:")
+        print(f"[MuSc]   - Backbone: {self.backbone}")
+        print(f"[MuSc]   - Image size: {self.img_size}x{self.img_size}")
+        print(f"[MuSc]   - Device: {self.device}")
+        print(f"[MuSc]   - R list (scale factors): {self.r_list}")
+        print(f"[MuSc]   - Divide num: {self.divide_num}")
         
         # 添加MuSc目录到路径
         musc_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'MuSc')
         if musc_dir not in sys.path:
             sys.path.insert(0, musc_dir)
+            print(f"[MuSc] Added to sys.path: {musc_dir}")
         
         # 导入MuSc相关模块
+        print(f"[MuSc] [1/2] Importing MuSc modules...")
         try:
             from MuSc.models.musc import MuSc as MuScModel
             from MuSc.models.modules.LNAMD import LNAMD
             from MuSc.models.modules.MSM import MSM
             from MuSc.models.modules.RsCIN import RsCIN
-            print("[MuSc] MuSc modules imported successfully")
+            print(f"[MuSc] ✓ Modules imported successfully")
         except Exception as e:
-            print(f"[ERROR] Failed to import MuSc modules: {e}")
+            print(f"[MuSc] ✗ Failed to import MuSc modules: {e}")
             import traceback
             traceback.print_exc()
             raise
@@ -102,6 +115,12 @@ class MuScBaseAdapter(BaseDetector):
         except Exception as e:
             print(f"[MuSc] Warning: Failed to load config, using defaults: {e}")
         
+        print(f"[MuSc] Model configuration:")
+        print(f"[MuSc]   - Pretrained models dir: {pretrained_models_dir}")
+        print(f"[MuSc]   - Feature layers: {feature_layers}")
+        print(f"[MuSc]   - Pretrained source: {pretrained}")
+        print(f"[MuSc]   - Device cfg: {device_cfg}")
+        
         cfg = {
             'device': device_cfg,
             'datasets': {
@@ -130,11 +149,16 @@ class MuScBaseAdapter(BaseDetector):
         }
         
         # 创建MuSc模型实例
+        print(f"[MuSc] [2/2] Creating MuSc model instance...")
+        print(f"[MuSc]   - Loading {self.backbone} backbone (this may take a while)...")
+        
         try:
+            model_create_start = time.time()
             self._musc = MuScModel(cfg, seed=42)
-            print("[MuSc] MuSc model created successfully")
+            model_create_time = time.time() - model_create_start
+            print(f"[MuSc] ✓ MuSc model created in {model_create_time:.2f}s")
         except Exception as e:
-            print(f"[ERROR] Failed to create MuSc model: {e}")
+            print(f"[MuSc] ✗ Failed to create MuSc model: {e}")
             import traceback
             traceback.print_exc()
             raise
@@ -143,7 +167,10 @@ class MuScBaseAdapter(BaseDetector):
         self.feature_layers = [l + 1 for l in feature_layers]
         
         self.is_loaded = True
-        print(f"[MuSc] Model loaded successfully on device: {self.device}")
+        total_time = time.time() - start_time
+        print(f"[MuSc] {'='*60}")
+        print(f"[MuSc] [MODEL LOAD COMPLETE] Total time: {total_time:.2f}s")
+        print(f"[MuSc] {'='*60}")
     
     def _extract_features(self, images: torch.Tensor) -> Tuple[List[torch.Tensor], torch.Tensor]:
         """

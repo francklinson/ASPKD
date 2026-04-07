@@ -13,7 +13,7 @@ from PIL import Image
 
 # 在导入Dinomaly模块之前设置环境变量
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_dinomaly_config_path = os.path.join(_project_root, "config", "algorithms.yaml")
+_dinomaly_config_path = os.path.join(_project_root, "config", "config.yaml")
 if os.path.exists(_dinomaly_config_path):
     import yaml
     with open(_dinomaly_config_path, 'r', encoding='utf-8') as f:
@@ -42,68 +42,96 @@ class DinomalyBaseAdapter(BaseDetector):
         
     def load_model(self) -> None:
         """加载Dinomaly模型"""
+        import time
+        start_time = time.time()
+        
+        print(f"[Dinomaly] {'='*60}")
+        print(f"[Dinomaly] [MODEL LOAD START] Dinomaly Zero-Shot Detector")
+        print(f"[Dinomaly] {'='*60}")
+        
         # 检查 model_path
         if not self.model_path:
             raise ValueError(f"模型路径无效: {self.model_path}。请检查配置文件中的模型路径设置。")
         
-        print(f"[DEBUG] DinomalyBaseAdapter.load_model: model_path={self.model_path}")
+        # 解析模型路径信息
+        model_path_abs = os.path.abspath(self.model_path)
+        model_exists = os.path.exists(self.model_path)
+        
+        print(f"[Dinomaly] Configuration:")
+        print(f"[Dinomaly]   - DINOv version: {self.dinov_version}")
+        print(f"[Dinomaly]   - Model size: {self.model_size}")
+        print(f"[Dinomaly]   - Threshold: {self.threshold}")
+        print(f"[Dinomaly]   - Device: {self.device}")
+        print(f"[Dinomaly] Model path info:")
+        print(f"[Dinomaly]   - Original path: {self.model_path}")
+        print(f"[Dinomaly]   - Absolute path: {model_path_abs}")
+        print(f"[Dinomaly]   - File exists: {model_exists}")
+        
+        if model_exists:
+            model_size_mb = os.path.getsize(self.model_path) / (1024 * 1024)
+            print(f"[Dinomaly]   - File size: {model_size_mb:.2f} MB")
         
         # 延迟导入，避免在注册时加载依赖
-        # 添加 algorithms 目录到路径，使用完整包名导入
         algorithms_dir = os.path.dirname(os.path.abspath(__file__))
         if algorithms_dir not in sys.path:
             sys.path.insert(0, algorithms_dir)
+            print(f"[Dinomaly] Added to sys.path: {algorithms_dir}")
         
         # 导入时捕获错误
-        print("[DEBUG] Importing Dinomaly inference modules...")
+        print(f"[Dinomaly] [1/2] Importing Dinomaly inference modules...")
         try:
             from Dinomaly.dinomaly_inference import DinomalyDinoV3Inference, DinomalyDinoV2Inference
-            print("[DEBUG] Import successful")
+            print(f"[Dinomaly] ✓ Import successful")
         except Exception as e:
-            print(f"[ERROR] Import failed: {e}")
+            print(f"[Dinomaly] ✗ Import failed: {e}")
             import traceback
             traceback.print_exc()
             raise
         
-        print(f"[DEBUG] About to create inferencer, dinov_version={self.dinov_version}")
-        print(f"[DEBUG] model_path type: {type(self.model_path)}, value: {repr(self.model_path)}")
-        print(f"[DEBUG] model_size: {self.model_size}")
-        print(f"[DEBUG] threshold: {self.threshold}")
+        # 创建推理器
+        print(f"[Dinomaly] [2/2] Creating inference engine...")
+        inferencer_start = time.time()
         
         if self.dinov_version == 'v3':
-            print("[DEBUG] Creating DinomalyDinoV3Inference...")
-            print(f"[DEBUG] Parameters: model_path={self.model_path}, model_size={self.model_size}, device={self.device}, threshold={self.threshold}")
+            print(f"[Dinomaly]   - Creating DinomalyDinoV3Inference")
+            print(f"[Dinomaly]   - Loading DINOv3 {self.model_size} model weights...")
             try:
                 self._inferencer = DinomalyDinoV3Inference(
                     model_path=self.model_path,
                     model_size=self.model_size,
-                    device=str(self.device),  # 添加 device 参数
+                    device=str(self.device),
                     threshold=self.threshold
                 )
-                print("[DEBUG] DinomalyDinoV3Inference created successfully")
+                inferencer_time = time.time() - inferencer_start
+                print(f"[Dinomaly] ✓ DinomalyDinoV3Inference created in {inferencer_time:.2f}s")
             except Exception as e:
-                print(f"[ERROR] Failed to create DinomalyDinoV3Inference: {e}")
+                print(f"[Dinomaly] ✗ Failed to create DinomalyDinoV3Inference: {e}")
                 import traceback
                 traceback.print_exc()
                 raise
         else:
-            print("[DEBUG] Creating DinomalyDinoV2Inference...")
-            print(f"[DEBUG] Parameters: model_path={self.model_path}, model_size={self.model_size}, device={self.device}, threshold={self.threshold}")
+            print(f"[Dinomaly]   - Creating DinomalyDinoV2Inference")
+            print(f"[Dinomaly]   - Loading DINOv2 {self.model_size} model weights...")
             try:
                 self._inferencer = DinomalyDinoV2Inference(
                     model_path=self.model_path,
                     model_size=self.model_size,
-                    device=str(self.device),  # 添加 device 参数
+                    device=str(self.device),
                     threshold=self.threshold
                 )
-                print("[DEBUG] DinomalyDinoV2Inference created successfully")
+                inferencer_time = time.time() - inferencer_start
+                print(f"[Dinomaly] ✓ DinomalyDinoV2Inference created in {inferencer_time:.2f}s")
             except Exception as e:
-                print(f"[ERROR] Failed to create DinomalyDinoV2Inference: {e}")
+                print(f"[Dinomaly] ✗ Failed to create DinomalyDinoV2Inference: {e}")
                 import traceback
                 traceback.print_exc()
                 raise
+        
         self.is_loaded = True
-        print("[DEBUG] Model loaded successfully")
+        total_time = time.time() - start_time
+        print(f"[Dinomaly] {'='*60}")
+        print(f"[Dinomaly] [MODEL LOAD COMPLETE] Total time: {total_time:.2f}s")
+        print(f"[Dinomaly] {'='*60}")
         
     def predict(self, image_path: str) -> DetectionResult:
         """单张图像推理"""

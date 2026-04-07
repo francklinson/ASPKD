@@ -106,7 +106,7 @@ def _do_start_monitoring(dir_path: str, interval: int, algorithm: str,
 
     # 设置预处理器
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    config_path = os.path.join(project_root, "config", "algorithms.yaml")
+    config_path = os.path.join(project_root, "config", "config.yaml")
     config = ConfigManager(config_path)
 
     ref_file = config.config.get('preprocessing', {}).get('ref_file', 'ref/渡口片段10s.wav')

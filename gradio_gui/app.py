@@ -58,11 +58,11 @@ def create_demo():
 
     # 加载配置
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    config_path = os.path.join(project_root, "config", "algorithms.yaml")
+    config_path = os.path.join(project_root, "config", "config.yaml")
     config = ConfigManager(config_path)
 
     # 设置环境变量
-    dinomaly_config_path = os.path.join(project_root, "config", "algorithms.yaml")
+    dinomaly_config_path = os.path.join(project_root, "config", "config.yaml")
     if os.path.exists(dinomaly_config_path):
         with open(dinomaly_config_path, 'r', encoding='utf-8') as f:
             dinomaly_config = yaml.safe_load(f) or {}

@@ -18,7 +18,7 @@ class ConfigManager:
     3. 推理参数配置
     """
     
-    DEFAULT_CONFIG_PATH = "config/algorithms.yaml"
+    DEFAULT_CONFIG_PATH = "config/config.yaml"
     
     def __init__(self, config_path: Optional[str] = None):
         self.config_path = config_path or self.DEFAULT_CONFIG_PATH

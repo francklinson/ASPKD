@@ -30,6 +30,28 @@ class BaseASDAdapter(BaseDetector):
         
     def load_model(self) -> None:
         """加载BaseASD模型"""
+        import time
+        start_time = time.time()
+        
+        print(f"[BaseASD] {'='*60}")
+        print(f"[BaseASD] [MODEL LOAD START] BaseASD Traditional Detector")
+        print(f"[BaseASD] {'='*60}")
+        print(f"[BaseASD] Configuration:")
+        print(f"[BaseASD]   - Method: {self.method}")
+        print(f"[BaseASD]   - Device: {self.device}")
+        
+        method_names = {
+            'denseae': 'Dense Autoencoder',
+            'cae': 'Convolutional Autoencoder',
+            'vae': 'Variational Autoencoder',
+            'aegan': 'AE+GAN',
+            'differnet': 'DifferNet (Normalizing Flow)'
+        }
+        print(f"[BaseASD]   - Full name: {method_names.get(self.method, self.method)}")
+        
+        print(f"[BaseASD] Loading model interface...")
+        interface_start = time.time()
+        
         if self.method == 'denseae':
             from BaseASD.DenseAE.DenseAE_interface import DenseAEInterface
             self._interface = DenseAEInterface()
@@ -46,7 +68,14 @@ class BaseASDAdapter(BaseDetector):
             from BaseASD.DifferNet.DifferNet_interface import DifferNetInterface
             self._interface = DifferNetInterface()
         
+        interface_time = time.time() - interface_start
+        print(f"[BaseASD] ✓ Interface loaded in {interface_time:.2f}s")
+        
         self.is_loaded = True
+        total_time = time.time() - start_time
+        print(f"[BaseASD] {'='*60}")
+        print(f"[BaseASD] [MODEL LOAD COMPLETE] Total time: {total_time:.2f}s")
+        print(f"[BaseASD] {'='*60}")
         
     def predict(self, image_path: str) -> DetectionResult:
         """单张图像推理"""

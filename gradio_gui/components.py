@@ -8,7 +8,7 @@ import gradio as gr
 def get_ref_audio_path():
     """获取参考音频文件路径"""
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    config_path = os.path.join(project_root, "config", "algorithms.yaml")
+    config_path = os.path.join(project_root, "config", "config.yaml")
     try:
         import yaml
         with open(config_path, 'r', encoding='utf-8') as f:

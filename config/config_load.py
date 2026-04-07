@@ -1,7 +1,7 @@
 import yaml
 import os
 
-def yaml_load(config_path="config/algorithms.yaml"):
+def yaml_load(config_path="config/config.yaml"):
     """
     load yaml file
     """

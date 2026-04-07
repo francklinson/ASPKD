@@ -69,7 +69,7 @@ class TaskManager:
             self.Preprocessor = Preprocessor
             
             # 加载配置
-            config_path = os.path.join(project_root, "config", "algorithms.yaml")
+            config_path = os.path.join(project_root, "config", "config.yaml")
             self.config = ConfigManager(config_path)
             
             ref_file = self.config.config.get('preprocessing', {}).get('ref_file', 'ref/渡口片段10s.wav')

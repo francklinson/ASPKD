@@ -73,6 +73,52 @@ get_log_file() {
     fi
 }
 
+# 加载环境变量
+load_environment() {
+    echo -e "${BLUE}加载环境变量...${NC}"
+    
+    # 设置虚拟环境路径
+    VENV_SITE_PACKAGES="$PROJECT_DIR/.venv/lib/python3.12/site-packages"
+    if [ -d "$VENV_SITE_PACKAGES" ]; then
+        export PYTHONPATH="$VENV_SITE_PACKAGES:$PYTHONPATH"
+        echo -e "${GREEN}✓ 虚拟环境路径设置成功${NC}"
+    else
+        echo -e "${YELLOW}⚠ 虚拟环境路径不存在: $VENV_SITE_PACKAGES${NC}"
+    fi
+    
+    # 加载配置文件中的环境变量
+    CONFIG_PATH="$PROJECT_DIR/config/config.yaml"
+    if [ -f "$CONFIG_PATH" ]; then
+        echo -e "${BLUE}加载配置文件: $CONFIG_PATH${NC}"
+        # 使用 Python 解析 YAML 并设置环境变量
+        "$VENV_PYTHON" - << 'EOF'
+import yaml
+import os
+
+config_path = "$CONFIG_PATH"
+try:
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f) or {}
+    env_config = config.get('environments', {})
+    for key, value in env_config.items():
+        if value and key not in os.environ:
+            os.environ[key] = str(value)
+            print(f"[Config] Set env: {key}={value}")
+except Exception as e:
+    print(f"[Config] Warning: Failed to load environment variables: {e}")
+EOF
+    else
+        echo -e "${YELLOW}⚠ 配置文件不存在: $CONFIG_PATH${NC}"
+    fi
+    
+    # 打印环境信息
+    echo -e "${BLUE}环境信息:${NC}"
+    echo "Python: $VENV_PYTHON"
+    echo "Project root: $PROJECT_DIR"
+    echo "Site-packages: $VENV_SITE_PACKAGES"
+    echo "Python path: $PYTHONPATH"
+}
+
 # 启动服务
 start_service() {
     check_venv
@@ -87,6 +133,9 @@ start_service() {
     
     cd "$PROJECT_DIR"
     
+    # 加载环境变量
+    load_environment
+    
     # 生成带时间戳的日志文件名
     local timestamp=$(date +"%Y%m%d_%H%M%S")
     local LOG_FILE="$PROJECT_DIR/logs/backend_${timestamp}.log"
@@ -98,7 +147,7 @@ start_service() {
     echo "$LOG_FILE" > "$CURRENT_LOG_FILE"
     
     # 启动服务
-    nohup "$VENV_PYTHON" "$PROJECT_DIR/start_server.py" > "$LOG_FILE" 2>&1 &
+    HOST="$HOST" PORT="$PORT" nohup "$VENV_PYTHON" "$PROJECT_DIR/start_server.py" > "$LOG_FILE" 2>&1 &
     local pid=$!
     
     # 保存 PID

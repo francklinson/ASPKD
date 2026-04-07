@@ -32,7 +32,7 @@ class ModelConfig:
             # 获取项目根目录 (从 algorithms/Dinomaly/dinomaly_inference.py 向上3层)
             current_file = os.path.abspath(__file__)
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
-            config_path = os.path.join(project_root, 'config', 'algorithms.yaml')
+            config_path = os.path.join(project_root, 'config', 'config.yaml')
             
             with open(config_path, 'r', encoding='utf-8') as f:
                 cls._config = yaml.safe_load(f)
@@ -60,7 +60,7 @@ class ModelConfig:
         print(f"[DEBUG] arch_config before: {arch_config}")
         
         if not arch_config:
-            raise ValueError(f"未找到DINOv3 {model_size}配置，请检查 config/algorithms.yaml")
+            raise ValueError(f"未找到DINOv3 {model_size}配置，请检查 config/config.yaml")
         
         # 拼接完整的权重路径
         weights_dir = dinov3_config.get('weights_dir')
@@ -217,6 +217,10 @@ class DinomalyDinoV2Inference(DinomalyBaseInferencer):
 
     def _create_model(self, encoder: nn.Module, config: Dict, model_path) -> nn.Module:
         """创建模型实例"""
+        import time
+        print(f"[Dinomaly] Creating DINOv2 model architecture...")
+        start_time = time.time()
+        
         fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
         fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
 
@@ -244,19 +248,47 @@ class DinomalyDinoV2Inference(DinomalyBaseInferencer):
             fuse_layer_encoder=fuse_layer_encoder,
             fuse_layer_decoder=fuse_layer_decoder
         )
-
+        
+        arch_time = time.time() - start_time
+        print(f"[Dinomaly] ✓ Model architecture created in {arch_time:.2f}s")
+        
+        # 加载权重
+        print(f"[Dinomaly] Loading model weights from: {model_path}")
+        weights_start = time.time()
         model.load_state_dict(torch.load(model_path, map_location=self.device))
+        weights_time = time.time() - weights_start
+        print(f"[Dinomaly] ✓ Weights loaded in {weights_time:.2f}s")
+        
         model = model.to(self.device)
-        print(f"Load model from {model_path} successfully!!")
+        print(f"[Dinomaly] ✓ Model moved to device: {self.device}")
         return model
 
     def _load_model(self, model_path: str) -> nn.Module:
         """加载DINOv2模型"""
+        import time
+        print(f"[Dinomaly] {'='*50}")
+        print(f"[Dinomaly] [DINOv2 INTERNAL LOAD START]")
+        print(f"[Dinomaly] {'='*50}")
+        
+        start_time = time.time()
+        
+        print(f"[Dinomaly] Loading configuration for size: {self.model_size}")
         config = ModelConfig.get_dinov2_config(self.model_size)
-
+        print(f"[Dinomaly] Config: encoder={config['encoder_name']}, embed_dim={config['embed_dim']}, target_layers={config['target_layers']}")
+        
+        print(f"[Dinomaly] Loading encoder: {config['encoder_name']}")
+        encoder_start = time.time()
         encoder = vit_encoder.load(config['encoder_name'])
-
-        return self._create_model(encoder, config, model_path)
+        encoder_time = time.time() - encoder_start
+        print(f"[Dinomaly] ✓ Encoder loaded in {encoder_time:.2f}s")
+        
+        model = self._create_model(encoder, config, model_path)
+        
+        total_time = time.time() - start_time
+        print(f"[Dinomaly] {'='*50}")
+        print(f"[Dinomaly] [DINOv2 INTERNAL LOAD COMPLETE] Total: {total_time:.2f}s")
+        print(f"[Dinomaly] {'='*50}")
+        return model
 
 
 class DinomalyDinoV3Inference(DinomalyBaseInferencer):
@@ -267,7 +299,10 @@ class DinomalyDinoV3Inference(DinomalyBaseInferencer):
 
     def _create_model(self, encoder: nn.Module, config: Dict, model_path) -> nn.Module:
         """创建模型实例"""
-        print(f"[DEBUG] _create_model: model_path={model_path}, type={type(model_path)}")
+        import time
+        print(f"[Dinomaly] Creating DINOv3 model architecture...")
+        start_time = time.time()
+        
         if not model_path:
             raise ValueError(f"_create_model 接收到无效的 model_path: {model_path}")
             
@@ -298,23 +333,60 @@ class DinomalyDinoV3Inference(DinomalyBaseInferencer):
             fuse_layer_encoder=fuse_layer_encoder,
             fuse_layer_decoder=fuse_layer_decoder
         )
-
+        
+        arch_time = time.time() - start_time
+        print(f"[Dinomaly] ✓ Model architecture created in {arch_time:.2f}s")
+        
+        # 加载权重
+        print(f"[Dinomaly] Loading model weights from: {model_path}")
+        weights_start = time.time()
         model.load_state_dict(torch.load(model_path, map_location=self.device))
+        weights_time = time.time() - weights_start
+        print(f"[Dinomaly] ✓ Weights loaded in {weights_time:.2f}s")
+        
         model = model.to(self.device)
-        print(f"Load model from {model_path} successfully!!")
+        print(f"[Dinomaly] ✓ Model moved to device: {self.device}")
         return model
 
     def _load_model(self, model_path: str) -> nn.Module:
         """加载DINOv3模型"""
+        import time
+        print(f"[Dinomaly] {'='*50}")
+        print(f"[Dinomaly] [DINOv3 INTERNAL LOAD START]")
+        print(f"[Dinomaly] {'='*50}")
+        
+        start_time = time.time()
+        
+        print(f"[Dinomaly] Loading configuration for size: {self.model_size}")
         config = ModelConfig.get_dinov3_config(self.model_size)
-
+        print(f"[Dinomaly] Config: encoder={config['encoder_name']}, embed_dim={config['embed_dim']}, target_layers={config['target_layers']}")
+        
+        # 检查编码器权重路径
+        encoder_weight_path = config.get('encoder_weight', 'Not specified')
+        print(f"[Dinomaly] Encoder weight path: {encoder_weight_path}")
+        if os.path.exists(encoder_weight_path):
+            weight_size_mb = os.path.getsize(encoder_weight_path) / (1024 * 1024)
+            print(f"[Dinomaly] Encoder weight size: {weight_size_mb:.2f} MB")
+        else:
+            print(f"[Dinomaly] Warning: Encoder weight file not found at {encoder_weight_path}")
+        
+        print(f"[Dinomaly] Loading DINOv3 encoder: {config['encoder_name']}")
+        encoder_start = time.time()
         encoder = load_dinov3_model(
             config['encoder_name'],
             layers_to_extract_from=config['target_layers'],
             pretrained_weight_path=config['encoder_weight']
         )
-
-        return self._create_model(encoder, config, model_path)
+        encoder_time = time.time() - encoder_start
+        print(f"[Dinomaly] ✓ DINOv3 encoder loaded in {encoder_time:.2f}s")
+        
+        model = self._create_model(encoder, config, model_path)
+        
+        total_time = time.time() - start_time
+        print(f"[Dinomaly] {'='*50}")
+        print(f"[Dinomaly] [DINOv3 INTERNAL LOAD COMPLETE] Total: {total_time:.2f}s")
+        print(f"[Dinomaly] {'='*50}")
+        return model
 
 
 if __name__ == '__main__':

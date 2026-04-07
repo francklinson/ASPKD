@@ -33,16 +33,49 @@ class AnomalibAdapter(BaseDetector):
         
     def load_model(self) -> None:
         """加载Anomalib模型"""
+        import time
+        start_time = time.time()
+        
+        print(f"[Anomalib] {'='*60}")
+        print(f"[Anomalib] [MODEL LOAD START] Anomalib Detector")
+        print(f"[Anomalib] {'='*60}")
+        print(f"[Anomalib] Configuration:")
+        print(f"[Anomalib]   - Model name: {self.model_name}")
+        print(f"[Anomalib]   - Device: {self.device}")
+        print(f"[Anomalib]   - Threshold: {self.threshold}")
+        
+        # 模型路径信息
+        model_path_abs = os.path.abspath(self.model_path) if self.model_path else 'None'
+        model_exists = os.path.exists(self.model_path) if self.model_path else False
+        print(f"[Anomalib] Model path info:")
+        print(f"[Anomalib]   - Path: {self.model_path or 'Not specified'}")
+        print(f"[Anomalib]   - Absolute: {model_path_abs}")
+        print(f"[Anomalib]   - Exists: {model_exists}")
+        
+        if model_exists:
+            model_size_mb = os.path.getsize(self.model_path) / (1024 * 1024)
+            print(f"[Anomalib]   - Size: {model_size_mb:.2f} MB")
+        
         from Anomalib.models import get_model
         from Anomalib.engine import Engine
         
         # 创建模型
+        print(f"[Anomalib] [1/2] Creating model architecture...")
+        model_start = time.time()
         self._model = get_model(self.model_name)
+        model_time = time.time() - model_start
+        print(f"[Anomalib] ✓ Model created in {model_time:.2f}s")
         
         # 加载权重
         if os.path.exists(self.model_path):
+            print(f"[Anomalib] [2/2] Loading model weights...")
+            weights_start = time.time()
             checkpoint = torch.load(self.model_path, map_location=self.device)
             self._model.load_state_dict(checkpoint.get('state_dict', checkpoint))
+            weights_time = time.time() - weights_start
+            print(f"[Anomalib] ✓ Weights loaded in {weights_time:.2f}s")
+        else:
+            print(f"[Anomalib] [2/2] No weights file found, using randomly initialized model")
         
         self._model.to(self.device)
         self._model.eval()
@@ -50,6 +83,11 @@ class AnomalibAdapter(BaseDetector):
         # 创建引擎
         self._engine = Engine()
         self.is_loaded = True
+        
+        total_time = time.time() - start_time
+        print(f"[Anomalib] {'='*60}")
+        print(f"[Anomalib] [MODEL LOAD COMPLETE] Total time: {total_time:.2f}s")
+        print(f"[Anomalib] {'='*60}")
         
     def predict(self, image_path: str) -> DetectionResult:
         """单张图像推理"""

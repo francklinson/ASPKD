@@ -34,7 +34,7 @@ class UnifiedAlgorithmManager:
         # 使用绝对路径加载配置
         config_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "config", "algorithms.yaml"
+            "config", "config.yaml"
         )
         print(f"[模型管理器] 配置文件路径: {config_path}")
         print(f"[模型管理器] 配置文件存在: {os.path.exists(config_path)}")
