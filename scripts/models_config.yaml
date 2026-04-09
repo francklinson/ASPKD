@@ -1,0 +1,376 @@
+# ASD_for_SPK 项目预训练模型配置
+# 该文件定义了项目所需的所有预训练模型及其下载配置
+
+# 预训练模型根目录
+pretrained_dir: "pre_trained"
+
+# 模型下载配置
+models:
+  # ==================== SubspaceAD / DINOv2 模型 ====================
+  # 用于少样本异常检测的特征提取器
+  dinov2-small:
+    name: "dinov2-small"
+    url: "facebook/dinov2-small"
+    local_path: "pre_trained/dinov2-small"
+    description: "DINOv2 Small - 用于SubspaceAD少样本检测的轻量级特征提取器 (22M参数)"
+    size_mb: 88.0
+    source: "huggingface"
+    required: true
+    dependencies:
+      - "transformers>=4.35.0"
+      - "torch>=2.1.0"
+    usage:
+      - "SubspaceAD少样本异常检测"
+      - "轻量级场景，推理速度快"
+    load_params:
+      model_type: "AutoModel"
+      trust_remote_code: false
+      local_files_only: true
+
+  dinov2-base:
+    name: "dinov2-base"
+    url: "facebook/dinov2-base"
+    local_path: "pre_trained/dinov2-base"
+    description: "DINOv2 Base - 用于SubspaceAD少样本检测的基础特征提取器 (86M参数)"
+    size_mb: 330.0
+    source: "huggingface"
+    required: true
+    dependencies:
+      - "transformers>=4.35.0"
+      - "torch>=2.1.0"
+    usage:
+      - "SubspaceAD少样本异常检测"
+      - "平衡精度和速度"
+    load_params:
+      model_type: "AutoModel"
+      trust_remote_code: false
+      local_files_only: true
+
+  dinov2-large:
+    name: "dinov2-large"
+    url: "facebook/dinov2-large"
+    local_path: "pre_trained/dinov2-large"
+    description: "DINOv2 Large - 用于SubspaceAD少样本检测的高精度特征提取器 (300M参数)"
+    size_mb: 1150.0
+    source: "huggingface"
+    required: true
+    dependencies:
+      - "transformers>=4.35.0"
+      - "torch>=2.1.0"
+    usage:
+      - "SubspaceAD少样本异常检测"
+      - "高精度场景"
+    load_params:
+      model_type: "AutoModel"
+      trust_remote_code: false
+      local_files_only: true
+
+  dinov2-with-registers-small:
+    name: "dinov2-with-registers-small"
+    url: "facebook/dinov2-with-registers-small"
+    local_path: "pre_trained/dinov2-with-registers-small"
+    description: "DINOv2 Small with Registers - 改进版本，带寄存器令牌"
+    size_mb: 88.0
+    source: "huggingface"
+    required: true
+    dependencies:
+      - "transformers>=4.35.0"
+      - "torch>=2.1.0"
+    usage:
+      - "SubspaceAD少样本异常检测"
+      - "改进的图像理解能力"
+    load_params:
+      model_type: "AutoModel"
+      trust_remote_code: false
+      local_files_only: true
+
+  dinov2-with-registers-base:
+    name: "dinov2-with-registers-base"
+    url: "facebook/dinov2-with-registers-base"
+    local_path: "pre_trained/dinov2-with-registers-base"
+    description: "DINOv2 Base with Registers - 改进版本，带寄存器令牌"
+    size_mb: 330.0
+    source: "huggingface"
+    required: true
+    dependencies:
+      - "transformers>=4.35.0"
+      - "torch>=2.1.0"
+    usage:
+      - "SubspaceAD少样本异常检测"
+      - "改进的图像理解能力"
+    load_params:
+      model_type: "AutoModel"
+      trust_remote_code: false
+      local_files_only: true
+
+  dinov2-with-registers-large:
+    name: "dinov2-with-registers-large"
+    url: "facebook/dinov2-with-registers-large"
+    local_path: "pre_trained/dinov2-with-registers-large"
+    description: "DINOv2 Large with Registers - 改进版本，高精度特征提取器"
+    size_mb: 1150.0
+    source: "huggingface"
+    required: true
+    dependencies:
+      - "transformers>=4.35.0"
+      - "torch>=2.1.0"
+    usage:
+      - "SubspaceAD少样本异常检测（推荐）"
+      - "最高精度场景"
+    load_params:
+      model_type: "AutoModel"
+      trust_remote_code: false
+      local_files_only: true
+
+  dinov2-with-registers-giant:
+    name: "dinov2-with-registers-giant"
+    url: "facebook/dinov2-with-registers-giant"
+    local_path: "pre_trained/dinov2-with-registers-giant"
+    description: "DINOv2 Giant with Registers - 最高精度特征提取器 (1.1B参数)"
+    size_mb: 2300.0
+    source: "huggingface"
+    required: false
+    dependencies:
+      - "transformers>=4.35.0"
+      - "torch>=2.1.0"
+    usage:
+      - "SubspaceAD少样本异常检测（最高精度）"
+      - "需要大量显存"
+    load_params:
+      model_type: "AutoModel"
+      trust_remote_code: false
+      local_files_only: true
+
+  # ==================== MuSc / CLIP 模型 ====================
+  # 用于零样本异常检测
+  clip-vit-b-32:
+    name: "clip-vit-b-32"
+    url: "openai/ViT-B-32"
+    local_path: "pre_trained/ViT-B-32.pt"
+    description: "CLIP ViT-B/32 - 用于MuSc零样本检测的基础模型 (149M参数)"
+    size_mb: 340.0
+    source: "open_clip"
+    required: true
+    dependencies:
+      - "open_clip_torch"
+      - "torch>=2.1.0"
+    usage:
+      - "MuSc零样本异常检测"
+      - "快速推理场景"
+    load_params:
+      model_type: "open_clip"
+      pretrained: "openai"
+
+  clip-vit-b-16:
+    name: "clip-vit-b-16"
+    url: "openai/ViT-B-16"
+    local_path: "pre_trained/ViT-B-16.pt"
+    description: "CLIP ViT-B/16 - 用于MuSc零样本检测的高精度基础模型 (149M参数)"
+    size_mb: 340.0
+    source: "open_clip"
+    required: true
+    dependencies:
+      - "open_clip_torch"
+      - "torch>=2.1.0"
+    usage:
+      - "MuSc零样本异常检测"
+      - "平衡精度和速度"
+    load_params:
+      model_type: "open_clip"
+      pretrained: "openai"
+
+  clip-vit-l-14:
+    name: "clip-vit-l-14"
+    url: "openai/ViT-L-14"
+    local_path: "pre_trained/ViT-L-14.pt"
+    description: "CLIP ViT-L/14 - 用于MuSc零样本检测的大模型 (427M参数)"
+    size_mb: 890.0
+    source: "open_clip"
+    required: true
+    dependencies:
+      - "open_clip_torch"
+      - "torch>=2.1.0"
+    usage:
+      - "MuSc零样本异常检测"
+      - "高精度场景"
+    load_params:
+      model_type: "open_clip"
+      pretrained: "openai"
+
+  clip-vit-l-14-336:
+    name: "clip-vit-l-14-336"
+    url: "openai/ViT-L-14-336px"
+    local_path: "pre_trained/ViT-L-14-336px.pt"
+    description: "CLIP ViT-L/14@336px - 用于MuSc零样本检测的高分辨率模型"
+    size_mb: 890.0
+    source: "open_clip"
+    required: true
+    dependencies:
+      - "open_clip_torch"
+      - "torch>=2.1.0"
+    usage:
+      - "MuSc零样本异常检测"
+      - "高分辨率输入"
+    load_params:
+      model_type: "open_clip"
+      pretrained: "openai"
+
+  # ==================== Dinomaly DINOv2 模型 ====================
+  # 用于Dinomaly异常检测
+  dinov2-vits14-pretrain:
+    name: "dinov2-vits14-pretrain"
+    url: "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth"
+    local_path: "pre_trained/dinov2_vits14_pretrain.pth"
+    description: "DINOv2 ViT-S/14 预训练权重 - 用于Dinomaly (22M参数)"
+    size_mb: 88.0
+    source: "direct"
+    required: true
+    dependencies:
+      - "torch>=2.1.0"
+      - "timm==0.9.12"
+    usage:
+      - "Dinomaly异常检测"
+      - "轻量级场景"
+    load_params:
+      model_type: "torch"
+      map_location: "cpu"
+
+  dinov2-vitb14-pretrain:
+    name: "dinov2-vitb14-pretrain"
+    url: "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth"
+    local_path: "pre_trained/dinov2_vitb14_pretrain.pth"
+    description: "DINOv2 ViT-B/14 预训练权重 - 用于Dinomaly (86M参数)"
+    size_mb: 330.0
+    source: "direct"
+    required: true
+    dependencies:
+      - "torch>=2.1.0"
+      - "timm==0.9.12"
+    usage:
+      - "Dinomaly异常检测"
+      - "平衡精度和速度"
+    load_params:
+      model_type: "torch"
+      map_location: "cpu"
+
+  dinov2-vitl14-pretrain:
+    name: "dinov2-vitl14-pretrain"
+    url: "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth"
+    local_path: "pre_trained/dinov2_vitl14_pretrain.pth"
+    description: "DINOv2 ViT-L/14 预训练权重 - 用于Dinomaly (300M参数)"
+    size_mb: 1150.0
+    source: "direct"
+    required: true
+    dependencies:
+      - "torch>=2.1.0"
+      - "timm==0.9.12"
+    usage:
+      - "Dinomaly异常检测"
+      - "高精度场景"
+    load_params:
+      model_type: "torch"
+      map_location: "cpu"
+
+  # ==================== ResNet 骨干网络 ====================
+  # 用于多种算法的骨干网络
+  resnet18:
+    name: "resnet18"
+    url: "https://download.pytorch.org/models/resnet18-f37072fd.pth"
+    local_path: "pre_trained/resnet18-f37072fd.pth"
+    description: "ResNet-18 预训练权重 - 用于轻量级特征提取 (11M参数)"
+    size_mb: 45.0
+    source: "direct"
+    required: true
+    dependencies:
+      - "torch>=2.1.0"
+      - "torchvision>=0.16.0"
+    usage:
+      - "PatchCore骨干网络"
+      - "PaDiM骨干网络"
+      - "轻量级特征提取"
+    load_params:
+      model_type: "torch"
+      map_location: "cpu"
+
+  wide-resnet50-2:
+    name: "wide-resnet50-2"
+    url: "https://download.pytorch.org/models/wide_resnet50_2-95faca4d.pth"
+    local_path: "pre_trained/wide_resnet50_2-95faca4d.pth"
+    description: "Wide ResNet-50-2 预训练权重 - 用于PatchCore等算法 (68.9M参数)"
+    size_mb: 132.0
+    source: "direct"
+    required: true
+    dependencies:
+      - "torch>=2.1.0"
+      - "torchvision>=0.16.0"
+    usage:
+      - "PatchCore骨干网络（推荐）"
+      - "CFA骨干网络"
+      - "高精度特征提取"
+    load_params:
+      model_type: "torch"
+      map_location: "cpu"
+
+  # ==================== timm 模型 (通过timm自动下载) ====================
+  # 这些模型由timm库自动管理，但我们需要记录它们
+  timm-resnet200:
+    name: "timm-resnet200"
+    url: "timm/resnet200"
+    local_path: "pre_trained/timm/resnet200"
+    description: "ResNet-200 - 用于MuSc的深层骨干网络 (64.7M参数)"
+    size_mb: 250.0
+    source: "timm"
+    required: false
+    dependencies:
+      - "timm==0.9.12"
+      - "torch>=2.1.0"
+    usage:
+      - "MuSc零样本检测"
+      - "深层特征提取"
+    load_params:
+      model_type: "timm"
+      pretrained: true
+
+  timm-efficientnet-b5:
+    name: "timm-efficientnet-b5"
+    url: "timm/tf_efficientnet_b5"
+    local_path: "pre_trained/timm/efficientnet_b5"
+    description: "EfficientNet-B5 - 用于MuSc的高效骨干网络 (30M参数)"
+    size_mb: 118.0
+    source: "timm"
+    required: false
+    dependencies:
+      - "timm==0.9.12"
+      - "torch>=2.1.0"
+    usage:
+      - "MuSc零样本检测"
+      - "高效推理"
+    load_params:
+      model_type: "timm"
+      pretrained: true
+
+# 下载脚本配置
+download:
+  # 并发下载数
+  max_workers: 2
+  # 下载超时（秒）
+  timeout: 300
+  # 重试次数
+  max_retries: 3
+  # 断点续传块大小（字节）
+  chunk_size: 8192
+  # 是否验证完整性
+  verify_integrity: true
+  # 允许的大小误差（比例）
+  size_tolerance: 0.1
+
+# 环境变量配置
+environments:
+  # HuggingFace缓存目录
+  HF_HOME: "pre_trained/huggingface"
+  TRANSFORMERS_CACHE: "pre_trained/huggingface"
+  HUGGINGFACE_HUB_CACHE: "pre_trained/huggingface"
+  # PyTorch缓存目录
+  TORCH_HOME: "pre_trained"
+  # timm缓存目录
+  TIMM_CACHE: "pre_trained/timm"
