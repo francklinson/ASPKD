@@ -1,0 +1,341 @@
+# 算法统一配置文件
+# 所有检测算法的配置、模型路径、阈值等在此管理
+
+# 参考文件配置
+ref_file: "ref/渡口片段10s.wav"
+example_audio_file: "ref/asd_src_audio.wav"
+pic_output_dir: "slice"
+
+# 算法通用配置
+algorithms:
+  dinomaly_dinov3_small:
+    name: "Dinomaly DINOv3 Small"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.033
+      
+  dinomaly_dinov3_large:
+    name: "Dinomaly DINOv3 Large"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.033
+      
+  dinomaly_dinov2_small:
+    name: "Dinomaly DINOv2 Small"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.02
+
+  # ADer系列
+  mambaad:
+    name: "MambaAD"
+    type: "state_space_model"
+    thresholds:
+      default: 0.5
+      
+  invad:
+    name: "InVad"
+    type: "generative"
+    thresholds:
+      default: 0.5
+      
+  vitad:
+    name: "ViTAD"
+    type: "transformer"
+    thresholds:
+      default: 0.5
+      
+  unad:
+    name: "UniAD"
+    type: "unified"
+    thresholds:
+      default: 0.5
+      
+  cflow:
+    name: "CFlow"
+    type: "flow_based"
+    thresholds:
+      default: 0.5
+      
+  pyramidflow:
+    name: "PyramidFlow"
+    type: "flow_based"
+    thresholds:
+      default: 0.5
+      
+  simplenet:
+    name: "SimpleNet"
+    type: "feature_learning"
+    thresholds:
+      default: 0.5
+
+  # Anomalib系列
+  patchcore:
+    name: "PatchCore"
+    type: "feature_embedding"
+    thresholds:
+      default: 0.5
+      
+  efficient_ad:
+    name: "EfficientAd"
+    type: "lightweight"
+    thresholds:
+      default: 0.5
+      
+  padim:
+    name: "PaDiM"
+    type: "feature_embedding"
+    thresholds:
+      default: 0.5
+
+  # BaseASD系列
+  denseae:
+    name: "DenseAE"
+    type: "autoencoder"
+    thresholds:
+      default: 0.5
+      
+  cae:
+    name: "CAE"
+    type: "autoencoder"
+    thresholds:
+      default: 0.5
+      
+  vae:
+    name: "VAE"
+    type: "autoencoder"
+    thresholds:
+      default: 0.5
+
+  # MuSc系列 (零样本检测)
+  # CLIP ViT-B系列 (小模型，更快)
+  musc_clip_b32_512:
+    name: "MuSc CLIP ViT-B/32@512px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  musc_clip_b16_512:
+    name: "MuSc CLIP ViT-B/16@512px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  # CLIP ViT-L系列 (大模型，高精度)
+  musc_clip_l14_336:
+    name: "MuSc CLIP ViT-L/14@336px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  musc_clip_l14_518:
+    name: "MuSc CLIP ViT-L/14@518px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  # DINOv2 ViT-B系列 (Base模型)
+  musc_dinov2_b14_336:
+    name: "MuSc DINOv2 ViT-B/14@336px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  musc_dinov2_b14_518:
+    name: "MuSc DINOv2 ViT-B/14@518px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  # DINOv2 ViT-L系列 (Large模型)
+  musc_dinov2_l14_336:
+    name: "MuSc DINOv2 ViT-L/14@336px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  musc_dinov2_l14_518:
+    name: "MuSc DINOv2 ViT-L/14@518px"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+# 模型权重路径配置 - 统一从 pre_trained 目录读取
+models:
+  # 预训练模型根目录
+  pretrained_dir: "pre_trained"
+  
+  # Dinomaly 系列
+  dinomaly:
+    dinov3_small: "pre_trained/dinomaly_dinov3_small.pth"
+    dinov3_large: "pre_trained/dinov2_vitl14_pretrain.pth"
+    dinov2_small: "pre_trained/dinomaly_dinov2_small.pth"
+    dinov2_large: "pre_trained/dinov2_vitl14_pretrain.pth"
+    dinov2_base: "pre_trained/dinov2_vitb14_pretrain.pth"
+    
+  # ADer 系列
+  mambaad:
+    default: "pre_trained/mambaad_best.pth"
+    
+  invad:
+    default: "pre_trained/invad_best.pth"
+    
+  vitad:
+    default: "pre_trained/vitad_best.pth"
+    
+  unad:
+    default: "pre_trained/unad_best.pth"
+    
+  cflow:
+    default: "pre_trained/cflow_best.pth"
+    
+  pyramidflow:
+    default: "pre_trained/pyramidflow_best.pth"
+    
+  simplenet:
+    default: "pre_trained/simplenet_best.pth"
+    
+  # Anomalib 系列
+  patchcore:
+    default: "pre_trained/patchcore_best.pth"
+    
+  efficient_ad:
+    default: "pre_trained/efficientad_best.pth"
+    teacher_small: "pre_trained/efficientad_pretrained_weights/pretrained_teacher_small.pth"
+    teacher_medium: "pre_trained/efficientad_pretrained_weights/pretrained_teacher_medium.pth"
+    
+  padim:
+    default: "pre_trained/padim_best.pth"
+  
+  # MuSc 零样本检测系列
+  musc:
+    pretrained_models_dir: "pre_trained"
+    # CLIP 模型
+    ViT-B-32: "pre_trained/ViT-B-32.pt"
+    ViT-B-16: "pre_trained/ViT-B-16.pt"
+    ViT-L-14: "pre_trained/ViT-L-14.pt"
+    ViT-L-14-336: "pre_trained/ViT-L-14-336px.pt"
+    # DINOv2 模型
+    dinov2_vits14: "pre_trained/dinov2_vits14_pretrain.pth"
+    dinov2_vitb14: "pre_trained/dinov2_vitb14_pretrain.pth"
+    dinov2_vitl14: "pre_trained/dinov2_vitl14_pretrain.pth"
+    # Backbone详细配置
+    backbones:
+      # CLIP ViT-B系列
+      ViT-B-32:
+        img_resize: 512
+        feature_layers: [2, 5, 8, 11]
+        pretrained: openai
+      ViT-B-16:
+        img_resize: 512
+        feature_layers: [2, 5, 8, 11]
+        pretrained: openai
+      # CLIP ViT-L系列
+      ViT-L-14:
+        img_resize: 518
+        feature_layers: [5, 11, 17, 23]
+        pretrained: openai
+      ViT-L-14-336:
+        img_resize: 336
+        feature_layers: [5, 11, 17, 23]
+        pretrained: openai
+      # DINOv2 ViT-B系列
+      dinov2_vitb14:
+        img_resize: 518
+        feature_layers: [2, 5, 8, 11]
+        pretrained: laion400m_e31
+      # DINOv2 ViT-L系列
+      dinov2_vitl14:
+        img_resize: 518
+        feature_layers: [5, 11, 17, 23]
+        pretrained: laion400m_e31
+      # DINOv2 ViT-S系列
+      dinov2_vits14:
+        img_resize: 518
+        feature_layers: [2, 5, 8, 11]
+        pretrained: laion400m_e31
+  
+  # BaseASD 系列
+  denseae:
+    default: "pre_trained/denseae_best.pth"
+    
+  cae:
+    default: "pre_trained/cae_best.pth"
+    
+  vae:
+    default: "pre_trained/vae_best.pth"
+    
+  # ResNet 骨干网络
+  resnet:
+    resnet18: "pre_trained/resnet18-f37072fd.pth"
+    wide_resnet50_2: "pre_trained/wide_resnet50_2-95faca4d.pth"
+
+# 推理配置
+inference:
+  device: "auto"  # auto, cuda, cpu
+  batch_size: 1
+  num_workers: 4
+  
+# 预处理配置
+preprocessing:
+  ref_file: "ref/渡口片段10s.wav"
+  split_method: "shazam"  # shazam, mfcc_dtw, corr
+  shazam:
+    threshold: 10
+    auto_match: false
+    max_workers: 4  # 1为串行，>1启用并行
+  output_size: [600, 600]
+  sample_rate: 22050
+
+# 模型架构详细配置
+model_architectures:
+  dinov2:
+    weights_dir: "algorithms/Dinomaly/weights"
+    small:
+      encoder_name: "dinov2reg_vit_small_14"
+      target_layers: [2, 3, 4, 5, 6, 7, 8, 9]
+      embed_dim: 384
+      num_heads: 6
+    base:
+      encoder_name: "dinov2reg_vit_base_14"
+      target_layers: [2, 3, 4, 5, 6, 7, 8, 9]
+      embed_dim: 768
+      num_heads: 12
+    large:
+      encoder_name: "dinov2reg_vit_large_14"
+      target_layers: [4, 6, 8, 10, 12, 14, 16, 18]
+      embed_dim: 1024
+      num_heads: 16
+  dinov3:
+    weights_dir: "algorithms/Dinomaly/weights"
+    small:
+      encoder_name: "dinov3_vits16"
+      encoder_weight: "dinov3_vits16_pretrain_lvd1689m-08c60483.pth"
+      target_layers: [2, 3, 4, 5, 6, 7, 8, 9]
+      embed_dim: 384
+      num_heads: 6
+    base:
+      encoder_name: "dinov3_vitb16"
+      encoder_weight: "dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth"
+      target_layers: [2, 3, 4, 5, 6, 7, 8, 9]
+      embed_dim: 768
+      num_heads: 12
+    large:
+      encoder_name: "dinov3_vitl16"
+      encoder_weight: "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"
+      target_layers: [4, 6, 8, 10, 12, 14, 16, 18]
+      embed_dim: 1024
+      num_heads: 16
+
+# 环境变量配置
+environments:
+  DINOMALY_ENCODER_DIR: "pre_trained"
+  CUDA_VISIBLE_DEVICES: "0"
+  PRETRAINED_MODELS_DIR: "pre_trained"
+  TORCH_HOME: "pre_trained"
+  HF_HOME: "pre_trained/huggingface"
+  TRANSFORMERS_CACHE: "pre_trained/huggingface"
+  HUGGINGFACE_HUB_CACHE: "pre_trained/huggingface"
