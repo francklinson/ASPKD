@@ -235,6 +235,70 @@ class AudioFingerprinter:
             matched=matched
         )
 
+    def _recognize_specific(self, query_path: str, target_music_id: int, threshold: int = 10) -> Optional[RecognitionResult]:
+        """
+        识别查询音频中特定参考音频的匹配情况
+        
+        Args:
+            query_path: 查询音频路径
+            target_music_id: 目标参考音频的ID
+            threshold: 匹配阈值
+            
+        Returns:
+            RecognitionResult: 如果找到匹配则返回结果，否则返回None
+        """
+        if not os.path.exists(query_path):
+            raise FileNotFoundError(f"查询音频不存在: {query_path}")
+        
+        connector = self._get_connector()
+        predictor = self._get_predictor()
+        
+        # 计算Hash
+        hash_list = list(predictor._calculation_hash(music_path=query_path))
+        
+        # 在数据库中查找匹配的hash
+        match_hash_list = set(connector.find_math_hash(hashes=hash_list))
+        
+        # 分析匹配结果，只关注目标参考音频
+        result = {}
+        max_hash_count = 0
+        best_offset = -1
+        
+        for matches in match_hash_list:
+            music_id_fk, offset_database, offset_query = matches
+            
+            # 只统计目标参考音频的匹配
+            if music_id_fk != target_music_id:
+                continue
+            
+            offset = int(int(offset_database) - int(offset_query))
+            
+            if offset not in result:
+                result[offset] = 0
+            result[offset] += 1
+            
+            if result[offset] > max_hash_count:
+                max_hash_count = result[offset]
+                best_offset = offset
+        
+        # 如果没有找到足够的匹配
+        if max_hash_count < threshold or best_offset == -1:
+            return None
+        
+        # 获取音乐名称
+        name = connector.find_music_name_by_music_id(target_music_id) or ""
+        
+        # 计算时间偏移（秒）
+        offset_seconds = best_offset * self.hop_length / self.sr
+        
+        return RecognitionResult(
+            music_id=target_music_id,
+            name=name,
+            offset=offset_seconds,
+            confidence=max_hash_count,
+            matched=True
+        )
+    
     def locate(self, long_audio_path: str, reference_path: Optional[str] = None,
                reference_name: Optional[str] = None, threshold: int = 10,
                auto_match: bool = False) -> LocationResult:
@@ -261,29 +325,62 @@ class AudioFingerprinter:
         if reference_path is None and reference_name is None and not auto_match:
             raise ValueError("必须指定 reference_path/reference_name 之一，或设置 auto_match=True")
 
-        # 识别（自动从数据库找最匹配的参考音频）
-        result = self.recognize(long_audio_path, threshold=threshold)
-
-        if not result.matched:
-            return LocationResult(found=False, start_time=0, end_time=0, confidence=0)
-
-        # 验证匹配到的参考音频是否是指定的（如果指定了）
-        if reference_name and result.name != reference_name:
+        # auto_match 模式：识别最佳匹配的参考音频
+        if auto_match:
+            result = self.recognize(long_audio_path, threshold=threshold)
+            if not result.matched:
+                return LocationResult(found=False, start_time=0, end_time=0, confidence=0)
+            
+            # 计算参考音频时长
+            ref_duration = 10.0  # 默认使用10秒
+            
+            return LocationResult(
+                found=True,
+                start_time=result.offset,
+                end_time=result.offset + ref_duration,
+                confidence=result.confidence,
+                music_id=result.music_id,
+                music_name=result.name
+            )
+        
+        # 指定了参考音频：查找特定参考音频的匹配
+        # 先获取参考音频的ID
+        connector = self._get_connector()
+        target_music_id = None
+        
+        if reference_name:
+            # 通过名称查找ID
+            target_music_id = connector.find_music_by_music_name(reference_name)
+        elif reference_path:
+            # 通过路径查找ID
+            target_music_id = connector.find_music_by_music_path(reference_path)
+        
+        if target_music_id is None:
             return LocationResult(found=False, start_time=0, end_time=0, confidence=0,
-                                  music_name=f"匹配到 {result.name}，但指定的是 {reference_name}")
-
+                                  music_name=f"未找到参考音频: {reference_name or reference_path}")
+        
+        # 查找特定参考音频的匹配
+        result = self._recognize_specific(long_audio_path, target_music_id, threshold=threshold)
+        
+        if result is None:
+            # 尝试识别最佳匹配，用于提示用户
+            best_match = self.recognize(long_audio_path, threshold=threshold)
+            if best_match.matched and best_match.name != reference_name:
+                return LocationResult(found=False, start_time=0, end_time=0, confidence=0,
+                                      music_name=f"未找到 '{reference_name}'，但找到 '{best_match.name}'（{best_match.confidence}个匹配点）")
+            return LocationResult(found=False, start_time=0, end_time=0, confidence=0,
+                                  music_name=f"未找到 '{reference_name}'")
+        
         # 计算参考音频时长
         if reference_path and os.path.exists(reference_path):
             try:
                 import librosa
                 ref_duration = librosa.get_duration(path=reference_path, sr=self.sr)
             except Exception:
-                # 如果读取失败，使用默认时长
                 ref_duration = 10.0
         else:
-            # 默认使用10秒
             ref_duration = 10.0
-
+        
         return LocationResult(
             found=True,
             start_time=result.offset,

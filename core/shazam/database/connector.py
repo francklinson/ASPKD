@@ -155,6 +155,31 @@ class MySQLConnector(IConnector):
         else:
             return result[0]
 
+    def find_music_by_music_name(self, music_name):
+        """
+        根据歌曲名称查询歌曲id
+        :param music_name: 歌曲名称
+        :return: 歌曲id，如果未找到则返回None
+        """
+        sql = "select %s from %s where %s = '%s'" % (
+            # 列名
+            hp.fingerprint.database.tables.music.column.music_id,
+            # 表名
+            hp.fingerprint.database.tables.music.name,
+            # 列名
+            hp.fingerprint.database.tables.music.column.music_name,
+            # 传入的参数
+            music_name
+        )
+        # 执行SQL
+        self.cursor.execute(sql)
+        # 拿到返回值
+        result = self.cursor.fetchone()
+        if result is None:
+            return None
+        else:
+            return result[0]
+
     # 根据音乐id查找这首歌曲有多少Hash个数
     def calculation_hash_num_by_music_id(self, music_id):
         # SQL
