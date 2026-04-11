@@ -91,11 +91,12 @@ load_environment() {
     if [ -f "$CONFIG_PATH" ]; then
         echo -e "${BLUE}加载配置文件: $CONFIG_PATH${NC}"
         # 使用 Python 解析 YAML 并设置环境变量
-        "$VENV_PYTHON" - << 'EOF'
+        "$VENV_PYTHON" - "$CONFIG_PATH" << 'EOF'
 import yaml
 import os
+import sys
 
-config_path = "$CONFIG_PATH"
+config_path = sys.argv[1]
 try:
     with open(config_path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f) or {}

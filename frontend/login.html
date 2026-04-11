@@ -786,48 +786,78 @@
         const ring1 = document.querySelector('.ring-1');
         const ring2 = document.querySelector('.ring-2');
         const ring3 = document.querySelector('.ring-3');
-        const rightPanel = document.querySelector('.right-panel');
+        const leftPanel = document.querySelector('.left-panel');
         
-        let mouseX = window.innerWidth / 2;
+        let mouseX = window.innerWidth / 4;
         let mouseY = window.innerHeight / 2;
         let ring1X = mouseX, ring1Y = mouseY;
         let ring2X = mouseX, ring2Y = mouseY;
         let ring3X = mouseX, ring3Y = mouseY;
-        let isOverRightPanel = false;
+        let isOverLeftPanel = false;
         
-        // 监听右侧登录面板鼠标进入/离开
-        rightPanel.addEventListener('mouseenter', function() {
-            isOverRightPanel = true;
+        // 获取左侧面板的边界
+        function getLeftPanelBounds() {
+            const rect = leftPanel.getBoundingClientRect();
+            return {
+                left: rect.left,
+                right: rect.right,
+                top: rect.top,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height
+            };
+        }
+        
+        // 监听左侧面板鼠标进入/离开
+        leftPanel.addEventListener('mouseenter', function() {
+            isOverLeftPanel = true;
         });
         
-        rightPanel.addEventListener('mouseleave', function() {
-            isOverRightPanel = false;
+        leftPanel.addEventListener('mouseleave', function() {
+            isOverLeftPanel = false;
         });
         
         document.addEventListener('mousemove', function(e) {
-            // 只有在非右侧登录面板区域才更新鼠标位置
-            if (!isOverRightPanel) {
-                mouseX = e.clientX;
-                mouseY = e.clientY;
+            const bounds = getLeftPanelBounds();
+            
+            // 只有在左侧面板区域内才更新鼠标位置
+            if (isOverLeftPanel) {
+                // 将鼠标位置限制在左侧面板内
+                mouseX = Math.max(bounds.left, Math.min(e.clientX, bounds.right));
+                mouseY = Math.max(bounds.top, Math.min(e.clientY, bounds.bottom));
             }
         });
         
         function animateRings() {
+            const bounds = getLeftPanelBounds();
+            
+            // 圆环半径（宽度的一半）
+            const ring1Radius = 100; // 200px / 2
+            const ring2Radius = 175; // 350px / 2
+            const ring3Radius = 250; // 500px / 2
+            
             // 第一个圆环 - 快速跟随
             ring1X += (mouseX - ring1X) * 0.15;
             ring1Y += (mouseY - ring1Y) * 0.15;
+            // 限制圆环中心，使圆环边缘不超出左侧面板
+            ring1X = Math.max(bounds.left + ring1Radius, Math.min(ring1X, bounds.right - ring1Radius));
+            ring1Y = Math.max(bounds.top + ring1Radius, Math.min(ring1Y, bounds.bottom - ring1Radius));
             ring1.style.left = ring1X + 'px';
             ring1.style.top = ring1Y + 'px';
             
             // 第二个圆环 - 中等延迟
             ring2X += (mouseX - ring2X) * 0.08;
             ring2Y += (mouseY - ring2Y) * 0.08;
+            ring2X = Math.max(bounds.left + ring2Radius, Math.min(ring2X, bounds.right - ring2Radius));
+            ring2Y = Math.max(bounds.top + ring2Radius, Math.min(ring2Y, bounds.bottom - ring2Radius));
             ring2.style.left = ring2X + 'px';
             ring2.style.top = ring2Y + 'px';
             
             // 第三个圆环 - 慢速跟随
             ring3X += (mouseX - ring3X) * 0.04;
             ring3Y += (mouseY - ring3Y) * 0.04;
+            ring3X = Math.max(bounds.left + ring3Radius, Math.min(ring3X, bounds.right - ring3Radius));
+            ring3Y = Math.max(bounds.top + ring3Radius, Math.min(ring3Y, bounds.bottom - ring3Radius));
             ring3.style.left = ring3X + 'px';
             ring3.style.top = ring3Y + 'px';
             
