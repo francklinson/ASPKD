@@ -301,6 +301,7 @@ class ShazamLocate:
 
         Args:
             ref_file: 参考音频文件路径（可选，若不提供则需设置 auto_match=True）
+                   注意: 使用 Shazam 时，ref_file 只需要在数据库中存在指纹即可，不需要实际文件存在
             threshold: Shazam匹配阈值，低于此值认为定位失败
             auto_add_ref: 是否自动将参考音频添加到指纹库
             auto_match: 是否自动从数据库匹配参考音频（无需提供 ref_file）
@@ -316,10 +317,6 @@ class ShazamLocate:
         # 初始化指纹识别器
         self._fingerprinter = None
         self._ref_added = False
-
-        # 验证参考音频（如果提供了）
-        if ref_file and not os.path.exists(ref_file):
-            raise FileNotFoundError(f"参考音频不存在: {ref_file}")
 
         # 检查模式
         if not ref_file and not auto_match:
@@ -450,9 +447,19 @@ class Preprocessor:
         self.max_workers = max_workers
 
         # 获取目标音频时长
-        if ref_file:
+        if ref_file and os.path.exists(ref_file):
+            # 参考音频文件存在，直接加载
             self.target_segment_duration = librosa.get_duration(path=self.ref_file)
             self.y_target, self.sr_target = librosa.load(self.ref_file)
+        elif ref_file and split_method == 'shazam':
+            # Shazam 模式：参考音频文件不存在但数据库中有指纹，使用默认时长
+            # 实际时长会在定位时从数据库获取
+            self.target_segment_duration = 10.0  # 默认10秒
+            self.y_target, self.sr_target = None, 22050
+            print(f"[Preprocessor] 参考音频文件不存在，使用 Shazam 数据库模式: {ref_file}")
+        elif ref_file:
+            # 非 Shazam 模式：参考音频文件必须存在
+            raise FileNotFoundError(f"参考音频文件不存在: {ref_file}")
         else:
             # 无参考音频模式：使用默认时长
             self.target_segment_duration = 10.0  # 默认10秒
@@ -551,7 +558,9 @@ class Preprocessor:
         if not isinstance(file_list, list) or len(file_list) == 0:
             raise ValueError("输入的音频列表不存在")
 
-        if not self.shazam_auto_match and not os.path.isfile(self.ref_file):
+        # 检查参考音频：非 Shazam 模式或 Shazam 模式但非 auto_match 时，需要检查文件是否存在
+        # Shazam 模式只需要数据库中有指纹，不需要实际文件存在
+        if not self.shazam_auto_match and self.split_method != 'shazam' and not os.path.isfile(self.ref_file):
             raise ValueError("目标片段音频文件不存在")
 
         # 创建picture和audio子目录
@@ -870,7 +879,9 @@ class Preprocessor:
         if not isinstance(file_list, list) or len(file_list) == 0:
             raise ValueError("输入的音频列表不存在")
 
-        if not self.shazam_auto_match and not os.path.isfile(self.ref_file):
+        # 检查参考音频：非 Shazam 模式或 Shazam 模式但非 auto_match 时，需要检查文件是否存在
+        # Shazam 模式只需要数据库中有指纹，不需要实际文件存在
+        if not self.shazam_auto_match and self.split_method != 'shazam' and not os.path.isfile(self.ref_file):
             raise ValueError("目标片段音频文件不存在")
 
         # 创建picture和audio子目录

@@ -48,7 +48,8 @@ async def upload_and_detect(
     files: List[UploadFile] = File(...),
     algorithm: str = Form("dinomaly_dinov3_small"),
     device: str = Form("auto"),
-    save_results: bool = Form(True)
+    save_results: bool = Form(True),
+    reference_audio: Optional[str] = Form(None)
 ):
     """
     上传音频文件并创建检测任务
@@ -57,6 +58,7 @@ async def upload_and_detect(
     - **algorithm**: 检测算法名称
     - **device**: 运行设备 (auto, cpu, cuda:0 等)
     - **save_results**: 是否保存结果文件
+    - **reference_audio**: 参考音频文件路径（可选，从参考音频库中选择）
     """
     # 验证文件
     if not files:
@@ -71,12 +73,17 @@ async def upload_and_detect(
                 detail=f"不支持的文件格式: {file.filename}, 仅支持 {allowed_extensions}"
             )
     
+    # 注意：参考音频验证已在 preprocessing.py 中处理
+    # Shazam 模式只需要数据库中有指纹，不需要实际文件存在
+    # 非 Shazam 模式会在创建预处理器时检查文件是否存在
+    
     # 创建任务
     task_id = await task_manager.create_task(
         files=files,
         algorithm=algorithm,
         device=device,
-        save_results=save_results
+        save_results=save_results,
+        reference_audio=reference_audio
     )
     
     # 获取队列位置
@@ -170,8 +177,57 @@ async def get_available_algorithms():
             "type": "feature_based"
         },
     ]
-    
+
     return {"algorithms": algorithms}
+
+
+@router.get("/reference-audios")
+async def get_available_reference_audios():
+    """
+    获取可用的参考音频列表
+
+    返回参考音频库中所有可用的参考音频，供离线检测时选择使用
+    """
+    # 从配置文件读取默认参考音频
+    import yaml
+    try:
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "config.yaml")
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f) or {}
+        default_ref = config.get('preprocessing', {}).get('ref_file', 'ref/渡口片段10s.wav')
+    except Exception:
+        default_ref = 'ref/渡口片段10s.wav'
+    
+    try:
+        from core.shazam import AudioFingerprinter
+
+        with AudioFingerprinter() as fp:
+            references = fp.get_all_references()
+
+        # 转换为前端友好的格式
+        ref_list = []
+        for ref in references:
+            ref_list.append({
+                "id": ref.get("music_id"),
+                "name": ref.get("name"),
+                "path": ref.get("path"),
+                "hash_count": ref.get("hash_count", 0)
+            })
+
+        return {
+            "references": ref_list,
+            "total": len(ref_list),
+            "default": default_ref  # 从配置文件读取的默认参考音频路径
+        }
+    except Exception as e:
+        print(f"[Detection API] 获取参考音频列表失败: {e}")
+        # 如果无法连接数据库，返回默认配置中的参考音频
+        return {
+            "references": [],
+            "total": 0,
+            "default": default_ref,
+            "error": f"无法获取参考音频库: {str(e)}"
+        }
 
 
 @router.get("/devices")

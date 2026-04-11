@@ -32,6 +32,7 @@ class Task:
     results: List[dict] = field(default_factory=list)
     error: Optional[str] = None
     save_results: bool = True
+    reference_audio: Optional[str] = None  # 指定的参考音频路径
 
 
 class TaskManager:
@@ -126,7 +127,8 @@ class TaskManager:
         files: List,
         algorithm: str,
         device: str,
-        save_results: bool = True
+        save_results: bool = True,
+        reference_audio: Optional[str] = None
     ) -> str:
         """创建新任务"""
         task_id = str(uuid.uuid4())
@@ -151,7 +153,8 @@ class TaskManager:
             device=device,
             files=file_paths,
             created_at=datetime.now(),
-            save_results=save_results
+            save_results=save_results,
+            reference_audio=reference_audio
         )
         
         self.tasks[task_id] = task
@@ -303,9 +306,50 @@ class TaskManager:
         for file_path in task.files:
             original_names[file_path] = os.path.basename(file_path)
         
+        # 根据任务指定的参考音频创建预处理器
+        ref_file = task.reference_audio
+        if ref_file:
+            print(f"[TaskManager] 使用指定的参考音频: {ref_file}")
+            await websocket_manager.send_progress(task.id, {
+                "progress": 5,
+                "status": "preprocessing",
+                "message": f"使用参考音频: {os.path.basename(ref_file)}"
+            })
+        else:
+            # 使用默认参考音频
+            ref_file = self.config.config.get('preprocessing', {}).get('ref_file', 'ref/渡口片段10s.wav')
+            if not os.path.isabs(ref_file):
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                ref_file = os.path.join(project_root, ref_file)
+            print(f"[TaskManager] 使用默认参考音频: {ref_file}")
+        
+        # 创建任务特定的预处理器
+        split_method = self.config.config.get('preprocessing', {}).get('split_method', 'mfcc_dtw')
+        shazam_config = self.config.config.get('preprocessing', {}).get('shazam', {})
+        shazam_threshold = shazam_config.get('threshold', 10)
+        shazam_auto_match = shazam_config.get('auto_match', False)
+        max_workers = shazam_config.get('max_workers', 1)
+        
+        try:
+            task_preprocessor = self.Preprocessor(
+                ref_file=ref_file,
+                split_method=split_method,
+                shazam_threshold=shazam_threshold,
+                shazam_auto_match=shazam_auto_match,
+                max_workers=max_workers
+            )
+        except Exception as e:
+            print(f"[TaskManager] 创建预处理器失败: {e}")
+            await websocket_manager.send_progress(task.id, {
+                "progress": 0,
+                "status": "failed",
+                "message": f"❌ 创建预处理器失败: {str(e)}"
+            })
+            raise
+        
         try:
             # 批量预处理（自动使用多线程），传入 original_names 避免 task_id 作为前缀
-            result = self.preprocessor.process_audio(task.files, save_dir="slice", original_names=original_names)
+            result = task_preprocessor.process_audio(task.files, save_dir="slice", original_names=original_names)
             
             # 处理结果
             processed_count = 0
@@ -341,7 +385,18 @@ class TaskManager:
                 "status": "failed",
                 "message": f"❌ 预处理失败: {str(e)}"
             })
+            # 清理任务预处理器资源
+            if 'task_preprocessor' in locals():
+                task_preprocessor.__exit__(None, None, None)
             raise
+        finally:
+            # 清理任务预处理器资源
+            if 'task_preprocessor' in locals():
+                try:
+                    task_preprocessor.__exit__(None, None, None)
+                    print(f"[TaskManager] 任务预处理器资源已释放")
+                except Exception as e:
+                    print(f"[TaskManager] 释放预处理器资源时出错: {e}")
 
         print(f"[TaskManager] 预处理完成，共生成 {len(all_images)} 张图片")
 

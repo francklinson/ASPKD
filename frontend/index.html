@@ -721,7 +721,15 @@
                             <option value="dinomaly_dinov2_small">Dinomaly DINOv2 Small</option>
                         </select>
                     </div>
-                    
+
+                    <div class="form-group">
+                        <label>参考音频 <span style="font-weight: normal; color: #999;">(用于音频片段定位)</span></label>
+                        <select class="form-control" id="referenceAudio">
+                            <option value="">正在加载参考音频列表...</option>
+                        </select>
+                        <div id="referenceAudioInfo" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
+                    </div>
+
                     <div class="form-group">
                         <label>运行设备</label>
                         <select class="form-control" id="device">
@@ -1665,6 +1673,13 @@
             formData.append('algorithm', document.getElementById('algorithm').value);
             formData.append('device', document.getElementById('device').value);
 
+            // 添加参考音频参数
+            const referenceAudio = document.getElementById('referenceAudio').value;
+            if (referenceAudio) {
+                formData.append('reference_audio', referenceAudio);
+                log(`🎵 使用参考音频: ${referenceAudio.split('/').pop()}`);
+            }
+
             log('⬆️ 正在上传文件...');
 
             try {
@@ -2564,9 +2579,77 @@
             }
         }
         
-        // 页面加载时获取设备列表
+        // 动态加载参考音频列表
+        async function loadReferenceAudios() {
+            try {
+                const response = await fetch(`${API_BASE}/api/detection/reference-audios`);
+                const data = await response.json();
+
+                const refSelect = document.getElementById('referenceAudio');
+                const refInfo = document.getElementById('referenceAudioInfo');
+                refSelect.innerHTML = '';
+
+                if (data.references && data.references.length > 0) {
+                    // 添加参考音频选项
+                    data.references.forEach(ref => {
+                        const option = document.createElement('option');
+                        option.value = ref.path;
+                        option.textContent = `${ref.name} (${ref.hash_count} 个指纹点)`;
+                        option.title = `路径: ${ref.path}`;
+                        refSelect.appendChild(option);
+                    });
+
+                    // 检查默认参考音频是否在列表中
+                    const defaultInList = data.default && data.references.some(ref => ref.path === data.default);
+                    
+                    // 添加默认选项（仅当默认参考音频在数据库列表中时才显示）
+                    if (data.default && defaultInList) {
+                        const defaultOption = document.createElement('option');
+                        defaultOption.value = data.default;
+                        defaultOption.textContent = `默认 (${data.default.split('/').pop()})`;
+                        defaultOption.selected = true;
+                        refSelect.insertBefore(defaultOption, refSelect.firstChild);
+                    } else if (data.default) {
+                        console.log(`[参考音频] 默认参考音频 ${data.default} 不在数据库中，不显示默认选项`);
+                        // 默认选中第一个参考音频
+                        refSelect.firstChild.selected = true;
+                    }
+
+                    refInfo.textContent = `共 ${data.total} 个参考音频可用`;
+                    console.log(`[参考音频] 已加载 ${data.total} 个参考音频`);
+                } else {
+                    // 没有参考音频时使用默认
+                    const defaultOption = document.createElement('option');
+                    defaultOption.value = data.default || '';
+                    defaultOption.textContent = '使用默认参考音频';
+                    refSelect.appendChild(defaultOption);
+
+                    if (data.error) {
+                        refInfo.textContent = `提示: ${data.error}`;
+                        refInfo.style.color = '#ff9800';
+                    } else {
+                        refInfo.textContent = '参考音频库为空，将使用默认配置';
+                    }
+                }
+
+                // 绑定选择事件
+                refSelect.addEventListener('change', function() {
+                    const selectedText = this.options[this.selectedIndex].text;
+                    console.log(`[参考音频] 已选择: ${selectedText}`);
+                });
+
+            } catch (error) {
+                console.error('加载参考音频列表失败:', error);
+                const refSelect = document.getElementById('referenceAudio');
+                refSelect.innerHTML = '<option value="">使用默认参考音频</option>';
+                document.getElementById('referenceAudioInfo').textContent = '加载失败，将使用默认配置';
+            }
+        }
+
+        // 页面加载时获取设备列表和参考音频列表
         loadAvailableDevices();
-        
+        loadReferenceAudios();
+
         // 定期刷新设备列表（每30秒）
         setInterval(loadAvailableDevices, 30000);
         
@@ -2766,6 +2849,10 @@
                     // 强制刷新列表
                     loadReferenceList(true);
                     loadReferenceStats(true);
+                    
+                    // 刷新离线检测页面的参考音频列表
+                    loadReferenceAudios();
+                    console.log('[参考音频] 已刷新离线检测页面的参考音频列表');
                 } else {
                     throw new Error(result.detail || '添加失败');
                 }

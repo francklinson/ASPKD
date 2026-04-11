@@ -132,11 +132,14 @@ async def upload_reference_audio(
 ):
     """
     上传并添加参考音频到指纹库
+    
+    注意：文件不会保存到 ref/ 文件夹，只生成指纹并存储到数据库
 
     - **file**: 音频文件 (支持 wav, mp3, flac 等格式)，时长不得超过30秒
     - **name**: 音频名称（可选，默认使用文件名）
     """
     import librosa
+    import tempfile
 
     start_time = time.time()
     log_operation(
@@ -158,103 +161,122 @@ async def upload_reference_audio(
             detail=f"不支持的文件格式，仅支持 {allowed_extensions}"
         )
 
-    file_size = 0
-    file_path = None
-    temp_saved = False
+    # 确定显示名称和文件名
+    if name:
+        safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).strip()
+        if not safe_name:
+            safe_name = "reference"
+        filename = f"{safe_name}{ext}"
+        display_name = name
+    else:
+        filename = file.filename
+        display_name = os.path.splitext(filename)[0]
 
-    # 保存文件到参考音频目录
+    # 构建目标路径（用于数据库记录，不实际保存文件）
+    file_path = os.path.join(REF_AUDIO_DIR, filename)
+    
+    temp_file_path = None
+    
     try:
-        # 使用原始文件名或自定义名称
-        if name:
-            safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).strip()
-            if not safe_name:
-                safe_name = "reference"
-            filename = f"{safe_name}{ext}"
-        else:
-            filename = file.filename
-
-        # 检查文件是否已存在
-        file_path = os.path.join(REF_AUDIO_DIR, filename)
-        if os.path.exists(file_path):
-            log_operation(
-                "UPLOAD_DUPLICATE",
-                f"文件已存在: {filename}",
-                "WARNING"
-            )
-            raise HTTPException(
-                status_code=409,
-                detail=f"文件名 '{filename}' 已存在，请修改音频名称后重新上传"
-            )
-        
-        log_operation(
-            "UPLOAD_SAVE",
-            f"保存文件到: {file_path}"
-        )
-
-        # 保存上传的文件
-        with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-
-        temp_saved = True
-        file_size = os.path.getsize(file_path)
-        log_operation(
-            "UPLOAD_SAVED",
-            f"文件保存成功，大小: {file_size / 1024 / 1024:.2f} MB"
-        )
-
-        # 检查音频时长
-        try:
-            duration = librosa.get_duration(path=file_path)
-            log_operation(
-                "UPLOAD_DURATION_CHECK",
-                f"音频时长: {duration:.2f}秒"
-            )
-
-            if duration > 30:
+        with get_fingerprinter() as fp:
+            connector = fp._get_connector()
+            hp = fp.hp
+            
+            # 检查数据库中是否已存在同名参考音频
+            existing_id = connector.find_music_by_music_path(file_path)
+            if existing_id is not None:
                 log_operation(
-                    "UPLOAD_REJECTED",
-                    f"音频时长超过30秒限制: {duration:.2f}秒",
+                    "UPLOAD_DUPLICATE",
+                    f"数据库中已存在同名参考音频: {filename}, ID={existing_id}",
                     "WARNING"
                 )
-                # 删除临时文件
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    log_operation(
-                        "UPLOAD_CLEANUP",
-                        f"删除超长音频文件: {file_path}"
-                    )
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"音频时长为 {duration:.1f} 秒，超过30秒限制，请裁剪后重新上传"
+                    status_code=409,
+                    detail=f"参考音频 '{display_name}' 已存在于数据库中，请勿重复添加"
                 )
-        except HTTPException:
-            raise
-        except Exception as e:
+            
+            # 保存到临时文件
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
+                shutil.copyfileobj(file.file, temp_file)
+                temp_file_path = temp_file.name
+            
             log_operation(
-                "UPLOAD_DURATION_ERROR",
-                f"时长检测失败: {str(e)}",
-                "ERROR"
+                "UPLOAD_TEMP_SAVED",
+                f"文件已保存到临时位置: {temp_file_path}"
             )
-            # 时长检测失败，继续处理或根据需求拒绝
-            pass
 
-        # 添加到指纹库
-        with get_fingerprinter() as fp:
-            # 如果提供了名称，使用提供的名称
-            display_name = name if name else os.path.splitext(filename)[0]
+            # 检查音频时长
+            try:
+                duration = librosa.get_duration(path=temp_file_path)
+                log_operation(
+                    "UPLOAD_DURATION_CHECK",
+                    f"音频时长: {duration:.2f}秒"
+                )
 
+                if duration > 30:
+                    log_operation(
+                        "UPLOAD_REJECTED",
+                        f"音频时长超过30秒限制: {duration:.2f}秒",
+                        "WARNING"
+                    )
+                    # 删除临时文件
+                    if os.path.exists(temp_file_path):
+                        os.remove(temp_file_path)
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"音频时长为 {duration:.1f} 秒，超过30秒限制，请裁剪后重新上传"
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                log_operation(
+                    "UPLOAD_DURATION_ERROR",
+                    f"时长检测失败: {str(e)}",
+                    "ERROR"
+                )
+                # 时长检测失败，继续处理
+                pass
+
+            # 生成指纹并添加到数据库
             log_operation(
                 "UPLOAD_FINGERPRINT",
                 f"开始生成指纹: {display_name}"
             )
 
-            music_id = fp.add_reference(file_path, name=display_name)
+            # 使用临时文件路径生成指纹
+            creator = fp._get_creator()
+            creator.create_finger_prints_and_save_database(
+                music_path=temp_file_path,
+                connector=connector
+            )
+            
+            # 获取音乐ID
+            music_id = connector.find_music_by_music_path(temp_file_path)
+            
+            # 更新音乐名称为用户指定的名称，并更新路径为虚拟路径（不实际保存）
+            if music_id:
+                sql_update = f"""
+                    UPDATE {hp.fingerprint.database.tables.music.name}
+                    SET {hp.fingerprint.database.tables.music.column.music_name} = %s,
+                        {hp.fingerprint.database.tables.music.column.music_path} = %s
+                    WHERE {hp.fingerprint.database.tables.music.column.music_id} = %s
+                """
+                connector.cursor.execute(sql_update, (display_name, file_path, music_id))
+                connector.conn.commit()
+
+            # 删除临时文件
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+                log_operation(
+                    "UPLOAD_TEMP_CLEANUP",
+                    f"临时文件已删除: {temp_file_path}"
+                )
 
             elapsed_time = (time.time() - start_time) * 1000
             log_operation(
                 "UPLOAD_SUCCESS",
                 f"参考音频添加成功: ID={music_id}, 名称='{display_name}', "
-                f"文件大小={file_size / 1024 / 1024:.2f}MB, 耗时={elapsed_time:.2f}ms"
+                f"耗时={elapsed_time:.2f}ms"
             )
 
             return AddReferenceResponse(
@@ -264,6 +286,9 @@ async def upload_reference_audio(
             )
 
     except HTTPException:
+        # 删除临时文件
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
         raise
     except Exception as e:
         elapsed_time = (time.time() - start_time) * 1000
@@ -272,12 +297,12 @@ async def upload_reference_audio(
             f"添加失败: {str(e)}, 耗时={elapsed_time:.2f}ms",
             "ERROR"
         )
-        # 如果添加失败，删除已保存的文件
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+        # 删除临时文件
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
             log_operation(
-                "UPLOAD_CLEANUP",
-                f"清理临时文件: {file_path}"
+                "UPLOAD_TEMP_CLEANUP",
+                f"清理临时文件: {temp_file_path}"
             )
         raise HTTPException(status_code=500, detail=f"添加参考音频失败: {str(e)}")
 
@@ -288,17 +313,31 @@ async def add_existing_reference(
     name: Optional[str] = Form(None)
 ):
     """
-    将服务器上已存在的音频文件添加到指纹库
+    将已存在的音频文件路径添加到指纹库（仅添加记录，不处理文件）
     
-    - **file_path**: 音频文件的绝对路径
-    - **name**: 音频名称（可选）
+    - **file_path**: 音频文件的路径（只需要路径信息用于数据库记录，不需要实际文件存在）
+    - **name**: 音频名称（可选，默认从文件名提取）
+    
+    注意：此接口仅添加数据库记录，不会读取或验证文件内容。
+    适用于指纹已经通过其他方式添加到数据库的场景。
     """
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
+    import time
+    start_time = time.time()
     
+    log_operation(
+        "ADD_EXISTING_START",
+        f"开始添加已有参考音频记录: path={file_path}, name={name or '默认'}"
+    )
+    
+    # 验证文件格式
     allowed_extensions = {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a'}
     ext = os.path.splitext(file_path)[1].lower()
     if ext not in allowed_extensions:
+        log_operation(
+            "ADD_EXISTING_ERROR",
+            f"不支持的文件格式: {ext}",
+            "ERROR"
+        )
         raise HTTPException(
             status_code=400,
             detail=f"不支持的文件格式，仅支持 {allowed_extensions}"
@@ -306,15 +345,61 @@ async def add_existing_reference(
     
     try:
         with get_fingerprinter() as fp:
+            connector = fp._get_connector()
+            hp = fp.hp
+            
+            # 确定显示名称
             display_name = name if name else os.path.splitext(os.path.basename(file_path))[0]
-            music_id = fp.add_reference(file_path, name=display_name)
+            
+            # 检查是否已存在
+            existing_id = connector.find_music_by_music_path(file_path)
+            if existing_id is not None:
+                elapsed_time = (time.time() - start_time) * 1000
+                log_operation(
+                    "ADD_EXISTING_DUPLICATE",
+                    f"参考音频已存在: ID={existing_id}, path={file_path}, 耗时={elapsed_time:.2f}ms",
+                    "WARNING"
+                )
+                return AddReferenceResponse(
+                    success=True,
+                    music_id=existing_id,
+                    message=f"参考音频 '{display_name}' 已存在 (ID={existing_id})"
+                )
+            
+            # 直接添加音乐记录到数据库（不验证文件是否存在）
+            sql = f"""
+                INSERT INTO {hp.fingerprint.database.tables.music.name}
+                ({hp.fingerprint.database.tables.music.column.music_name}, 
+                 {hp.fingerprint.database.tables.music.column.music_path})
+                VALUES (%s, %s)
+            """
+            connector.cursor.execute(sql, (display_name, file_path))
+            connector.conn.commit()
+            
+            # 获取新添加的音乐ID
+            music_id = connector.find_music_by_music_path(file_path)
+            
+            elapsed_time = (time.time() - start_time) * 1000
+            log_operation(
+                "ADD_EXISTING_SUCCESS",
+                f"参考音频记录添加成功: ID={music_id}, name='{display_name}', path={file_path}, 耗时={elapsed_time:.2f}ms"
+            )
             
             return AddReferenceResponse(
                 success=True,
                 music_id=music_id,
-                message=f"参考音频 '{display_name}' 添加成功"
+                message=f"参考音频 '{display_name}' 添加成功 (ID={music_id})"
             )
+            
+    except HTTPException:
+        raise
     except Exception as e:
+        elapsed_time = (time.time() - start_time) * 1000
+        log_operation(
+            "ADD_EXISTING_ERROR",
+            f"添加失败: {str(e)}, 耗时={elapsed_time:.2f}ms",
+            "ERROR"
+        )
         raise HTTPException(status_code=500, detail=f"添加参考音频失败: {str(e)}")
 
 
