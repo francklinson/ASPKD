@@ -84,7 +84,10 @@ class WebSocketManager:
     async def send_progress(self, task_id: str, progress: dict):
         """发送进度更新"""
         if task_id not in self.connections:
+            print(f"[WebSocket] 发送进度失败: task_id={task_id} 没有活跃连接")
             return
+        
+        print(f"[WebSocket] 发送进度: task_id={task_id}, connections={len(self.connections[task_id])}, progress={progress}")
         
         disconnected = set()
         
@@ -94,7 +97,9 @@ class WebSocketManager:
                     "type": "progress",
                     "data": progress
                 })
-            except:
+                print(f"[WebSocket] 消息发送成功: task_id={task_id}")
+            except Exception as e:
+                print(f"[WebSocket] 消息发送失败: {e}")
                 disconnected.add(websocket)
         
         # 清理断开的连接

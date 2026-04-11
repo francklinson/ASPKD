@@ -273,9 +273,13 @@ class AudioFingerprinter:
                                   music_name=f"匹配到 {result.name}，但指定的是 {reference_name}")
 
         # 计算参考音频时长
-        if reference_path:
-            import librosa
-            ref_duration = librosa.get_duration(path=reference_path, sr=self.sr)
+        if reference_path and os.path.exists(reference_path):
+            try:
+                import librosa
+                ref_duration = librosa.get_duration(path=reference_path, sr=self.sr)
+            except Exception:
+                # 如果读取失败，使用默认时长
+                ref_duration = 10.0
         else:
             # 默认使用10秒
             ref_duration = 10.0

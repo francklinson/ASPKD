@@ -683,7 +683,9 @@ class Preprocessor:
                     except Exception as e:
                         print(f"Audio save failed! Error: {e} \nPlease check file:{_file}")
                 else:
+                    # 未找到片段，记录到结果字典中（标记为失败）
                     print("未找到指定片段")
+                    result_dict[_file] = {"dk": None, "qzgy": None, "failed": True}
             else:
                 print("---跳过非音频文件: {}".format(_file))
 
@@ -763,9 +765,20 @@ class Preprocessor:
         print("[阶段2/2] 生成时频图和音频切片...")
         result_dict = {}
 
+        # 获取用户选择的参考音频名称（用于验证）
+        selected_ref_name = None
+        print(f"[验证 Debug] ref_file: {self.ref_file}, shazam_auto_match: {self.shazam_auto_match}")
+        if self.ref_file and not self.shazam_auto_match:
+            selected_ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
+            print(f"[验证] 用户选择的参考音频: {selected_ref_name}")
+        else:
+            print(f"[验证 Debug] 跳过验证: ref_file={self.ref_file}, auto_match={self.shazam_auto_match}")
+        
         for i, result in enumerate(locate_results):
             if not result.success or not result.result or not result.result.matched:
                 print(f"[跳过] {result.file_path}: {result.error or '匹配失败'}")
+                # 将匹配失败的文件添加到结果字典中（标记为失败）
+                result_dict[result.file_path] = {"dk": None, "qzgy": None, "failed": True}
                 continue
 
             _file = result.file_path
@@ -777,6 +790,21 @@ class Preprocessor:
 
             print(f"[{i + 1}/{len(locate_results)}] 处理: {_file}")
             print(f"       位置: {found_position:.2f}s, 匹配: {matched_name}")
+            
+            # 验证：检查识别出的参考音频是否与用户选择的一致
+            if selected_ref_name and matched_name != selected_ref_name:
+                print(f"[警告] 识别结果与用户选择的参考音频不一致!")
+                print(f"       用户选择: {selected_ref_name}")
+                print(f"       识别结果: {matched_name}")
+                print(f"[跳过] {_file}: 参考音频不匹配，跳过处理")
+                # 将不匹配的文件添加到结果字典中（标记为失败，并记录原因）
+                result_dict[_file] = {
+                    "dk": None, 
+                    "qzgy": None, 
+                    "failed": True,
+                    "error": f"参考音频不匹配: 选择'{selected_ref_name}'，识别出'{matched_name}'"
+                }
+                continue
 
             # 生成文件名
             if hasattr(self, '_original_names') and self._original_names and _file in self._original_names:
@@ -907,6 +935,25 @@ class Preprocessor:
                     found_position = self.mfcc_finder.audio_locate(_file)
                 elif self.split_method == 'shazam':
                     found_position = self._get_shazam_finder().audio_locate(_file)
+                    # 获取Shazam识别出的参考音频名称
+                    matched_name = getattr(self._shazam_finder, '_last_matched_name', '')
+                    
+                    # 验证：检查识别出的参考音频是否与用户选择的一致
+                    if not self.shazam_auto_match and self.ref_file and matched_name:
+                        selected_ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
+                        if matched_name != selected_ref_name:
+                            print(f"[警告] 识别结果与用户选择的参考音频不一致!")
+                            print(f"       用户选择: {selected_ref_name}")
+                            print(f"       识别结果: {matched_name}")
+                            print(f"[跳过] {_file}: 参考音频不匹配，跳过处理")
+                            # 将不匹配的文件添加到结果字典中（标记为失败）
+                            result_dict[_file] = {
+                                "dk": None, 
+                                "qzgy": None, 
+                                "failed": True,
+                                "error": f"参考音频不匹配: 选择'{selected_ref_name}'，识别出'{matched_name}'"
+                            }
+                            continue
 
                 if found_position >= 0:
                     print(f"找到片段起始位置(秒): {found_position}")
@@ -986,7 +1033,9 @@ class Preprocessor:
                     except Exception as e:
                         print(f"Audio save failed! Error: {e} \nPlease check file:{_file}")
                 else:
+                    # 未找到片段，记录到结果字典中（标记为失败）
                     print("未找到指定片段")
+                    result_dict[_file] = {"dk": None, "qzgy": None, "failed": True}
             else:
                 print("---跳过非音频文件: {}".format(_file))
 

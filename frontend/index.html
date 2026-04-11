@@ -1613,8 +1613,17 @@
                 if (result.status === 'completed') {
                     log(`✅ 检测完成! 共处理 ${result.results?.length || 0} 个文件`);
                     const anomalyCount = result.results?.filter(r => r.is_anomaly).length || 0;
+                    const failedCount = result.results?.filter(r => r.status === '预处理失败').length || 0;
                     if (anomalyCount > 0) {
                         log(`⚠️ 发现 ${anomalyCount} 个异常文件`);
+                    }
+                    if (failedCount > 0) {
+                        log(`⚠️ ${failedCount} 个文件预处理失败`);
+                        // 显示详细的失败原因
+                        const failedFiles = result.results?.filter(r => r.status === '预处理失败') || [];
+                        failedFiles.forEach(f => {
+                            log(`   ❌ ${f.filename}: ${f.error || '预处理失败'}`);
+                        });
                     }
                 } else if (result.status === 'failed') {
                     log(`❌ 检测失败: ${result.error}`, 'error');
@@ -1741,6 +1750,7 @@
                 const totalCount = data.results.length;
                 const anomalyCount = data.results.filter(r => r.is_anomaly).length;
                 const normalCount = totalCount - anomalyCount;
+                const failedCount = data.results.filter(r => r.status === '预处理失败').length;
                 
                 // 保存结果数据
                 offlineResultsData = data.results;
@@ -1749,10 +1759,11 @@
                 let summaryHtml = `
                     <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
                         <h3 style="margin: 0 0 12px 0; font-size: 16px;">📊 检测摘要</h3>
-                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; font-size: 14px;">
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; font-size: 14px;">
                             <div><strong>总文件数:</strong> ${totalCount}</div>
                             <div><strong>异常数:</strong> <span style="color: #dc3545;">${anomalyCount}</span></div>
                             <div><strong>正常数:</strong> <span style="color: #28a745;">${normalCount}</span></div>
+                            <div><strong>预处理失败:</strong> <span style="color: #ffc107;">${failedCount}</span></div>
                             <div><strong>算法:</strong> ${data.algorithm || '未知'}</div>
                         </div>
                     </div>
@@ -1766,7 +1777,39 @@
 
                 data.results.forEach((r, index) => {
                     const uniqueId = `offline-${index}`;
+                    const isFailed = r.status === '预处理失败';
                     const isAnomaly = r.is_anomaly;
+                    
+                    // 预处理失败的文件显示特殊样式
+                    if (isFailed) {
+                        resultsHtml += `
+                            <div style="border: 1px solid #ffc107; border-radius: 8px; overflow: hidden; background: #fffbeb;">
+                                <div style="padding: 12px; border-bottom: 1px solid #ffc107; background: #fef3c7;">
+                                    <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.filename}">
+                                        🎵 ${r.filename}
+                                    </div>
+                                </div>
+                                <div style="padding: 12px;">
+                                    <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 12px; font-size: 12px;">
+                                        <div><strong>状态:</strong> 
+                                            <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+                                                ⚠️ 预处理失败
+                                            </span>
+                                        </div>
+                                        <div style="color: #92400e; font-size: 11px; margin-top: 4px;">
+                                            <strong>原因:</strong> ${r.error || '未知错误'}
+                                        </div>
+                                        <div><strong>序号:</strong> #${index + 1}</div>
+                                    </div>
+                                    <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+                                        该文件未能成功预处理，无法生成热力图
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        return; // 跳过正常的结果卡片生成
+                    }
+                    
                     const statusColor = isAnomaly ? '#dc3545' : '#28a745';
                     const statusBg = isAnomaly ? '#f8d7da' : '#d4edda';
                     const hasHeatmap = r.heatmap_path !== null && r.heatmap_path !== undefined;

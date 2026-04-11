@@ -348,36 +348,105 @@ class TaskManager:
             raise
         
         try:
-            # 批量预处理（自动使用多线程），传入 original_names 避免 task_id 作为前缀
+            # 批量预处理（自动使用多线程），传入 original_names 避免 task_id 作为文件名前缀
+            print(f"[TaskManager] 开始预处理，使用参考音频: {ref_file}")
             result = task_preprocessor.process_audio(task.files, save_dir="slice", original_names=original_names)
+            print(f"[TaskManager] 预处理完成，结果数量: {len(result)}")
             
             # 处理结果
             processed_count = 0
+            failed_files = []  # 记录处理失败的文件
+            
+            # 发送预处理完成消息
+            await websocket_manager.send_progress(task.id, {
+                "progress": 25,
+                "status": "preprocessing",
+                "message": f"预处理完成，共 {len(result)} 个文件结果"
+            })
+            
             for audio_file, file_result in result.items():
+                print(f"[TaskManager] 处理结果: {os.path.basename(audio_file)} -> {file_result}")
                 images = []
+                # 检查是否标记为失败（未找到片段）
+                is_failed = isinstance(file_result, dict) and file_result.get("failed")
+                
                 if isinstance(file_result, dict):
                     if file_result.get("dk"):
                         images.append(file_result["dk"])
                     if file_result.get("qzgy"):
                         images.append(file_result["qzgy"])
                 
-                if images:
+                if images and not is_failed:
                     file_image_map[audio_file] = images
                     all_images.extend(images)
                     processed_count += 1
                 else:
                     # 记录未找到片段的文件
+                    failed_files.append(audio_file)
+                    # 获取详细的错误信息
+                    error_msg = ""
+                    error_detail = None
+                    if isinstance(file_result, dict):
+                        error_detail = file_result.get("error")
+                        if error_detail:
+                            error_msg = f" ({error_detail})"
+                    
+                    # 发送失败消息到前端
+                    message_text = ""
+                    if error_detail and "参考音频不匹配" in error_detail:
+                        message_text = f"⚠️ {os.path.basename(audio_file)}: {error_detail}"
+                    else:
+                        message_text = f"⚠️ {os.path.basename(audio_file)}: 未找到指定片段{error_msg}"
+                    
+                    print(f"[TaskManager] 发送消息到前端: {message_text}")
                     await websocket_manager.send_progress(task.id, {
                         "progress": 25,
                         "status": "preprocessing",
-                        "message": f"⚠️ {os.path.basename(audio_file)}: 未找到指定片段"
+                        "message": message_text
+                    })
+                    
+                    # 将失败信息添加到任务结果中（以便前端在WebSocket重连后获取）
+                    task.results.append({
+                        "filename": os.path.basename(audio_file),
+                        "filepath": audio_file,
+                        "anomaly_score": 0,
+                        "is_anomaly": False,
+                        "status": "预处理失败",
+                        "error": error_detail or "未找到指定片段",
+                        "original_path": None,
+                        "overlay_path": None,
+                        "heatmap_path": None
                     })
             
-            await websocket_manager.send_progress(task.id, {
-                "progress": 50,
-                "status": "preprocessing",
-                "message": f"✅ 预处理完成: {processed_count}/{total_files} 个文件成功，共生成 {len(all_images)} 张图片"
-            })
+            # 检查哪些文件完全没有被处理（不在 result 中）
+            processed_files = set(result.keys())
+            for audio_file in task.files:
+                if audio_file not in processed_files:
+                    failed_files.append(audio_file)
+                    await websocket_manager.send_progress(task.id, {
+                        "progress": 25,
+                        "status": "preprocessing",
+                        "message": f"⚠️ {os.path.basename(audio_file)}: 未找到指定片段（使用参考音频: {os.path.basename(ref_file)}）"
+                    })
+            
+            # 汇总处理结果
+            if failed_files:
+                failed_names = [os.path.basename(f) for f in failed_files[:5]]  # 最多显示5个
+                failed_summary = ", ".join(failed_names)
+                if len(failed_files) > 5:
+                    failed_summary += f" 等共 {len(failed_files)} 个文件"
+                
+                await websocket_manager.send_progress(task.id, {
+                    "progress": 50,
+                    "status": "preprocessing",
+                    "message": f"✅ 预处理完成: {processed_count}/{total_files} 个文件成功，{len(failed_files)} 个文件未找到片段（{failed_summary}），共生成 {len(all_images)} 张图片"
+                })
+            else:
+                await websocket_manager.send_progress(task.id, {
+                    "progress": 50,
+                    "status": "preprocessing",
+                    "message": f"✅ 预处理完成: {processed_count}/{total_files} 个文件成功，共生成 {len(all_images)} 张图片"
+                })
             
         except Exception as e:
             await websocket_manager.send_progress(task.id, {
