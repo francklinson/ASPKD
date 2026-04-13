@@ -263,17 +263,16 @@
 
         /* 检测结果区域 */
         #results {
-            max-height: none;
-            overflow-y: visible;
+            max-height: 800px;
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
-            height: 100%;
         }
 
         #results .results-container {
             flex: 1;
             overflow-y: auto;
-            max-height: 400px;
+            max-height: 600px;
             min-height: 200px;
         }
 
@@ -642,7 +641,20 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            overflow-y: auto;
+            max-height: 700px;
+        }
+
+        /* 离线检测结果滚动区域 */
+        #results {
+            max-height: 700px;
+            overflow-y: auto;
+        }
+
+        /* 热力图结果滚动区域 */
+        #heatmapResults {
+            max-height: 600px;
+            overflow-y: auto;
         }
         
         @media (max-width: 768px) {
@@ -804,11 +816,6 @@
                     </div>
                     
                     <div class="form-group">
-                        <label>检测间隔（秒）</label>
-                        <input type="number" class="form-control" id="monitorInterval" value="30" min="5" max="300">
-                    </div>
-                    
-                    <div class="form-group">
                         <label>检测算法</label>
                         <select class="form-control" id="monitorAlgorithm">
                             <option value="dinomaly_dinov3_small">Dinomaly DINOv3 Small</option>
@@ -824,13 +831,27 @@
                         <div id="monitorDeviceInfo" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
                     </div>
                     
+                    <div class="form-group">
+                        <label>参考音频 <span style="font-weight: normal; color: #999;">(为空则自动匹配)</span></label>
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                            <select class="form-control" id="monitorReferenceAudioSelect" style="flex: 1;">
+                                <option value="">选择参考音频...</option>
+                            </select>
+                            <button type="button" class="btn btn-primary" id="addMonitorRefBtn" style="padding: 8px 16px;">添加</button>
+                        </div>
+                        <div id="monitorSelectedRefs" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px; padding: 8px; border: 1px dashed #ddd; border-radius: 4px; background: #fafafa;">
+                            <span style="color: #999; font-size: 12px; line-height: 20px;">未选择参考音频，将使用自动匹配</span>
+                        </div>
+                        <input type="hidden" id="monitorReferenceAudios" value="">
+                    </div>
+                    
                     <!-- 检测上下文信息显示 -->
                     <div id="detectionContext" class="alert alert-info" style="display: none; margin-bottom: 16px;">
                         <div style="font-weight: 600; margin-bottom: 8px;">📋 当前检测状态</div>
                         <div id="contextContent"></div>
                     </div>
                     
-                    <div style="display: flex; gap: 10px;">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                         <button class="btn btn-primary" id="startMonitorBtn" onclick="startMonitor()">
                             ▶️ 开始监控
                         </button>
@@ -1969,14 +1990,19 @@
                 console.error('检查检测上下文失败:', error);
             }
 
+            // 获取选择的参考音频
+            const selectedRefs = monitorSelectedReferences.map(r => r.path);
+            
             // 启动监控
             const config = {
                 directory: dir,
-                interval: parseInt(document.getElementById('monitorInterval').value),
                 algorithm: document.getElementById('monitorAlgorithm').value,
                 device: document.getElementById('monitorDevice').value,
-                detect_existing: false
+                detect_existing: false,
+                reference_audios: selectedRefs
             };
+            
+            monitorLog(`🎵 参考音频: ${monitorSelectedReferences.length > 0 ? monitorSelectedReferences.map(r => r.name).join(', ') : '自动匹配'}`);
 
             try {
                 const response = await fetch(`${API_BASE}/api/monitor/start`, {
@@ -2072,6 +2098,44 @@
             monitorWs.onclose = () => {
                 console.log('[Monitor] WebSocket closed');
             };
+        }
+        
+        // 更新监控参考音频（运行时生效）
+        async function updateMonitorReferences() {
+            const selectedRefs = monitorSelectedReferences.map(r => r.path);
+            
+            monitorLog(`🔄 正在更新参考音频...`);
+            monitorLog(`🎵 当前选择: ${monitorSelectedReferences.length > 0 ? monitorSelectedReferences.map(r => r.name).join(', ') : '自动匹配'}`);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/monitor/update-references`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reference_audios: selectedRefs
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    monitorLog(`✅ ${result.message}`);
+                    if (result.added && result.added.length > 0) {
+                        result.added.forEach(item => {
+                            monitorLog(`   + 已添加: ${item.name}`);
+                        });
+                    }
+                    if (result.failed && result.failed.length > 0) {
+                        result.failed.forEach(item => {
+                            monitorLog(`   ⚠️ 失败: ${item.path} (${item.reason})`);
+                        });
+                    }
+                } else {
+                    monitorLog(`❌ 更新失败: ${result.message || '未知错误'}`);
+                }
+            } catch (error) {
+                monitorLog(`❌ 错误: ${error.message}`);
+            }
         }
         
         // 存储所有监控结果（用于显示热力图）
@@ -2309,8 +2373,24 @@
                 const r = monitorResults[i];
                 const uniqueId = `monitor-${i}`;
                 const isAnomaly = r.is_anomaly;
-                const statusColor = isAnomaly ? '#dc3545' : '#28a745';
-                const statusBg = isAnomaly ? '#f8d7da' : '#d4edda';
+                const isNoMatch = r.status === '未匹配';
+                
+                // 根据状态设置颜色
+                let statusColor, statusBg, statusText;
+                if (isNoMatch) {
+                    statusColor = '#856404';
+                    statusBg = '#fff3cd';
+                    statusText = '⚠️ 未匹配';
+                } else if (isAnomaly) {
+                    statusColor = '#dc3545';
+                    statusBg = '#f8d7da';
+                    statusText = '🔴 异常';
+                } else {
+                    statusColor = '#28a745';
+                    statusBg = '#d4edda';
+                    statusText = '🟢 正常';
+                }
+                
                 const hasHeatmap = r.heatmap_path !== null && r.heatmap_path !== undefined;
                 const hasOriginal = r.original_path !== null && r.original_path !== undefined;
                 const hasOverlay = r.overlay_path !== null && r.overlay_path !== undefined;
@@ -2333,10 +2413,10 @@
                         </div>
                         <div style="padding: 12px;">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 12px;">
-                                <div><strong>异常分数:</strong> ${r.anomaly_score.toFixed(4)}</div>
+                                <div><strong>异常分数:</strong> ${r.anomaly_score ? r.anomaly_score.toFixed(4) : 'N/A'}</div>
                                 <div><strong>状态:</strong> 
                                     <span style="background: ${statusBg}; color: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
-                                        ${isAnomaly ? '🔴 异常' : '🟢 正常'}
+                                        ${statusText}
                                     </span>
                                 </div>
                                 <div><strong>时间:</strong> ${timestamp}</div>
@@ -2364,8 +2444,12 @@
                                          data-overlay="${overlayUrl}"
                                          data-heatmap="${heatmapUrl}"
                                          style="width: 100%; border-radius: 4px; border: 1px solid #e0e0e0; cursor: pointer;"
-                                         onclick="showHeatmapModal('${overlayUrl}', '${r.filename}', ${r.anomaly_score})"
+                                         onclick="showHeatmapModal('${overlayUrl}', '${r.filename}', ${r.anomaly_score || 0})"
                                          title="点击查看大图">
+                                </div>
+                            ` : isNoMatch ? `
+                                <div style="margin-top: 8px; padding: 20px; background: #fff3cd; border-radius: 4px; text-align: center; color: #856404; font-size: 12px;">
+                                    ⚠️ 未找到匹配的参考音频片段
                                 </div>
                             ` : `
                                 <div style="margin-top: 8px; padding: 20px; background: #f5f5f5; border-radius: 4px; text-align: center; color: #999; font-size: 12px;">
@@ -2692,9 +2776,131 @@
         // 页面加载时获取设备列表和参考音频列表
         loadAvailableDevices();
         loadReferenceAudios();
+        loadMonitorReferenceAudios();
 
         // 定期刷新设备列表（每30秒）
         setInterval(loadAvailableDevices, 30000);
+        
+        // 监控页面已选择的参考音频列表
+        let monitorSelectedReferences = [];
+
+        // 加载监控页面参考音频列表
+        async function loadMonitorReferenceAudios() {
+            try {
+                const response = await fetch(`${API_BASE}/api/detection/reference-audios`);
+                const data = await response.json();
+
+                const refSelect = document.getElementById('monitorReferenceAudioSelect');
+                refSelect.innerHTML = '<option value="">选择参考音频...</option>';
+
+                if (data.references && data.references.length > 0) {
+                    // 添加参考音频选项
+                    data.references.forEach(ref => {
+                        const option = document.createElement('option');
+                        option.value = ref.path;
+                        option.textContent = `${ref.name} (${ref.hash_count} 个指纹点)`;
+                        option.title = `路径: ${ref.path}`;
+                        option.dataset.name = ref.name;
+                        refSelect.appendChild(option);
+                    });
+
+                    console.log(`[监控] 已加载 ${data.total} 个参考音频`);
+                }
+
+            } catch (error) {
+                console.error('加载监控参考音频列表失败:', error);
+                const refSelect = document.getElementById('monitorReferenceAudioSelect');
+                refSelect.innerHTML = '<option value="">加载失败</option>';
+            }
+        }
+
+        // 添加参考音频到选择列表
+        async function addMonitorReference() {
+            const select = document.getElementById('monitorReferenceAudioSelect');
+            const selectedOption = select.options[select.selectedIndex];
+
+            if (!selectedOption || !selectedOption.value) {
+                return;
+            }
+
+            const refPath = selectedOption.value;
+            const refName = selectedOption.dataset.name || selectedOption.textContent.split(' (')[0];
+
+            // 检查是否已存在
+            if (monitorSelectedReferences.some(r => r.path === refPath)) {
+                console.log(`[监控] 参考音频已存在: ${refName}`);
+                return;
+            }
+
+            // 添加到列表
+            monitorSelectedReferences.push({ path: refPath, name: refName });
+
+            // 更新显示
+            updateMonitorSelectedRefsDisplay();
+
+            // 重置选择框
+            select.value = '';
+
+            console.log(`[监控] 添加参考音频: ${refName}`);
+
+            // 如果监控正在运行，自动更新参考音频
+            await autoUpdateMonitorReferences();
+        }
+
+        // 移除参考音频
+        async function removeMonitorReference(index) {
+            const removed = monitorSelectedReferences.splice(index, 1)[0];
+            updateMonitorSelectedRefsDisplay();
+            console.log(`[监控] 移除参考音频: ${removed.name}`);
+
+            // 如果监控正在运行，自动更新参考音频
+            await autoUpdateMonitorReferences();
+        }
+
+        // 自动更新参考音频（监控运行时）
+        async function autoUpdateMonitorReferences() {
+            // 检查监控状态
+            try {
+                const response = await fetch(`${API_BASE}/api/monitor/status`);
+                const status = await response.json();
+
+                if (status.is_running) {
+                    console.log('[监控] 检测到监控正在运行，自动更新参考音频...');
+                    await updateMonitorReferences();
+                }
+            } catch (error) {
+                console.error('[监控] 检查监控状态失败:', error);
+            }
+        }
+
+        // 更新已选参考音频显示
+        function updateMonitorSelectedRefsDisplay() {
+            const container = document.getElementById('monitorSelectedRefs');
+            const hiddenInput = document.getElementById('monitorReferenceAudios');
+            
+            if (monitorSelectedReferences.length === 0) {
+                container.innerHTML = '<span style="color: #999; font-size: 12px; line-height: 20px;">未选择参考音频，将使用自动匹配</span>';
+                hiddenInput.value = '';
+            } else {
+                container.innerHTML = monitorSelectedReferences.map((ref, index) => `
+                    <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #e3f2fd; border: 1px solid #90caf9; border-radius: 16px; font-size: 12px; color: #1976d2;">
+                        <span>${ref.name}</span>
+                        <button type="button" onclick="removeMonitorReference(${index})" style="background: none; border: none; color: #1976d2; cursor: pointer; padding: 0; font-size: 14px; line-height: 1;">&times;</button>
+                    </div>
+                `).join('');
+                
+                // 更新隐藏字段
+                hiddenInput.value = JSON.stringify(monitorSelectedReferences.map(r => r.path));
+            }
+        }
+
+        // 绑定添加按钮事件
+        document.addEventListener('DOMContentLoaded', function() {
+            const addBtn = document.getElementById('addMonitorRefBtn');
+            if (addBtn) {
+                addBtn.addEventListener('click', addMonitorReference);
+            }
+        });
         
         // 更新检测上下文显示
         async function updateDetectionContext() {

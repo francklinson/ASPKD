@@ -11,19 +11,6 @@ import numpy as np
 from typing import Optional
 from PIL import Image
 
-# 在导入Dinomaly模块之前设置环境变量
-_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_dinomaly_config_path = os.path.join(_project_root, "config", "config.yaml")
-if os.path.exists(_dinomaly_config_path):
-    import yaml
-    with open(_dinomaly_config_path, 'r', encoding='utf-8') as f:
-        dinomaly_config = yaml.safe_load(f) or {}
-    env_config = dinomaly_config.get('environments', {})
-    for key, value in env_config.items():
-        if value:
-            os.environ[key] = str(value)
-            print(f"[DEBUG] [dinomaly_adapter] Set environment variable: {key}={value}")
-
 from core import BaseDetector, DetectionResult, register_algorithm
 
 
@@ -249,8 +236,22 @@ class DinomalyBaseAdapter(BaseDetector):
     
     def release(self) -> None:
         """释放资源"""
-        self._inferencer = None
+        import time
+        print(f"[Dinomaly] [模型释放] 开始释放Dinomaly资源...")
+        release_start = time.time()
+        
+        if self._inferencer is not None:
+            print(f"[Dinomaly] [模型释放] 释放推理器对象...")
+            self._inferencer = None
+            print(f"[Dinomaly] [模型释放] 推理器对象已置为None")
+        else:
+            print(f"[Dinomaly] [模型释放] 推理器对象为None，无需释放")
+        
+        print(f"[Dinomaly] [模型释放] 调用父类释放方法...")
         super().release()
+        
+        total_time = time.time() - release_start
+        print(f"[Dinomaly] [模型释放] Dinomaly资源释放完成，总耗时: {total_time:.3f}s")
 
 
 # 注册各版本算法

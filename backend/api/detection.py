@@ -234,11 +234,16 @@ async def get_available_reference_audios():
 async def get_available_devices():
     """获取可用设备列表（包含显存信息）"""
     import torch
-    
+    import os
+
+    print(f"[Devices] ========== 开始查询GPU设备 ==========")
+    print(f"[Devices] CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', '未设置')}")
+    print(f"[Devices] torch 版本: {torch.__version__}")
+
     devices = [
         {"id": "auto", "name": "自动选择 (GPU优先)", "type": "auto", "info": "自动选择可用显存最多的GPU"}
     ]
-    
+
     # CPU 信息
     try:
         import psutil
@@ -250,54 +255,95 @@ async def get_available_devices():
             "type": "cpu",
             "info": f"系统内存: {mem.total / (1024**3):.1f}GB, 可用: {mem.available / (1024**3):.1f}GB"
         })
-    except:
+        print(f"[Devices] CPU 信息: {cpu_count}核, 内存 {mem.total / (1024**3):.1f}GB")
+    except Exception as e:
+        print(f"[Devices] CPU 信息获取失败: {e}")
         devices.append({"id": "cpu", "name": "CPU", "type": "cpu", "info": "纯CPU运行"})
-    
+
     # GPU 信息
-    if torch.cuda.is_available():
-        gpu_count = torch.cuda.device_count()
-        gpu_list = []
-        
-        for i in range(gpu_count):
-            gpu_name = torch.cuda.get_device_name(i)
-            
-            # 获取显存信息
-            try:
-                torch.cuda.set_device(i)
-                total_mem = torch.cuda.get_device_properties(i).total_memory / (1024**3)  # GB
-                allocated = torch.cuda.memory_allocated(i) / (1024**3)
-                reserved = torch.cuda.memory_reserved(i) / (1024**3)
-                free_mem = total_mem - allocated
-                
-                gpu_info = {
-                    "id": f"cuda:{i}",
-                    "name": f"GPU {i}: {gpu_name}",
-                    "type": "cuda",
-                    "info": f"总显存: {total_mem:.1f}GB | 已用: {allocated:.1f}GB | 可用: {free_mem:.1f}GB",
-                    "total_memory_gb": round(total_mem, 2),
-                    "free_memory_gb": round(free_mem, 2),
-                    "usage_percent": round((allocated / total_mem) * 100, 1) if total_mem > 0 else 0
-                }
-            except Exception as e:
-                gpu_info = {
-                    "id": f"cuda:{i}",
-                    "name": f"GPU {i}: {gpu_name}",
-                    "type": "cuda",
-                    "info": f"显存信息获取失败: {str(e)}"
-                }
-            
-            gpu_list.append(gpu_info)
-        
-        # 按可用显存排序（可用显存多的在前）
-        gpu_list.sort(key=lambda x: x.get("free_memory_gb", 0), reverse=True)
-        
-        # 标记推荐使用的 GPU（仅添加 recommended 字段，显示逻辑由前端处理）
-        for i, gpu in enumerate(gpu_list):
-            if i == 0 and gpu.get("free_memory_gb", 0) > 1.0:  # 至少有1GB可用
-                gpu["recommended"] = True
-            devices.append(gpu)
-    
-    return {"devices": devices, "gpu_count": torch.cuda.device_count() if torch.cuda.is_available() else 0}
+    print(f"[Devices] 检查 CUDA 可用性...")
+    cuda_available = torch.cuda.is_available()
+    print(f"[Devices] torch.cuda.is_available(): {cuda_available}")
+
+    if cuda_available:
+        try:
+            gpu_count = torch.cuda.device_count()
+            print(f"[Devices] GPU 数量: {gpu_count}")
+            gpu_list = []
+
+            for i in range(gpu_count):
+                print(f"[Devices] 查询 GPU {i}...")
+                gpu_name = torch.cuda.get_device_name(i)
+                print(f"[Devices] GPU {i} 名称: {gpu_name}")
+
+                # 获取显存信息
+                try:
+                    torch.cuda.set_device(i)
+                    props = torch.cuda.get_device_properties(i)
+                    total_mem = props.total_memory / (1024**3)  # GB
+                    allocated = torch.cuda.memory_allocated(i) / (1024**3)
+                    reserved = torch.cuda.memory_reserved(i) / (1024**3)
+                    free_mem = total_mem - allocated
+
+                    print(f"[Devices] GPU {i} 显存: 总={total_mem:.2f}GB, 已用={allocated:.2f}GB, 可用={free_mem:.2f}GB")
+
+                    gpu_info = {
+                        "id": f"cuda:{i}",
+                        "name": f"GPU {i}: {gpu_name}",
+                        "type": "cuda",
+                        "info": f"总显存: {total_mem:.1f}GB | 已用: {allocated:.1f}GB | 可用: {free_mem:.1f}GB",
+                        "total_memory_gb": round(total_mem, 2),
+                        "free_memory_gb": round(free_mem, 2),
+                        "usage_percent": round((allocated / total_mem) * 100, 1) if total_mem > 0 else 0
+                    }
+                except Exception as e:
+                    print(f"[Devices] GPU {i} 显存信息获取失败: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    gpu_info = {
+                        "id": f"cuda:{i}",
+                        "name": f"GPU {i}: {gpu_name}",
+                        "type": "cuda",
+                        "info": f"显存信息获取失败: {str(e)}"
+                    }
+
+                gpu_list.append(gpu_info)
+
+            # 按可用显存排序（可用显存多的在前）
+            gpu_list.sort(key=lambda x: x.get("free_memory_gb", 0), reverse=True)
+
+            # 标记推荐使用的 GPU（仅添加 recommended 字段，显示逻辑由前端处理）
+            for i, gpu in enumerate(gpu_list):
+                if i == 0 and gpu.get("free_memory_gb", 0) > 1.0:  # 至少有1GB可用
+                    gpu["recommended"] = True
+                devices.append(gpu)
+
+            print(f"[Devices] 成功查询 {len(gpu_list)} 个 GPU")
+        except Exception as e:
+            print(f"[Devices] GPU 查询过程出错: {e}")
+            import traceback
+            traceback.print_exc()
+    else:
+        print(f"[Devices] CUDA 不可用，原因:")
+        # 尝试获取更多诊断信息
+        try:
+            print(f"[Devices]   - torch.cuda.device_count(): {torch.cuda.device_count()}")
+        except Exception as e:
+            print(f"[Devices]   - device_count() 调用失败: {e}")
+        try:
+            print(f"[Devices]   - torch.version.cuda: {torch.version.cuda}")
+        except Exception as e:
+            print(f"[Devices]   - version.cuda 调用失败: {e}")
+        try:
+            print(f"[Devices]   - torch.backends.cuda.is_built(): {torch.backends.cuda.is_built()}")
+        except Exception as e:
+            print(f"[Devices]   - is_built() 调用失败: {e}")
+
+    gpu_count = torch.cuda.device_count() if cuda_available else 0
+    print(f"[Devices] 返回设备列表: {len(devices)} 个设备, GPU 数量: {gpu_count}")
+    print(f"[Devices] ========== GPU设备查询结束 ==========")
+
+    return {"devices": devices, "gpu_count": gpu_count}
 
 
 @router.get("/export/{task_id}")

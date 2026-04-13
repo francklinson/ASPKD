@@ -155,12 +155,38 @@ class MySQLConnector(IConnector):
         else:
             return result[0]
 
+    def find_music_path_by_music_id(self, music_id):
+        """
+        根据歌曲id查询歌曲路径
+        :param music_id: 歌曲ID
+        :return: 歌曲路径，如果未找到则返回None
+        """
+        sql = "select %s from %s where %s = '%s'" % (
+            # 列名
+            hp.fingerprint.database.tables.music.column.music_path,
+            # 表名
+            hp.fingerprint.database.tables.music.name,
+            # 列名
+            hp.fingerprint.database.tables.music.column.music_id,
+            # 传入的参数
+            music_id
+        )
+        # 执行SQL
+        self.cursor.execute(sql)
+        # 拿到返回值
+        result = self.cursor.fetchone()
+        if result is None:
+            return None
+        else:
+            return result[0]
+
     def find_music_by_music_name(self, music_name):
         """
-        根据歌曲名称查询歌曲id
+        根据歌曲名称查询歌曲id（支持精确匹配和模糊匹配）
         :param music_name: 歌曲名称
         :return: 歌曲id，如果未找到则返回None
         """
+        # 首先尝试精确匹配
         sql = "select %s from %s where %s = '%s'" % (
             # 列名
             hp.fingerprint.database.tables.music.column.music_id,
@@ -175,10 +201,22 @@ class MySQLConnector(IConnector):
         self.cursor.execute(sql)
         # 拿到返回值
         result = self.cursor.fetchone()
-        if result is None:
-            return None
-        else:
+        if result is not None:
             return result[0]
+        
+        # 精确匹配失败，尝试模糊匹配（歌曲名包含查询字符串）
+        sql_like = "select %s from %s where %s LIKE '%%%s%%' LIMIT 1" % (
+            hp.fingerprint.database.tables.music.column.music_id,
+            hp.fingerprint.database.tables.music.name,
+            hp.fingerprint.database.tables.music.column.music_name,
+            music_name
+        )
+        self.cursor.execute(sql_like)
+        result = self.cursor.fetchone()
+        if result is not None:
+            return result[0]
+        
+        return None
 
     # 根据音乐id查找这首歌曲有多少Hash个数
     def calculation_hash_num_by_music_id(self, music_id):

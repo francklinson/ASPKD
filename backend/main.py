@@ -5,8 +5,31 @@ FastAPI 后端主入口
 import os
 import sys
 
-# 首先确保虚拟环境路径正确
+# ========== 首先设置 CUDA 环境变量（必须在导入 torch 之前）==========
+# 读取配置文件中的环境变量设置
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+config_path = os.path.join(project_root, "config", "config.yaml")
+
+if os.path.exists(config_path):
+    try:
+        import yaml
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f) or {}
+        env_config = config.get('environments', {})
+        for key, value in env_config.items():
+            if value and key not in os.environ:
+                os.environ[key] = str(value)
+                print(f"[Main] Set environment variable: {key}={value}")
+    except Exception as e:
+        print(f"[Main] Warning: Failed to load environment variables from config: {e}")
+
+# 确保 CUDA 设备设置正确
+if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    print("[Main] Set default CUDA_VISIBLE_DEVICES=0")
+
+# ========== 设置 Python 路径 ==========
+# 首先确保虚拟环境路径正确
 venv_site_packages = os.path.join(project_root, ".venv", "lib", "python3.12", "site-packages")
 if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
     sys.path.insert(0, venv_site_packages)

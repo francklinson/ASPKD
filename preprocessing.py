@@ -372,11 +372,22 @@ class ShazamLocate:
                 )
             else:
                 # 指定参考音频模式
-                location = fp.locate(
-                    long_audio_path=long_audio_path,
-                    reference_path=self.ref_file,
-                    threshold=self.threshold
-                )
+                # 如果文件不存在，尝试使用文件名作为 reference_name 查找
+                if self.ref_file and not os.path.exists(self.ref_file):
+                    # 从路径中提取文件名（不含扩展名）作为 reference_name
+                    ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
+                    print(f"[Shazam] 参考音频文件不存在，尝试使用名称查找: {ref_name}")
+                    location = fp.locate(
+                        long_audio_path=long_audio_path,
+                        reference_name=ref_name,
+                        threshold=self.threshold
+                    )
+                else:
+                    location = fp.locate(
+                        long_audio_path=long_audio_path,
+                        reference_path=self.ref_file,
+                        threshold=self.threshold
+                    )
 
             if debug:
                 print(
@@ -472,18 +483,17 @@ class Preprocessor:
             with open(self.src_audio_gen_pic_map_file, 'r', encoding="utf-8") as f:
                 self.src_audio_gen_pic_map = json.load(f)
 
-        # 支持的方法: mfcc_dtw, corr, shazam
-        valid_methods = ['mfcc_dtw', 'corr']
-        if SHAZAM_AVAILABLE:
-            valid_methods.append('shazam')
-
-        if split_method not in valid_methods:
-            raise ValueError(f"不支持的 split_method: {split_method}，可用选项: {valid_methods}")
+        # 支持的方法: 仅 shazam（其他方法已暂时屏蔽）
+        if not SHAZAM_AVAILABLE:
+            raise ValueError("Shazam 模块不可用，无法进行音频分割")
+        
+        # 强制使用 shazam 模式
+        if split_method != 'shazam':
+            print(f"[Preprocessor] 非 Shazam 模式已屏蔽，强制使用 shazam 模式")
+            split_method = 'shazam'
 
         # 检查参数
-        if split_method in ['mfcc_dtw', 'corr'] and not ref_file:
-            raise ValueError(f"方法 {split_method} 需要提供 ref_file")
-        if split_method == 'shazam' and not ref_file and not shazam_auto_match:
+        if not ref_file and not shazam_auto_match:
             raise ValueError("Shazam 方法需要提供 ref_file 或设置 shazam_auto_match=True")
 
         self.split_method = split_method
@@ -558,9 +568,9 @@ class Preprocessor:
         if not isinstance(file_list, list) or len(file_list) == 0:
             raise ValueError("输入的音频列表不存在")
 
-        # 检查参考音频：非 Shazam 模式或 Shazam 模式但非 auto_match 时，需要检查文件是否存在
+        # 检查参考音频：非 Shazam 模式时需要检查文件是否存在
         # Shazam 模式只需要数据库中有指纹，不需要实际文件存在
-        if not self.shazam_auto_match and self.split_method != 'shazam' and not os.path.isfile(self.ref_file):
+        if self.split_method != 'shazam' and not os.path.isfile(self.ref_file):
             raise ValueError("目标片段音频文件不存在")
 
         # 创建picture和audio子目录
@@ -907,9 +917,9 @@ class Preprocessor:
         if not isinstance(file_list, list) or len(file_list) == 0:
             raise ValueError("输入的音频列表不存在")
 
-        # 检查参考音频：非 Shazam 模式或 Shazam 模式但非 auto_match 时，需要检查文件是否存在
+        # 检查参考音频：非 Shazam 模式时需要检查文件是否存在
         # Shazam 模式只需要数据库中有指纹，不需要实际文件存在
-        if not self.shazam_auto_match and self.split_method != 'shazam' and not os.path.isfile(self.ref_file):
+        if self.split_method != 'shazam' and not os.path.isfile(self.ref_file):
             raise ValueError("目标片段音频文件不存在")
 
         # 创建picture和audio子目录

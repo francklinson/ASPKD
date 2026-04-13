@@ -392,7 +392,7 @@ class AudioFingerprinter:
 
     def get_all_references(self) -> List[Dict]:
         """
-        获取所有参考音频列表
+        获取所有参考音频列表（优化版：单次查询获取所有信息）
 
         Returns:
             参考音频信息列表 [{music_id, name, path, hash_count}, ...]
@@ -400,22 +400,27 @@ class AudioFingerprinter:
         connector = self._get_connector()
         hp = self.hp
 
-        sql = f"SELECT {hp.fingerprint.database.tables.music.column.music_id}, " \
-              f"{hp.fingerprint.database.tables.music.column.music_name}, " \
-              f"{hp.fingerprint.database.tables.music.column.music_path} " \
-              f"FROM {hp.fingerprint.database.tables.music.name}"
+        # 使用 JOIN 和 GROUP BY 一次性获取所有信息和 hash 数量
+        sql = f"SELECT " \
+              f"m.{hp.fingerprint.database.tables.music.column.music_id}, " \
+              f"m.{hp.fingerprint.database.tables.music.column.music_name}, " \
+              f"m.{hp.fingerprint.database.tables.music.column.music_path}, " \
+              f"COUNT(fp.{hp.fingerprint.database.tables.finger_prints.column.id_fp}) as hash_count " \
+              f"FROM {hp.fingerprint.database.tables.music.name} m " \
+              f"LEFT JOIN {hp.fingerprint.database.tables.finger_prints.name} fp " \
+              f"ON m.{hp.fingerprint.database.tables.music.column.music_id} = fp.{hp.fingerprint.database.tables.finger_prints.column.music_id_fk} " \
+              f"GROUP BY m.{hp.fingerprint.database.tables.music.column.music_id}"
 
         connector.cursor.execute(sql)
         results = connector.cursor.fetchall()
 
         references = []
-        for music_id, name, path in results:
-            hash_count = connector.calculation_hash_num_by_music_id(music_id)
+        for music_id, name, path, hash_count in results:
             references.append({
                 'music_id': music_id,
                 'name': name,
                 'path': path,
-                'hash_count': hash_count
+                'hash_count': hash_count or 0
             })
 
         return references

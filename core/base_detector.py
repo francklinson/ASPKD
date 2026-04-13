@@ -7,7 +7,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Union, Tuple
 import numpy as np
-import torch
 
 
 @dataclass
@@ -61,18 +60,19 @@ class BaseDetector(ABC):
         self.model = None
         self.is_loaded = False
         
-    def _setup_device(self, device: str) -> torch.device:
+    def _setup_device(self, device: str):
         """设置运行设备"""
+        import torch
         if device == 'auto':
             return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        
+
         # 检查指定的cuda设备是否可用
         if device.startswith('cuda:') and torch.cuda.is_available():
             gpu_id = int(device.split(':')[1])
             if gpu_id >= torch.cuda.device_count():
                 print(f"[WARNING] 请求的 {device} 不可用（只有 {torch.cuda.device_count()} 个GPU），回退到 cuda:0")
                 return torch.device('cuda:0')
-        
+
         return torch.device(device)
     
     @abstractmethod
@@ -112,23 +112,24 @@ class BaseDetector(ABC):
             results.append(result)
         return results
     
-    def preprocess(self, image: np.ndarray) -> torch.Tensor:
+    def preprocess(self, image: np.ndarray):
         """
         图像预处理 (子类可覆盖)
-        
+
         Args:
             image: 输入图像 (H, W, C)
-            
+
         Returns:
             torch.Tensor: 预处理后的张量
         """
+        import torch
         # 默认实现：归一化到[0,1]并转为tensor
         if image.dtype == np.uint8:
             image = image.astype(np.float32) / 255.0
         tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0)
         return tensor.to(self.device)
-    
-    def postprocess(self, output: torch.Tensor) -> DetectionResult:
+
+    def postprocess(self, output) -> DetectionResult:
         """
         后处理 (子类必须覆盖)
         
@@ -161,8 +162,25 @@ class BaseDetector(ABC):
         
     def release(self) -> None:
         """释放资源"""
+        import time
+        print(f"[BaseDetector] [模型释放] 开始释放检测器资源...")
+        release_start = time.time()
+        
         if self.model is not None:
+            print(f"[BaseDetector] [模型释放] 删除模型对象...")
             del self.model
             self.model = None
+            print(f"[BaseDetector] [模型释放] 模型对象已删除")
+        else:
+            print(f"[BaseDetector] [模型释放] 模型对象为None，无需删除")
+        
+        print(f"[BaseDetector] [模型释放] 清理GPU缓存...")
+        cache_start = time.time()
+        import torch
         torch.cuda.empty_cache()
+        cache_time = time.time() - cache_start
+        print(f"[BaseDetector] [模型释放] GPU缓存清理完成，耗时: {cache_time:.3f}s")
+        
         self.is_loaded = False
+        total_time = time.time() - release_start
+        print(f"[BaseDetector] [模型释放] 资源释放完成，总耗时: {total_time:.3f}s")

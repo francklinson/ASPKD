@@ -11,8 +11,6 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor
 
-import torch
-
 from backend.core.websocket import websocket_manager
 
 
@@ -77,8 +75,8 @@ class TaskManager:
             if not os.path.isabs(ref_file):
                 ref_file = os.path.join(project_root, ref_file)
             
-            # 获取预处理配置
-            split_method = self.config.config.get('preprocessing', {}).get('split_method', 'mfcc_dtw')
+            # 获取预处理配置（强制使用 shazam 模式，非 shazam 模式已屏蔽）
+            split_method = 'shazam'
             shazam_config = self.config.config.get('preprocessing', {}).get('shazam', {})
             shazam_threshold = shazam_config.get('threshold', 10)
             shazam_auto_match = shazam_config.get('auto_match', False)
@@ -117,6 +115,7 @@ class TaskManager:
         
         if self.detector:
             self.detector.release()
+            import torch
             torch.cuda.empty_cache()
         
         self.executor.shutdown(wait=True)
@@ -264,6 +263,14 @@ class TaskManager:
 
         # 1. 加载模型（如果需要切换算法）
         if self.current_algorithm != task.algorithm or self.detector is None:
+            import time
+            print(f"[TaskManager] [模型初始化] 开始初始化检测器...")
+            print(f"[TaskManager] [模型初始化] 目标算法: {task.algorithm}")
+            print(f"[TaskManager] [模型初始化] 目标设备: {task.device}")
+            print(f"[TaskManager] [模型初始化] 当前检测器状态: {'已加载' if self.detector else '未加载'}")
+            if self.detector:
+                print(f"[TaskManager] [模型初始化] 当前算法: {self.current_algorithm}")
+
             await websocket_manager.send_progress(task.id, {
                 "progress": 0,
                 "status": "preprocessing",
@@ -271,21 +278,46 @@ class TaskManager:
             })
 
             if self.detector:
+                print(f"[TaskManager] [模型初始化] 开始释放旧检测器: {self.current_algorithm}")
+                release_start = time.time()
                 self.detector.release()
-                torch.cuda.empty_cache()
+                release_time = time.time() - release_start
+                print(f"[TaskManager] [模型初始化] 旧检测器释放完成，耗时: {release_time:.3f}s")
 
+                print(f"[TaskManager] [模型初始化] 清理GPU缓存...")
+                cache_start = time.time()
+                import torch
+                torch.cuda.empty_cache()
+                cache_time = time.time() - cache_start
+                print(f"[TaskManager] [模型初始化] GPU缓存清理完成，耗时: {cache_time:.3f}s")
+
+            print(f"[TaskManager] [模型初始化] 开始创建检测器: {task.algorithm}")
+            create_start = time.time()
             self.detector = self.create_detector(
                 algorithm_name=task.algorithm,
                 config_manager=self.config,
                 device=task.device
             )
+            create_time = time.time() - create_start
+            print(f"[TaskManager] [模型初始化] 检测器创建完成，耗时: {create_time:.3f}s")
+
+            print(f"[TaskManager] [模型初始化] 开始加载模型权重...")
+            load_start = time.time()
             self.detector.load_model()
+            load_time = time.time() - load_start
+            print(f"[TaskManager] [模型初始化] 模型权重加载完成，耗时: {load_time:.3f}s")
+
             self.current_algorithm = task.algorithm
+            total_time = create_time + load_time
+            print(f"[TaskManager] [模型初始化] 检测器初始化完成!")
+            print(f"[TaskManager] [模型初始化] 算法: {task.algorithm}")
+            print(f"[TaskManager] [模型初始化] 设备: {task.device}")
+            print(f"[TaskManager] [模型初始化] 总耗时: {total_time:.3f}s")
 
             await websocket_manager.send_progress(task.id, {
                 "progress": 2,
                 "status": "preprocessing",
-                "message": "模型加载完成"
+                "message": f"模型加载完成，耗时: {total_time:.3f}s"
             })
 
         # 2. 预处理音频文件（批量并行处理）
@@ -323,8 +355,8 @@ class TaskManager:
                 ref_file = os.path.join(project_root, ref_file)
             print(f"[TaskManager] 使用默认参考音频: {ref_file}")
         
-        # 创建任务特定的预处理器
-        split_method = self.config.config.get('preprocessing', {}).get('split_method', 'mfcc_dtw')
+        # 创建任务特定的预处理器（强制使用 shazam 模式，非 shazam 模式已屏蔽）
+        split_method = 'shazam'
         shazam_config = self.config.config.get('preprocessing', {}).get('shazam', {})
         shazam_threshold = shazam_config.get('threshold', 10)
         shazam_auto_match = shazam_config.get('auto_match', False)

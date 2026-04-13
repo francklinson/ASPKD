@@ -27,6 +27,11 @@ class MonitorConfig(BaseModel):
         default=[".wav", ".mp3", ".flac", ".aac", ".ogg", ".m4a"],
         description="监控的文件扩展名"
     )
+    # 参考音频选择
+    reference_audios: list = Field(
+        default=[],
+        description="选择的参考音频路径列表，为空则使用自动匹配"
+    )
 
 
 class MonitorStatus(BaseModel):
@@ -79,7 +84,8 @@ async def start_monitoring(config: MonitorConfig):
             algorithm=config.algorithm,
             device=config.device,
             detect_existing=config.detect_existing,
-            file_extensions=config.file_extensions
+            file_extensions=config.file_extensions,
+            reference_audios=config.reference_audios
         )
         
         if not success:
@@ -177,6 +183,25 @@ async def cleanup_temp_files(max_age_hours: int = 24):
         "deleted_files": deleted_count,
         "message": f"清理了 {deleted_count} 个临时文件"
     }
+
+
+class UpdateReferenceAudiosRequest(BaseModel):
+    """更新参考音频请求"""
+    reference_audios: list = Field(
+        default=[],
+        description="新的参考音频路径列表"
+    )
+
+
+@router.post("/update-references")
+async def update_reference_audios(request: UpdateReferenceAudiosRequest):
+    """
+    动态更新参考音频（运行时生效）
+    
+    - **reference_audios**: 新的参考音频路径列表
+    """
+    result = await monitor_service.update_reference_audios(request.reference_audios)
+    return result
 
 
 class ScanRequest(BaseModel):
