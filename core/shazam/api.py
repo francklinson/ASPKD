@@ -334,10 +334,21 @@ class AudioFingerprinter:
             # 计算参考音频时长
             ref_duration = 10.0  # 默认使用10秒
             
+            # ⚠️ 重要：result.offset 可能为负值
+            # 负偏移含义：参考音频在查询音频的 |offset| 秒处开始
+            # 例如：offset = -7.55s 表示参考音频从查询音频的 7.55s 位置开始
+            # 
+            # 处理方式（由调用方负责）：
+            #   - preprocessing.py: actual_pos = -offset  (负值取绝对值)
+            #   - monitor_service.py: start_time = -offset  (负值取绝对值)
+            #
+            # ❌ 禁止在此处强制将负偏移改为 0，否则会导致切分位置错误！
+            start_time = result.offset
+            
             return LocationResult(
                 found=True,
-                start_time=result.offset,
-                end_time=result.offset + ref_duration,
+                start_time=start_time,
+                end_time=start_time + ref_duration,
                 confidence=result.confidence,
                 music_id=result.music_id,
                 music_name=result.name
@@ -381,10 +392,21 @@ class AudioFingerprinter:
         else:
             ref_duration = 10.0
         
+        # ⚠️ 重要：result.offset 可能为负值
+        # 负偏移含义：参考音频在查询音频的 |offset| 秒处开始
+        # 例如：offset = -7.55s 表示参考音频从查询音频的 7.55s 位置开始
+        #
+        # 处理方式（由调用方负责）：
+        #   - preprocessing.py: actual_pos = -offset  (负值取绝对值)
+        #   - monitor_service.py: start_time = -offset  (负值取绝对值)
+        #
+        # ❌ 禁止在此处强制将负偏移改为 0，否则会导致切分位置错误！
+        start_time = result.offset
+        
         return LocationResult(
             found=True,
-            start_time=result.offset,
-            end_time=result.offset + ref_duration,
+            start_time=start_time,
+            end_time=start_time + ref_duration,
             confidence=result.confidence,
             music_id=result.music_id,
             music_name=result.name

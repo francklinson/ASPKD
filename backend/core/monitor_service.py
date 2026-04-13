@@ -149,9 +149,8 @@ class MonitorService:
                     }
                 })
                 
-                # 逐个处理文件
-                for file_path in existing_files:
-                    await self._process_long_audio(file_path)
+                # 使用批量处理方法（统一推理）
+                await self._process_files_batch(existing_files)
         else:
             # 记录已有文件，不处理
             self.processed_files.update(existing_files)
@@ -525,6 +524,7 @@ class MonitorService:
         import librosa
         import soundfile as sf
         from preprocessing import plot_spectrogram
+        from core.shazam.api import AudioFingerprinter
         
         temp_dir = os.path.join("slice", "monitor")
         pic_dir = os.path.join("slice", "monitor", "picture")
@@ -533,15 +533,47 @@ class MonitorService:
         
         spectrogram_data = []
         
+        # 创建 fingerprinter 用于精确定位
+        fingerprinter = AudioFingerprinter()
+        
         for seg_info in all_segments:
             file_path = seg_info['file_path']
             filename = seg_info['filename']
             segment = seg_info['segment']
             
-            # 切分音频
-            start_time = segment.start_time
-            end_time = segment.end_time
-            duration = end_time - start_time
+            # 使用 locate 方法精确定位，与离线检测保持一致
+            # 先尝试用片段匹配的参考音频名称定位
+            ref_name = segment.music_name
+            location = fingerprinter.locate(
+                long_audio_path=file_path,
+                reference_name=ref_name,
+                threshold=10
+            )
+            
+            if location.found:
+                # ⚠️ 重要：负偏移处理
+                # locate 返回负偏移表示参考音频在查询音频的 |offset| 秒处开始
+                # 例如：offset = -7.55s 表示参考音频从查询音频的 7.55s 位置开始
+                # 处理方式：与 preprocessing.py 一致，负值取绝对值
+                if location.start_time < 0:
+                    start_time = -location.start_time
+                    print(f"[Monitor] 精确定位 '{ref_name}': 负偏移 {location.start_time:.3f}s -> 实际位置 {start_time:.3f}s")
+                else:
+                    start_time = location.start_time
+                    print(f"[Monitor] 精确定位 '{ref_name}': {start_time:.3f}s (原窗口位置: {segment.start_time:.3f}s)")
+            else:
+                # locate 失败，使用窗口位置作为备选
+                start_time = segment.start_time
+                print(f"[Monitor] 警告: 精确定位失败，使用窗口位置: {start_time:.3f}s")
+            
+            # 处理负起始时间（保护性代码，防止异常情况）
+            if start_time < 0:
+                print(f"[Monitor] 警告: 负起始时间 {start_time:.3f}s，调整为0")
+                start_time = 0.0
+            
+            # 固定切分10秒，与离线检测保持一致
+            duration = 10.0  # 固定10秒
+            end_time = start_time + duration
             
             audio, sr = librosa.load(file_path, sr=22050, offset=start_time, duration=duration)
             
@@ -570,6 +602,9 @@ class MonitorService:
                     "message": f"🎵 切分片段: {segment_filename}"
                 }
             })
+        
+        # 关闭 fingerprinter 连接
+        fingerprinter.close()
         
         return spectrogram_data
     
@@ -1034,443 +1069,15 @@ class MonitorService:
             self._detector = None
             self._current_algorithm = None
     
-    async def _process_long_audio(self, file_path: str):
-        """使用长音频分析器处理单个文件，并对匹配片段进行异常检测"""
-        print(f"[Monitor Debug] _process_long_audio 被调用: {file_path}")
-        
-        if file_path in self.processed_files:
-            print(f"[Monitor Debug] 文件已处理过，跳过: {file_path}")
-            return
-        
-        filename = os.path.basename(file_path)
-        print(f"[Monitor Debug] 开始处理文件: {filename}")
-        
-        await websocket_manager.broadcast({
-            "type": "monitor_log",
-            "data": {
-                "level": "info",
-                "message": f"🎵 开始处理长音频: {filename}"
-            }
-        })
-        
-        try:
-            print(f"[Monitor Debug] 检查分析器: analyzer={self._analyzer is not None}")
-            if self._analyzer is None:
-                raise Exception("长音频分析器未初始化")
-            
-            # 获取当前事件循环，用于线程安全地调用异步函数
-            loop = asyncio.get_event_loop()
-            
-            # 使用长音频分析器分析
-            def progress_callback(message: str, progress: float):
-                # 只在关键进度点发送日志
-                if progress in [0.05, 0.25, 0.50, 0.90, 1.0]:
-                    # 使用 call_soon_threadsafe 在主事件循环中执行
-                    future = asyncio.run_coroutine_threadsafe(
-                        websocket_manager.broadcast({
-                            "type": "monitor_log",
-                            "data": {
-                                "level": "info",
-                                "message": f"[{filename}] {message}"
-                            }
-                        }),
-                        loop
-                    )
-            
-            # 在线程池中执行分析（避免阻塞事件循环）
-            print(f"[Monitor Debug] 开始执行长音频分析...")
-            result = await loop.run_in_executor(
-                None,  # 使用默认线程池
-                lambda: self._analyzer.analyze(file_path, progress_callback)
-            )
-            print(f"[Monitor Debug] 分析完成: segments={len(result.segment_matches) if result.segment_matches else 0}")
-            
-            # 处理每个匹配的片段
-            if result.segment_matches:
-                print(f"[Monitor Debug] 发现 {len(result.segment_matches)} 个匹配片段")
-                await websocket_manager.broadcast({
-                    "type": "monitor_log",
-                    "data": {
-                        "level": "info",
-                        "message": f"🔍 发现 {len(result.segment_matches)} 个匹配片段，开始批量异常检测..."
-                    }
-                })
-                
-                # 批量处理所有片段（只加载一次模型）
-                await self._process_segments_batch(file_path, filename, result.segment_matches)
-            else:
-                print(f"[Monitor Debug] 未找到匹配片段")
-                await websocket_manager.broadcast({
-                    "type": "monitor_log",
-                    "data": {
-                        "level": "warning",
-                        "message": f"⚠️ {filename}: 未找到匹配的参考音频"
-                    }
-                })
-                
-                # 添加未匹配记录到结果列表
-                no_match_result = {
-                    "timestamp": datetime.now().isoformat(),
-                    "filename": filename,
-                    "filepath": file_path,
-                    "anomaly_score": 0,
-                    "is_anomaly": False,
-                    "status": "未匹配",
-                    "original_path": None,
-                    "overlay_path": None,
-                    "heatmap_path": None,
-                    "segment_info": None
-                }
-                self.detection_results.append(no_match_result)
-                self.total_processed += 1
-                
-                # 广播更新，包含未匹配结果
-                await websocket_manager.broadcast({
-                    "type": "monitor_update",
-                    "data": {
-                        "total_processed": self.total_processed,
-                        "anomaly_count": self.anomaly_count,
-                        "latest_result": no_match_result
-                    }
-                })
-            
-            # 标记为已处理
-            print(f"[Monitor Debug] 标记文件为已处理: {file_path}")
-            self.processed_files.add(file_path)
-            
-        except Exception as e:
-            print(f"[Monitor] 处理长音频失败: {e}")
-            import traceback
-            traceback.print_exc()
-            await websocket_manager.broadcast({
-                "type": "monitor_log",
-                "data": {
-                    "level": "error",
-                    "message": f"❌ {filename} 处理失败: {str(e)}"
-                }
-            })
-            # 即使失败也标记为已处理，避免重复尝试
-            self.processed_files.add(file_path)
+    # 注意：旧版的 _process_long_audio、_process_segment、_process_segments_batch 方法已删除
+    # 现在使用新的分阶段批量处理方法：
+    # - _analyze_file_only: 只分析文件，不切分
+    # - _generate_spectrograms_batch: 统一切分并生成频谱图
+    # - _run_batch_inference: 统一执行一次推理
+    # - _process_all_detection_results: 处理所有结果
     
-    async def _process_segment(self, file_path: str, filename: str, segment):
-        """处理单个匹配的片段：切分、异常检测、生成热力图"""
-        print(f"[Monitor Debug] _process_segment 被调用: {filename}, segment={segment.music_name}")
-        try:
-            import os
-            import librosa
-            import soundfile as sf
-            
-            # 1. 切分音频片段
-            start_time = segment.start_time
-            end_time = segment.end_time
-            duration = end_time - start_time
-            print(f"[Monitor Debug] 切分参数: start={start_time}, end={end_time}, duration={duration}")
-            
-            # 加载音频并切分
-            print(f"[Monitor Debug] 开始加载音频...")
-            audio, sr = librosa.load(file_path, sr=22050, offset=start_time, duration=duration)
-            print(f"[Monitor Debug] 音频加载完成: len={len(audio)}, sr={sr}")
-            
-            # 创建临时文件保存切分后的音频
-            temp_dir = os.path.join("slice", "monitor")
-            os.makedirs(temp_dir, exist_ok=True)
-            print(f"[Monitor Debug] 临时目录: {temp_dir}")
-            
-            segment_filename = f"{os.path.splitext(filename)[0]}_{segment.music_name}_{int(start_time)}s_{int(end_time)}s.wav"
-            segment_path = os.path.join(temp_dir, segment_filename)
-            print(f"[Monitor Debug] 保存切分音频: {segment_path}")
-            sf.write(segment_path, audio, sr)
-            print(f"[Monitor Debug] 音频保存完成")
-            
-            await websocket_manager.broadcast({
-                "type": "monitor_log",
-                "data": {
-                    "level": "info",
-                    "message": f"🎵 切分片段: {segment_filename}"
-                }
-            })
-            
-            # 2. 生成频谱图
-            print(f"[Monitor Debug] 开始生成频谱图...")
-            from preprocessing import plot_spectrogram
-            pic_dir = os.path.join("slice", "monitor", "picture")
-            os.makedirs(pic_dir, exist_ok=True)
-            
-            base_name = os.path.splitext(segment_filename)[0]
-            spectrogram_path = os.path.join(pic_dir, f"{base_name}.png")
-            plot_spectrogram(segment_path, spectrogram_path)
-            print(f"[Monitor Debug] 频谱图生成完成: {spectrogram_path}")
-            
-            await websocket_manager.broadcast({
-                "type": "monitor_log",
-                "data": {
-                    "level": "info",
-                    "message": f"📊 生成频谱图: {os.path.basename(spectrogram_path)}"
-                }
-            })
-            
-            # 3. 进行异常检测
-            print(f"[Monitor Debug] 开始异常检测...")
-            # 使用工厂函数创建检测器
-            from algorithms.factory import create_detector
-            detector = create_detector(self.algorithm, device=self.device)
-            detector.load_model()
-            print(f"[Monitor Debug] 检测器创建并加载成功: {self.algorithm}")
-            
-            # 执行推理 - 使用predict_batch方法（单张图像也使用batch方法，因为它会生成可视化图像）
-            detection_results = detector.predict_batch([spectrogram_path])
-            detection_result_obj = detection_results[0] if detection_results else None
-            
-            if detection_result_obj is None:
-                raise ValueError("检测器返回空结果")
-            
-            print(f"[Monitor Debug] 推理完成: score={detection_result_obj.anomaly_score}, is_anomaly={detection_result_obj.is_anomaly}")
-            
-            # 4. 从metadata中获取生成的图片路径
-            original_path = None
-            overlay_path = None
-            heatmap_path = None
-            if detection_result_obj.metadata:
-                original_path = detection_result_obj.metadata.get('original_path')
-                overlay_path = detection_result_obj.metadata.get('overlay_path')
-                heatmap_path = detection_result_obj.metadata.get('heatmap_path')
-                
-                # 将绝对路径转换为相对路径
-                project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                if original_path and original_path.startswith(project_root):
-                    original_path = original_path[len(project_root)+1:].replace('\\', '/')
-                if overlay_path and overlay_path.startswith(project_root):
-                    overlay_path = overlay_path[len(project_root)+1:].replace('\\', '/')
-                if heatmap_path and heatmap_path.startswith(project_root):
-                    heatmap_path = heatmap_path[len(project_root)+1:].replace('\\', '/')
-            
-            print(f"[Monitor Debug] 图片路径: original={original_path}, overlay={overlay_path}, heatmap={heatmap_path}")
-            
-            # 检查文件是否生成成功
-            if heatmap_path:
-                full_heatmap_path = os.path.join(project_root, heatmap_path) if not os.path.isabs(heatmap_path) else heatmap_path
-                exists = os.path.exists(full_heatmap_path)
-                size = os.path.getsize(full_heatmap_path) if exists else 0
-                print(f"[Monitor Debug] 热力图文件: exists={exists}, size={size} bytes")
-            
-            # 4. 创建检测结果
-            detection_result = {
-                "timestamp": datetime.now().isoformat(),
-                "filename": segment_filename,
-                "filepath": segment_path,
-                "anomaly_score": float(detection_result_obj.anomaly_score),
-                "is_anomaly": bool(detection_result_obj.is_anomaly),
-                "status": "异常" if detection_result_obj.is_anomaly else "正常",
-                "original_path": original_path,
-                "overlay_path": overlay_path,
-                "heatmap_path": heatmap_path,
-                "segment_info": {
-                    "music_name": segment.music_name,
-                    "start_time": segment.start_time,
-                    "end_time": segment.end_time,
-                    "confidence": segment.confidence,
-                    "match_ratio": segment.match_ratio
-                }
-            }
-            
-            print(f"[Monitor Debug] 创建检测结果: {detection_result}")
-            
-            self.detection_results.append(detection_result)
-            self.total_processed += 1
-            print(f"[Monitor Debug] 结果已添加到列表, total_processed={self.total_processed}")
-            
-            if detection_result_obj.is_anomaly:
-                self.anomaly_count += 1
-            
-            # 发送日志
-            status_icon = "⚠️" if detection_result_obj.is_anomaly else "✅"
-            status_text = "异常" if detection_result_obj.is_anomaly else "正常"
-            await websocket_manager.broadcast({
-                "type": "monitor_log",
-                "data": {
-                    "level": "warning" if detection_result_obj.is_anomaly else "success",
-                    "message": f"{status_icon} {segment_filename}: {status_text} (分数: {detection_result_obj.anomaly_score:.4f})"
-                }
-            })
-            
-            # 广播更新
-            await websocket_manager.broadcast({
-                "type": "monitor_update",
-                "data": {
-                    "total_processed": self.total_processed,
-                    "anomaly_count": self.anomaly_count,
-                    "latest_result": detection_result
-                }
-            })
-            
-        except Exception as e:
-            print(f"[Monitor] 处理片段失败: {e}")
-            import traceback
-            traceback.print_exc()
-            await websocket_manager.broadcast({
-                "type": "monitor_log",
-                "data": {
-                    "level": "error",
-                    "message": f"❌ 片段处理失败: {str(e)}"
-                }
-            })
-
-    async def _process_segments_batch(self, file_path: str, filename: str, segments):
-        """批量处理多个片段：只加载一次模型，批量推理"""
-        print(f"[Monitor Debug] _process_segments_batch 被调用: {filename}, 片段数={len(segments)}")
-        
-        try:
-            import os
-            import librosa
-            import soundfile as sf
-            from preprocessing import plot_spectrogram
-            
-            # 第1步：切分所有音频片段并生成频谱图
-            print(f"[Monitor Debug] 步骤1: 切分音频并生成频谱图...")
-            
-            temp_dir = os.path.join("slice", "monitor")
-            pic_dir = os.path.join("slice", "monitor", "picture")
-            os.makedirs(temp_dir, exist_ok=True)
-            os.makedirs(pic_dir, exist_ok=True)
-            
-            segment_infos = []  # 存储片段信息
-            spectrogram_paths = []  # 存储频谱图路径
-            
-            for segment in segments:
-                # 切分音频
-                start_time = segment.start_time
-                end_time = segment.end_time
-                duration = end_time - start_time
-                
-                audio, sr = librosa.load(file_path, sr=22050, offset=start_time, duration=duration)
-                
-                segment_filename = f"{os.path.splitext(filename)[0]}_{segment.music_name}_{int(start_time)}s_{int(end_time)}s.wav"
-                segment_path = os.path.join(temp_dir, segment_filename)
-                sf.write(segment_path, audio, sr)
-                
-                # 生成频谱图
-                base_name = os.path.splitext(segment_filename)[0]
-                spectrogram_path = os.path.join(pic_dir, f"{base_name}.png")
-                plot_spectrogram(segment_path, spectrogram_path)
-                
-                segment_infos.append({
-                    'segment': segment,
-                    'segment_filename': segment_filename,
-                    'segment_path': segment_path,
-                    'spectrogram_path': spectrogram_path
-                })
-                spectrogram_paths.append(spectrogram_path)
-                
-                await websocket_manager.broadcast({
-                    "type": "monitor_log",
-                    "data": {
-                        "level": "info",
-                        "message": f"🎵 切分片段: {segment_filename}"
-                    }
-                })
-            
-            print(f"[Monitor Debug] 步骤1完成: 生成了 {len(spectrogram_paths)} 个频谱图")
-            
-            # 第2步：使用常驻检测器进行批量推理
-            print(f"[Monitor Debug] 步骤2: 使用常驻检测器批量推理...")
-            
-            # 确保检测器已初始化
-            if self._detector is None:
-                await self._init_detector()
-            
-            print(f"[Monitor Debug] 检测器就绪，开始批量推理 {len(spectrogram_paths)} 个样本...")
-            
-            # 批量推理
-            detection_results = self._detector.predict_batch(spectrogram_paths)
-            print(f"[Monitor Debug] 批量推理完成: 获得 {len(detection_results)} 个结果")
-            
-            # 第3步：处理每个片段的结果
-            print(f"[Monitor Debug] 步骤3: 处理推理结果...")
-            
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-            
-            for i, (segment_info, detection_result_obj) in enumerate(zip(segment_infos, detection_results)):
-                segment = segment_info['segment']
-                segment_filename = segment_info['segment_filename']
-                segment_path = segment_info['segment_path']
-                
-                # 从metadata中获取图片路径
-                original_path = None
-                overlay_path = None
-                heatmap_path = None
-                if detection_result_obj.metadata:
-                    original_path = detection_result_obj.metadata.get('original_path')
-                    overlay_path = detection_result_obj.metadata.get('overlay_path')
-                    heatmap_path = detection_result_obj.metadata.get('heatmap_path')
-                    
-                    # 转换为相对路径
-                    if original_path and original_path.startswith(project_root):
-                        original_path = original_path[len(project_root)+1:].replace('\\', '/')
-                    if overlay_path and overlay_path.startswith(project_root):
-                        overlay_path = overlay_path[len(project_root)+1:].replace('\\', '/')
-                    if heatmap_path and heatmap_path.startswith(project_root):
-                        heatmap_path = heatmap_path[len(project_root)+1:].replace('\\', '/')
-                
-                # 创建检测结果
-                detection_result = {
-                    "timestamp": datetime.now().isoformat(),
-                    "filename": segment_filename,
-                    "filepath": segment_path,
-                    "anomaly_score": float(detection_result_obj.anomaly_score),
-                    "is_anomaly": bool(detection_result_obj.is_anomaly),
-                    "status": "异常" if detection_result_obj.is_anomaly else "正常",
-                    "original_path": original_path,
-                    "overlay_path": overlay_path,
-                    "heatmap_path": heatmap_path,
-                    "segment_info": {
-                        "music_name": segment.music_name,
-                        "start_time": segment.start_time,
-                        "end_time": segment.end_time,
-                        "confidence": segment.confidence,
-                        "match_ratio": segment.match_ratio
-                    }
-                }
-                
-                self.detection_results.append(detection_result)
-                self.total_processed += 1
-                
-                if detection_result_obj.is_anomaly:
-                    self.anomaly_count += 1
-                
-                # 发送日志
-                status_icon = "⚠️" if detection_result_obj.is_anomaly else "✅"
-                status_text = "异常" if detection_result_obj.is_anomaly else "正常"
-                await websocket_manager.broadcast({
-                    "type": "monitor_log",
-                    "data": {
-                        "level": "warning" if detection_result_obj.is_anomaly else "success",
-                        "message": f"{status_icon} {segment_filename}: {status_text} (分数: {detection_result_obj.anomaly_score:.4f})"
-                    }
-                })
-                
-                # 广播更新
-                await websocket_manager.broadcast({
-                    "type": "monitor_update",
-                    "data": {
-                        "total_processed": self.total_processed,
-                        "anomaly_count": self.anomaly_count,
-                        "latest_result": detection_result
-                    }
-                })
-            
-            print(f"[Monitor Debug] 批量处理完成: 处理了 {len(segment_infos)} 个片段")
-            
-        except Exception as e:
-            print(f"[Monitor] 批量处理片段失败: {e}")
-            import traceback
-            traceback.print_exc()
-            await websocket_manager.broadcast({
-                "type": "monitor_log",
-                "data": {
-                    "level": "error",
-                    "message": f"❌ 批量处理失败: {str(e)}"
-                }
-            })
+    # 注意：旧版的 _process_long_audio、_process_segment、_process_segments_batch 方法已删除
+    # 现在使用新的分阶段批量处理方法
 
 
 # 全局监控服务实例

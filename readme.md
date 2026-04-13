@@ -510,11 +510,59 @@ preprocessor.process_audio(
 |------|------|------|
 | **mfcc_dtw** | MFCC特征 + DTW动态时间规整 | 精度高，推荐用于生产环境 |
 | **corr** | 互相关算法 | 速度快但精度较低，适用于快速原型验证 |
+| **shazam** | 音频指纹识别 | 支持多参考音频自动匹配，适合复杂场景 |
 
 **MFCC+DTW定位流程**：
 1. **粗筛**：使用MFCC特征和DTW在整个音频中快速定位候选区域
 2. **精筛**：在粗筛结果前后1秒范围内，使用更大MFCC维度和更小步长精细搜索
 3. **输出**：返回最佳匹配位置的时间戳
+
+#### ⚠️ 重要：Shazam定位负偏移处理
+
+**问题背景**：
+当使用 Shazam 音频指纹进行定位时，`locate()` 方法返回的 `offset` 可能为**负值**（如 `-7.55s`）。这表示参考音频在查询音频的 **7.55秒处**开始，而不是从0秒开始。
+
+**计算公式**：
+```
+offset = offset_database - offset_query
+```
+
+**负偏移含义**：
+| 偏移值 | 含义 |
+|--------|------|
+| `offset > 0` | 查询音频从参考音频的中间位置开始匹配 |
+| `offset = 0` | 查询音频与参考音频从开始处对齐 |
+| `offset < 0` | 查询音频包含参考音频开始前的内容（前置内容），参考音频在查询音频的 \|offset\| 秒处开始 |
+
+**处理方式**（**务必正确处理负偏移，否则切分位置会错误**）：
+
+```python
+# 正确处理方式：负值取绝对值
+if location.start_time < 0:
+    actual_pos = -location.start_time  # 例如：-7.55s -> 7.55s
+else:
+    actual_pos = location.start_time
+
+# 从 actual_pos 开始切分10秒
+start_time = actual_pos
+end_time = start_time + 10.0
+```
+
+**相关文件**（已在代码中添加详细注释）：
+- `core/shazam/api.py` - `locate()` 方法（⚠️ 禁止在此处强制将负偏移改为0）
+- `preprocessing.py` - 离线检测负偏移处理
+- `backend/core/monitor_service.py` - 在线检测负偏移处理
+
+**常见错误**：
+```python
+# ❌ 错误：强制将负偏移改为0，导致切分位置错误
+if start_time < 0:
+    start_time = 0.0  # 这会导致从0秒开始切，而不是实际位置
+
+# ✅ 正确：负值取绝对值
+if start_time < 0:
+    start_time = -start_time  # 负值取绝对值，得到实际位置
+```
 
 #### 1.2 时频图生成
 

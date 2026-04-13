@@ -398,8 +398,11 @@ class ShazamLocate:
             if location.found and location.start_time != -1.0:  # found=True 且 start_time 有效
                 # 保存匹配到的参考音频名称
                 self._last_matched_name = location.music_name
-                # offset 解释: offset = 参考帧 - 查询帧
-                # 负值表示参考音频出现在查询音频的 |offset| 秒处
+                # ⚠️ 重要：负偏移处理
+                # offset 含义: offset = 参考帧 - 查询帧
+                # 负值表示参考音频在查询音频的 |offset| 秒处开始
+                # 例如：offset = -7.55s 表示参考音频从查询音频的 7.55s 位置开始
+                # 处理方式：负值取绝对值 -> actual_pos = -offset
                 if location.start_time < 0:
                     actual_pos = -location.start_time
                     if self.auto_match:

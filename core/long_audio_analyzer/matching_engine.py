@@ -202,9 +202,14 @@ class FastMatchingEngine:
         is_reliable = (confidence >= self.threshold and 
                        match_ratio >= self.min_match_ratio)
         
-        # 转换为秒
-        hop_length = 1024  # 默认hop_length
-        sr = 16000  # 默认采样率
+        # 转换为秒 - 使用与Shazam配置一致的参数
+        try:
+            from shazam.utils.hparam import hp
+            hop_length = hp.fingerprint.core.stft.hop_length
+            sr = hp.fingerprint.core.stft.sr
+        except ImportError:
+            hop_length = 1024
+            sr = 16000
         offset_seconds = offset_frames * hop_length / sr
         
         return MatchResult(
@@ -283,8 +288,14 @@ class FastMatchingEngine:
                 total_db_hashes = self.index.get_hash_count(music_id)
                 match_ratio = confidence / max(total_db_hashes, window_fingerprint.hash_count, 1)
                 
-                hop_length = 1024
-                sr = 16000
+                # 使用与Shazam配置一致的参数
+                try:
+                    from shazam.utils.hparam import hp
+                    hop_length = hp.fingerprint.core.stft.hop_length
+                    sr = hp.fingerprint.core.stft.sr
+                except ImportError:
+                    hop_length = 1024
+                    sr = 16000
                 offset_seconds = offset_frames * hop_length / sr
                 
                 match_results.append(MatchResult(
