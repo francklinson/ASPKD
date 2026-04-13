@@ -402,17 +402,17 @@ async def export_task_results(task_id: str):
                         r.get("heatmap_path", "")
                     ])
         
-        # 2. 收集热力图
-        heatmap_dir = os.path.join(export_dir, "热力图")
-        os.makedirs(heatmap_dir, exist_ok=True)
+        # 2. 收集热力图叠加原图
+        overlay_dir = os.path.join(export_dir, "热力图叠加原图")
+        os.makedirs(overlay_dir, exist_ok=True)
         
         for r in results:
-            heatmap_path = r.get("heatmap_path")
-            if heatmap_path and os.path.exists(heatmap_path):
-                # 复制热力图到导出目录
-                filename = os.path.basename(heatmap_path)
-                dest_path = os.path.join(heatmap_dir, filename)
-                shutil.copy2(heatmap_path, dest_path)
+            overlay_path = r.get("overlay_path")
+            if overlay_path and os.path.exists(overlay_path):
+                # 复制叠加图到导出目录
+                filename = os.path.basename(overlay_path)
+                dest_path = os.path.join(overlay_dir, filename)
+                shutil.copy2(overlay_path, dest_path)
         
         # 3. 打包成 zip
         zip_filename = f"检测结果_{task_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
