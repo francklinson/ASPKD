@@ -752,9 +752,14 @@
                         <div id="deviceInfo" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
                     </div>
                     
-                    <button class="btn btn-primary" id="startBtn" onclick="startDetection()">
-                        🚀 开始检测
-                    </button>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" id="startBtn" onclick="startDetection()" style="flex: 2;">
+                            🚀 开始检测
+                        </button>
+                        <button class="btn btn-secondary" id="clearOfflineBtn" onclick="clearOfflineResults()" style="display: none; flex: 1;">
+                            🗑️ 清空结果
+                        </button>
+                    </div>
                     
                     <div class="progress" id="progress" style="display: none;">
                         <div class="progress-bar">
@@ -1858,6 +1863,182 @@
         
         // 存储离线检测结果用于视图切换
         let offlineResultsData = [];
+        
+        // 离线检测结果 localStorage 键名
+        const OFFLINE_RESULTS_KEY = 'offline_detection_results';
+        
+        // 从 localStorage 加载离线检测历史结果
+        function loadOfflineResultsFromStorage() {
+            try {
+                const stored = localStorage.getItem(OFFLINE_RESULTS_KEY);
+                if (stored) {
+                    const data = JSON.parse(stored);
+                    offlineResultsData = data.results || [];
+                    console.log(`[Offline] 从本地存储加载了 ${offlineResultsData.length} 条历史结果`);
+                    
+                    // 恢复显示
+                    if (offlineResultsData.length > 0) {
+                        restoreOfflineResultsDisplay();
+                        log(`📂 已恢复 ${offlineResultsData.length} 条历史检测结果`, 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('[Offline] 加载历史结果失败:', error);
+                offlineResultsData = [];
+            }
+        }
+        
+        // 保存离线检测结果到 localStorage
+        function saveOfflineResultsToStorage() {
+            try {
+                const data = {
+                    status: 'completed',
+                    results: offlineResultsData,
+                    timestamp: new Date().toISOString()
+                };
+                localStorage.setItem(OFFLINE_RESULTS_KEY, JSON.stringify(data));
+            } catch (error) {
+                console.error('[Offline] 保存结果到本地存储失败:', error);
+            }
+        }
+        
+        // 清空离线检测结果 localStorage
+        function clearOfflineResultsStorage() {
+            try {
+                localStorage.removeItem(OFFLINE_RESULTS_KEY);
+            } catch (error) {
+                console.error('[Offline] 清空本地存储失败:', error);
+            }
+        }
+        
+        // 恢复离线检测结果显示
+        function restoreOfflineResultsDisplay() {
+            const resultsDiv = document.getElementById('results');
+            const exportBtn = document.getElementById('exportOfflineBtn');
+            const clearBtn = document.getElementById('clearOfflineBtn');
+            
+            // 显示导出按钮（在检测结果卡片标题中）
+            if (exportBtn) exportBtn.style.display = 'inline-flex';
+            // 显示清空按钮（在检测设置卡片中，与开始检测并排）
+            if (clearBtn) clearBtn.style.display = 'inline-block';
+            
+            const totalCount = offlineResultsData.length;
+            const anomalyCount = offlineResultsData.filter(r => r.is_anomaly).length;
+            const normalCount = totalCount - anomalyCount;
+            const failedCount = offlineResultsData.filter(r => r.status === '预处理失败').length;
+            
+            // 生成摘要
+            let summaryHtml = `
+                <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <h3 style="margin: 0 0 12px 0; font-size: 16px;">📊 检测摘要</h3>
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; font-size: 14px;">
+                        <div><strong>总文件数:</strong> ${totalCount}</div>
+                        <div><strong>异常数:</strong> <span style="color: #dc3545;">${anomalyCount}</span></div>
+                        <div><strong>正常数:</strong> <span style="color: #28a745;">${normalCount}</span></div>
+                        <div><strong>预处理失败:</strong> <span style="color: #ffc107;">${failedCount}</span></div>
+                        <div><strong>检测时间:</strong> <span style="color: #666;">历史记录</span></div>
+                    </div>
+                </div>
+            `;
+            
+            // 生成结果卡片
+            let resultsHtml = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">`;
+            
+            for (let i = offlineResultsData.length - 1; i >= 0; i--) {
+                const r = offlineResultsData[i];
+                const uniqueId = `offline-${i}`;
+                const isAnomaly = r.is_anomaly;
+                const isFailed = r.status === '预处理失败';
+                const isNoMatch = r.status === '未匹配';
+                
+                let statusColor, statusBg, statusText;
+                if (isFailed || isNoMatch) {
+                    statusColor = '#856404';
+                    statusBg = '#fff3cd';
+                    statusText = isFailed ? '⚠️ 预处理失败' : '⚠️ 未匹配';
+                } else if (isAnomaly) {
+                    statusColor = '#dc3545';
+                    statusBg = '#f8d7da';
+                    statusText = '🔴 异常';
+                } else {
+                    statusColor = '#28a745';
+                    statusBg = '#d4edda';
+                    statusText = '🟢 正常';
+                }
+                
+                const hasHeatmap = r.heatmap_path !== null && r.heatmap_path !== undefined;
+                const hasOriginal = r.original_path !== null && r.original_path !== undefined;
+                const hasOverlay = r.overlay_path !== null && r.overlay_path !== undefined;
+                
+                const displayUrl = hasOverlay ? `${API_BASE}/${r.overlay_path}` : 
+                                  (hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '');
+                const originalUrl = hasOriginal ? `${API_BASE}/${r.original_path}` : '';
+                const overlayUrl = hasOverlay ? `${API_BASE}/${r.overlay_path}` : 
+                                  (hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '');
+                const heatmapUrl = hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '';
+                
+                const timestamp = r.timestamp ? new Date(r.timestamp).toLocaleString() : '未知时间';
+                
+                resultsHtml += `
+                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
+                        <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa;">
+                            <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.filename}">
+                                🎵 ${r.filename}
+                            </div>
+                        </div>
+                        <div style="padding: 12px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 12px;">
+                                <div><strong>异常分数:</strong> ${r.anomaly_score ? r.anomaly_score.toFixed(4) : 'N/A'}</div>
+                                <div><strong>状态:</strong> 
+                                    <span style="background: ${statusBg}; color: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+                                        ${statusText}
+                                    </span>
+                                </div>
+                                <div><strong>时间:</strong> ${timestamp}</div>
+                                <div><strong>参考音频:</strong> ${r.music_name || (r.segment_info && r.segment_info.music_name) || '未匹配'}</div>
+                            </div>
+                            ${hasHeatmap ? `
+                                <div style="margin-top: 8px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                        <div style="font-size: 11px; color: #666;">🔥 异常热力图:</div>
+                                        <div style="display: flex; gap: 4px;">
+                                            <button id="btn-offline-original-${uniqueId}" 
+                                                    onclick="toggleOfflineHeatmapMode('${uniqueId}', 'original')"
+                                                    style="padding: 2px 8px; font-size: 10px; border: 1px solid #d9d9d9; background: white; color: #666; border-radius: 4px; cursor: pointer;">原图</button>
+                                            <button id="btn-offline-overlay-${uniqueId}" 
+                                                    onclick="toggleOfflineHeatmapMode('${uniqueId}', 'overlay')"
+                                                    style="padding: 2px 8px; font-size: 10px; border: 1px solid #667eea; background: #667eea; color: white; border-radius: 4px; cursor: pointer;">叠加</button>
+                                            <button id="btn-offline-heatmap-${uniqueId}" 
+                                                    onclick="toggleOfflineHeatmapMode('${uniqueId}', 'heatmap')"
+                                                    style="padding: 2px 8px; font-size: 10px; border: 1px solid #d9d9d9; background: white; color: #666; border-radius: 4px; cursor: pointer;">纯热力图</button>
+                                        </div>
+                                    </div>
+                                    <img id="offline-heatmap-img-${uniqueId}"
+                                         src="${displayUrl}" 
+                                         data-original="${originalUrl}"
+                                         data-overlay="${overlayUrl}"
+                                         data-heatmap="${heatmapUrl}"
+                                         style="width: 100%; border-radius: 4px; border: 1px solid #e0e0e0; cursor: pointer;"
+                                         onclick="showHeatmapModal('${overlayUrl}', '${r.filename}', ${r.anomaly_score || 0})"
+                                         title="点击查看大图">
+                                </div>
+                            ` : isNoMatch ? `
+                                <div style="margin-top: 8px; padding: 20px; background: #fff3cd; border-radius: 4px; text-align: center; color: #856404; font-size: 12px;">
+                                    ⚠️ 未找到匹配的参考音频片段
+                                </div>
+                            ` : `
+                                <div style="margin-top: 8px; padding: 20px; background: #f5f5f5; border-radius: 4px; text-align: center; color: #999; font-size: 12px;">
+                                    暂无热力图
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            resultsHtml += `</div>`;
+            resultsDiv.innerHTML = summaryHtml + resultsHtml;
+        }
 
         // 显示结果
         function showResults(data) {
@@ -1865,9 +2046,14 @@
             const heatmapCard = document.getElementById('heatmapCard');
             const exportBtn = document.getElementById('exportOfflineBtn');
 
-            // 显示导出按钮
+            // 显示导出按钮（在检测结果卡片标题中）
             if (data.status === 'completed' && exportBtn) {
                 exportBtn.style.display = 'inline-flex';
+            }
+            // 显示清空按钮（在检测设置卡片中，与开始检测并排）
+            const clearOfflineBtn = document.getElementById('clearOfflineBtn');
+            if (data.status === 'completed' && clearOfflineBtn) {
+                clearOfflineBtn.style.display = 'inline-block';
             }
 
             // 隐藏旧的热力图卡片（使用新的统一展示方式）
@@ -1883,6 +2069,9 @@
                 
                 // 保存结果数据
                 offlineResultsData = data.results;
+                
+                // 保存到 localStorage
+                saveOfflineResultsToStorage();
                 
                 // 生成摘要
                 let summaryHtml = `
@@ -2382,6 +2571,33 @@
                 btn.textContent = '📥 导出结果';
                 btn.disabled = false;
             }
+        }
+
+        // 清空离线检测结果
+        function clearOfflineResults() {
+            offlineResultsData = [];
+            
+            // 清空 localStorage
+            clearOfflineResultsStorage();
+            
+            // 重置显示
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <div style="text-align: center; color: #999; padding: 40px;">
+                    等待检测...
+                </div>
+            `;
+            
+            // 隐藏导出按钮和清空按钮
+            const exportBtn = document.getElementById('exportOfflineBtn');
+            const clearBtn = document.getElementById('clearOfflineBtn');
+            if (exportBtn) exportBtn.style.display = 'none';
+            if (clearBtn) clearBtn.style.display = 'none';
+            
+            // 重置当前任务ID
+            currentOfflineTaskId = null;
+            
+            log('🗑️ 已清空所有离线检测结果', 'success');
         }
 
         // 导出实时监控结果
@@ -4495,8 +4711,14 @@
         let clientSelectedReferences = [];
         let clientWs = null;
         
+        // localStorage 键名
+        const CLIENT_RESULTS_KEY = 'client_monitor_results';
+        
         function initClientMonitor() {
             console.log('[ClientMonitor] 初始化客户端监控');
+            
+            // 从 localStorage 加载历史结果
+            loadClientResultsFromStorage();
             
             // 初始化参考音频选择（设备列表和参考音频列表由页面统一的load函数加载）
             initClientReferenceSelect();
@@ -4509,6 +4731,47 @@
             
             // 连接客户端监控WebSocket
             connectClientWebSocket();
+        }
+        
+        // 从 localStorage 加载历史结果
+        function loadClientResultsFromStorage() {
+            try {
+                const stored = localStorage.getItem(CLIENT_RESULTS_KEY);
+                if (stored) {
+                    clientResults = JSON.parse(stored);
+                    console.log(`[ClientMonitor] 从本地存储加载了 ${clientResults.length} 条历史结果`);
+                    
+                    // 更新显示
+                    updateClientResultsDisplay();
+                    updateClientStats();
+                    
+                    // 显示提示
+                    if (clientResults.length > 0) {
+                        clientLog(`📂 已恢复 ${clientResults.length} 条历史检测结果`);
+                    }
+                }
+            } catch (error) {
+                console.error('[ClientMonitor] 加载历史结果失败:', error);
+                clientResults = [];
+            }
+        }
+        
+        // 保存结果到 localStorage
+        function saveClientResultsToStorage() {
+            try {
+                localStorage.setItem(CLIENT_RESULTS_KEY, JSON.stringify(clientResults));
+            } catch (error) {
+                console.error('[ClientMonitor] 保存结果到本地存储失败:', error);
+            }
+        }
+        
+        // 清空本地存储的结果
+        function clearClientResultsStorage() {
+            try {
+                localStorage.removeItem(CLIENT_RESULTS_KEY);
+            } catch (error) {
+                console.error('[ClientMonitor] 清空本地存储失败:', error);
+            }
         }
         
         // 初始化配置监听器（算法、设备变化时自动保存）
@@ -4675,6 +4938,9 @@
                 if (data.latest_result) {
                     // 保存结果用于显示热力图
                     clientResults.push(data.latest_result);
+                    
+                    // 保存到 localStorage
+                    saveClientResultsToStorage();
                     // 更新卡片式展示
                     updateClientResultsDisplay();
                 }
@@ -4831,6 +5097,10 @@
         // 清空结果
         function clearClientResults() {
             clientResults = [];
+            
+            // 清空 localStorage
+            clearClientResultsStorage();
+            
             document.getElementById('clientResults').innerHTML = `
                 <div style="text-align: center; color: #999; padding: 40px;">
                     等待客户端上传文件...
@@ -4983,6 +5253,9 @@
         
         // 离线检测文件上传初始化
         function initOfflineUpload() {
+            // 从 localStorage 加载历史结果
+            loadOfflineResultsFromStorage();
+            
             const dropzone = document.getElementById('dropzone');
             const fileInput = document.getElementById('fileInput');
             
