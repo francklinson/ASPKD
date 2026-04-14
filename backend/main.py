@@ -56,7 +56,7 @@ if 'torch' in sys.modules:
 else:
     print(f"[Main] torch not yet imported - good")
 
-from backend.api import detection, monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor
+from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor
 from backend.core.websocket import websocket_manager
 from backend.core.task_manager import task_manager
 
@@ -101,7 +101,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(detection.router, prefix="/api/detection", tags=["检测"])
-app.include_router(monitor.router, prefix="/api/monitor", tags=["监控"])
+app.include_router(local_monitor.router, prefix="/api/monitor", tags=["监控"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["任务管理"])
 app.include_router(reference_audio.router, prefix="/api/reference-audio", tags=["参考音频库"])
 app.include_router(feature_cluster.router, prefix="/api/cluster", tags=["特征聚类"])

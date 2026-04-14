@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from backend.core.monitor_service import monitor_service
+from backend.core.local_monitor_service import monitor_service
 
 router = APIRouter()
 

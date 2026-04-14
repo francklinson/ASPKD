@@ -943,7 +943,7 @@
                     </div>
                     
                     <div class="form-group">
-                        <label>参考音频 <span style="font-weight: normal; color: #999;">(为空则自动匹配)</span></label>
+                        <label>参考音频 <span style="font-weight: normal; color: #ff4d4f;">(必须选择，否则无法检测)</span></label>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                             <select class="form-control" id="clientReferenceAudioSelect" style="flex: 1;">
                                 <option value="">选择参考音频...</option>
@@ -951,7 +951,10 @@
                             <button type="button" class="btn btn-primary" id="addClientRefBtn" style="padding: 8px 16px;">添加</button>
                         </div>
                         <div id="clientSelectedRefs" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px; padding: 8px; border: 1px dashed #ddd; border-radius: 4px; background: #fafafa;">
-                            <span style="color: #999; font-size: 12px; line-height: 20px;">未选择参考音频，将使用自动匹配</span>
+                            <span style="color: #999; font-size: 12px; line-height: 20px;">未选择参考音频</span>
+                        </div>
+                        <div id="clientRefWarning" style="margin-top: 8px; padding: 8px 12px; background: #fff2f0; border: 1px solid #ffccc7; border-radius: 4px; color: #ff4d4f; font-size: 12px; display: none;">
+                            ⚠️ 警告：未配置参考音频，客户端上传的文件将无法检测！请先添加参考音频再点击"应用配置"。
                         </div>
                         <input type="hidden" id="clientReferenceAudios" value="">
                     </div>
@@ -4548,10 +4551,13 @@
         // 更新参考音频显示
         function updateClientSelectedRefsDisplay() {
             const container = document.getElementById('clientSelectedRefs');
+            const warning = document.getElementById('clientRefWarning');
             if (!container) return;
             
             if (clientSelectedReferences.length === 0) {
-                container.innerHTML = '<span style="color: #999; font-size: 12px; line-height: 20px;">未选择参考音频，将使用自动匹配</span>';
+                container.innerHTML = '<span style="color: #999; font-size: 12px; line-height: 20px;">未选择参考音频</span>';
+                // 显示警告
+                if (warning) warning.style.display = 'block';
             } else {
                 container.innerHTML = clientSelectedReferences.map((ref, index) => `
                     <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 12px;">
@@ -4559,6 +4565,8 @@
                         <button onclick="removeClientReference(${index})" style="background: none; border: none; color: #666; cursor: pointer; font-size: 14px; padding: 0; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;">×</button>
                     </div>
                 `).join('');
+                // 隐藏警告
+                if (warning) warning.style.display = 'none';
             }
             
             // 更新隐藏字段
@@ -4581,6 +4589,12 @@
             const selectedAlgorithm = document.getElementById('clientAlgorithm').value;
             const selectedDevice = document.getElementById('clientDevice').value;
             const selectedRefs = clientSelectedReferences.map(r => r.path);
+            
+            // 检查是否选择了参考音频
+            if (selectedRefs.length === 0) {
+                showModal('请先选择至少一个参考音频！<br><br>没有参考音频，客户端上传的文件将无法检测。', '配置错误');
+                return;
+            }
             
             clientLog('正在应用客户端监控配置...');
             
@@ -4625,10 +4639,10 @@
                 
                 if (data.type === 'client_upload') {
                     // 客户端上传新文件
-                    clientLog(`📤 客户端上传: ${data.filename}`);
-                } else if (data.type === 'client_result') {
-                    // 客户端检测结果
-                    handleClientResult(data.data);
+                    clientLog(`📤 客户端上传: ${data.data?.filename || '未知文件'}`);
+                } else if (data.type === 'monitor_update') {
+                    // 客户端检测结果 - 使用与实时监控相同的格式
+                    updateClientStats(data.data);
                 } else if (data.type === 'monitor_log') {
                     // 监控日志
                     clientLog(data.data.message);
@@ -4647,33 +4661,33 @@
             };
         }
         
-        // 处理客户端检测结果
-        function handleClientResult(result) {
-            // 添加到结果列表
-            clientResults.push(result);
-            
-            // 更新统计
-            updateClientStats();
-            
-            // 更新显示
-            updateClientResultsDisplay();
-            
-            // 显示通知
-            const isAnomaly = result.is_anomaly;
-            const status = isAnomaly ? '⚠️ 异常' : '✅ 正常';
-            clientLog(`${status}: ${result.filename} (分数: ${(result.score * 100).toFixed(2)}%)`);
+        // 更新客户端统计 - 与实时监控对齐
+        function updateClientStats(data) {
+            if (data) {
+                if (data.total_processed !== undefined) {
+                    document.getElementById('clientTotalFiles').textContent = data.total_processed;
+                }
+                if (data.anomaly_count !== undefined) {
+                    document.getElementById('clientTotalAnomaly').textContent = data.anomaly_count;
+                }
+                
+                if (data.latest_result) {
+                    // 保存结果用于显示热力图
+                    clientResults.push(data.latest_result);
+                    // 更新卡片式展示
+                    updateClientResultsDisplay();
+                }
+            } else {
+                // 无参数调用时，只更新统计显示
+                const totalFiles = clientResults.length;
+                const anomalyCount = clientResults.filter(r => r.is_anomaly).length;
+                
+                document.getElementById('clientTotalFiles').textContent = totalFiles;
+                document.getElementById('clientTotalAnomaly').textContent = anomalyCount;
+            }
         }
         
-        // 更新客户端统计
-        function updateClientStats() {
-            const totalFiles = clientResults.length;
-            const anomalyCount = clientResults.filter(r => r.is_anomaly).length;
-            
-            document.getElementById('clientTotalFiles').textContent = totalFiles;
-            document.getElementById('clientTotalAnomaly').textContent = anomalyCount;
-        }
-        
-        // 更新结果显示
+        // 更新结果显示 - 与实时监控完全对齐
         function updateClientResultsDisplay() {
             const resultsDiv = document.getElementById('clientResults');
             
@@ -4685,98 +4699,134 @@
                 `;
                 return;
             }
-            
+
+            // 生成卡片式详细结果（倒序显示，最新的在前）- 与实时监控一致
             let resultsHtml = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">`;
             
-            // 倒序遍历
+            // 倒序遍历，最新的结果显示在前面
             for (let i = clientResults.length - 1; i >= 0; i--) {
                 const r = clientResults[i];
                 const uniqueId = `client-${i}`;
                 const isAnomaly = r.is_anomaly;
                 const isNoMatch = r.status === '未匹配';
                 
-                let statusBadge, bgColor;
+                // 根据状态设置颜色 - 与实时监控一致
+                let statusColor, statusBg, statusText;
                 if (isNoMatch) {
-                    statusBadge = '<span style="background: #9e9e9e; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">未匹配</span>';
-                    bgColor = '#f5f5f5';
+                    statusColor = '#856404';
+                    statusBg = '#fff3cd';
+                    statusText = '⚠️ 未匹配';
                 } else if (isAnomaly) {
-                    statusBadge = '<span style="background: #f44336; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">异常</span>';
-                    bgColor = '#ffebee';
+                    statusColor = '#dc3545';
+                    statusBg = '#f8d7da';
+                    statusText = '🔴 异常';
                 } else {
-                    statusBadge = '<span style="background: #4caf50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">正常</span>';
-                    bgColor = '#e8f5e9';
+                    statusColor = '#28a745';
+                    statusBg = '#d4edda';
+                    statusText = '🟢 正常';
                 }
                 
-                const timestamp = r.timestamp ? new Date(r.timestamp).toLocaleString() : new Date().toLocaleString();
+                const hasHeatmap = r.heatmap_path !== null && r.heatmap_path !== undefined;
+                const hasOriginal = r.original_path !== null && r.original_path !== undefined;
+                const hasOverlay = r.overlay_path !== null && r.overlay_path !== undefined;
+                const timestamp = r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
                 
+                // 使用叠加图作为默认显示，如果没有则使用热力图
+                const displayUrl = hasOverlay ? `${API_BASE}/${r.overlay_path}` : 
+                                  (hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '');
+                const originalUrl = hasOriginal ? `${API_BASE}/${r.original_path}` : '';
+                const overlayUrl = hasOverlay ? `${API_BASE}/${r.overlay_path}` : 
+                                  (hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '');
+                const heatmapUrl = hasHeatmap ? `${API_BASE}/${r.heatmap_path}` : '';
+
                 resultsHtml += `
-                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; background: ${bgColor}; cursor: pointer;" 
-                         onclick="showClientHeatmap(${i})" id="${uniqueId}">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                            <div style="font-weight: 600; font-size: 14px; word-break: break-all;">${r.filename || r.file_id || '未知文件'}</div>
-                            ${statusBadge}
+                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
+                        <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa;">
+                            <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.filename}">
+                                🎵 ${r.filename}
+                            </div>
+                            ${r.client_name ? `<div style="font-size: 11px; color: #666; margin-top: 2px;">客户端: ${r.client_name}</div>` : ''}
                         </div>
-                        <div style="font-size: 13px; color: #666; margin-top: 8px;">
-                            <div><strong>异常分数:</strong> ${(r.score * 100).toFixed(2)}%</div>
-                            <div><strong>阈值:</strong> ${(r.threshold * 100).toFixed(2)}%</div>
-                            <div><strong>时间:</strong> ${timestamp}</div>
-                            ${r.client_name ? `<div><strong>客户端:</strong> ${r.client_name}</div>` : ''}
+                        <div style="padding: 12px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 12px;">
+                                <div><strong>异常分数:</strong> ${r.anomaly_score ? r.anomaly_score.toFixed(4) : 'N/A'}</div>
+                                <div><strong>状态:</strong> 
+                                    <span style="background: ${statusBg}; color: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+                                        ${statusText}
+                                    </span>
+                                </div>
+                                <div><strong>时间:</strong> ${timestamp}</div>
+                                <div><strong>序号:</strong> #${clientResults.length - i}</div>
+                            </div>
+                            ${hasHeatmap ? `
+                                <div style="margin-top: 8px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                        <div style="font-size: 11px; color: #666;">🔥 异常热力图:</div>
+                                        <div style="display: flex; gap: 4px;">
+                                            <button id="btn-client-original-${uniqueId}" 
+                                                    onclick="toggleClientHeatmapMode('${uniqueId}', 'original')"
+                                                    style="padding: 2px 8px; font-size: 10px; border: 1px solid #d9d9d9; background: white; color: #666; border-radius: 4px; cursor: pointer;">原图</button>
+                                            <button id="btn-client-overlay-${uniqueId}" 
+                                                    onclick="toggleClientHeatmapMode('${uniqueId}', 'overlay')"
+                                                    style="padding: 2px 8px; font-size: 10px; border: 1px solid #667eea; background: #667eea; color: white; border-radius: 4px; cursor: pointer;">叠加</button>
+                                            <button id="btn-client-heatmap-${uniqueId}" 
+                                                    onclick="toggleClientHeatmapMode('${uniqueId}', 'heatmap')"
+                                                    style="padding: 2px 8px; font-size: 10px; border: 1px solid #d9d9d9; background: white; color: #666; border-radius: 4px; cursor: pointer;">纯热力图</button>
+                                        </div>
+                                    </div>
+                                    <img id="client-heatmap-img-${uniqueId}"
+                                         src="${displayUrl}" 
+                                         data-original="${originalUrl}"
+                                         data-overlay="${overlayUrl}"
+                                         data-heatmap="${heatmapUrl}"
+                                         style="width: 100%; border-radius: 4px; border: 1px solid #e0e0e0; cursor: pointer;"
+                                         onclick="showHeatmapModal('${overlayUrl}', '${r.filename}', ${r.anomaly_score || 0})"
+                                         title="点击查看大图">
+                                </div>
+                            ` : isNoMatch ? `
+                                <div style="margin-top: 8px; padding: 20px; background: #fff3cd; border-radius: 4px; text-align: center; color: #856404; font-size: 12px;">
+                                    ⚠️ 未找到匹配的参考音频片段
+                                </div>
+                            ` : `
+                                <div style="margin-top: 8px; padding: 20px; background: #f5f5f5; border-radius: 4px; text-align: center; color: #999; font-size: 12px;">
+                                    暂无热力图
+                                </div>
+                            `}
                         </div>
                     </div>
                 `;
             }
-            
-            resultsHtml += '</div>';
+
+            resultsHtml += `</div>`;
             resultsDiv.innerHTML = resultsHtml;
         }
         
-        // 显示热力图
-        function showClientHeatmap(index) {
-            const result = clientResults[index];
-            if (!result) return;
+        // 客户端热力图模式切换 - 与实时监控对齐
+        function toggleClientHeatmapMode(uniqueId, mode) {
+            const img = document.getElementById(`client-heatmap-img-${uniqueId}`);
+            const btnOriginal = document.getElementById(`btn-client-original-${uniqueId}`);
+            const btnOverlay = document.getElementById(`btn-client-overlay-${uniqueId}`);
+            const btnHeatmap = document.getElementById(`btn-client-heatmap-${uniqueId}`);
             
-            // 如果有热力图，显示热力图卡片
-            if (result.images && (result.images.heatmap || result.images.overlay)) {
-                const heatmapCard = document.getElementById('clientHeatmapCard');
-                const heatmapResults = document.getElementById('clientHeatmapResults');
-                
-                heatmapCard.style.display = 'block';
-                
-                let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';
-                
-                if (result.images.original) {
-                    html += `
-                        <div style="text-align: center;">
-                            <div style="font-weight: 600; margin-bottom: 8px;">原始频谱图</div>
-                            <img src="${API_BASE}/${result.images.original}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" onclick="openModal(this.src)">
-                        </div>
-                    `;
-                }
-                if (result.images.overlay) {
-                    html += `
-                        <div style="text-align: center;">
-                            <div style="font-weight: 600; margin-bottom: 8px;">叠加显示</div>
-                            <img src="${API_BASE}/${result.images.overlay}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" onclick="openModal(this.src)">
-                        </div>
-                    `;
-                }
-                if (result.images.heatmap) {
-                    html += `
-                        <div style="text-align: center;">
-                            <div style="font-weight: 600; margin-bottom: 8px;">异常热力图</div>
-                            <img src="${API_BASE}/${result.images.heatmap}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" onclick="openModal(this.src)">
-                        </div>
-                    `;
-                }
-                
-                html += '</div>';
-                heatmapResults.innerHTML = html;
-                
-                // 滚动到热力图
-                heatmapCard.scrollIntoView({ behavior: 'smooth' });
+            // 重置所有按钮样式
+            [btnOriginal, btnOverlay, btnHeatmap].forEach(btn => {
+                btn.style.background = 'white';
+                btn.style.color = '#666';
+                btn.style.border = '1px solid #d9d9d9';
+            });
+            
+            // 设置选中按钮样式
+            const activeBtn = mode === 'original' ? btnOriginal : (mode === 'overlay' ? btnOverlay : btnHeatmap);
+            activeBtn.style.background = '#667eea';
+            activeBtn.style.color = 'white';
+            activeBtn.style.border = '1px solid #667eea';
+            
+            // 切换图片
+            const newSrc = img.getAttribute(`data-${mode}`);
+            if (newSrc) {
+                img.src = newSrc;
             }
         }
-        
         // 清空结果
         function clearClientResults() {
             clientResults = [];
@@ -4791,33 +4841,43 @@
             clientLog('🗑️ 已清空所有检测结果');
         }
         
-        // 导出结果
+        // 导出客户端检测结果 - 与实时监控对齐
         async function exportClientResults() {
-            if (clientResults.length === 0) {
-                await showModal('暂无结果可导出', '提示');
-                return;
+            try {
+                const response = await fetch(`${API_BASE}/api/client/export`);
+
+                if (response.ok) {
+                    // 获取文件名
+                    const contentDisposition = response.headers.get('content-disposition');
+                    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+                    let filename = `客户端检测结果_${timestamp}.zip`;
+                    if (contentDisposition) {
+                        const match = contentDisposition.match(/filename="?(.+?)"?$/);
+                        if (match) filename = match[1];
+                    }
+
+                    // 下载文件
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    clientLog('✅ 客户端检测结果导出成功');
+                } else if (response.status === 404) {
+                    await showModal('暂无检测结果可导出', '提示');
+                } else {
+                    const error = await response.json();
+                    await showModal(`导出失败: ${error.detail}`, '错误');
+                }
+            } catch (error) {
+                console.error('[ClientMonitor] 导出失败:', error);
+                await showModal(`导出失败: ${error.message}`, '错误');
             }
-            
-            const csvContent = [
-                ['文件名', '异常分数', '阈值', '是否异常', '状态', '客户端', '时间'].join(','),
-                ...clientResults.map(r => [
-                    r.filename || r.file_id || '未知',
-                    r.score,
-                    r.threshold,
-                    r.is_anomaly ? '是' : '否',
-                    r.status || '完成',
-                    r.client_name || '未知',
-                    r.timestamp || new Date().toISOString()
-                ].join(','))
-            ].join('\n');
-            
-            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `client_results_${new Date().toISOString().slice(0,10)}.csv`;
-            link.click();
-            
-            clientLog('📥 已导出结果');
         }
         
         // 刷新客户端状态

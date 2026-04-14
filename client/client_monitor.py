@@ -187,7 +187,8 @@ class MonitorClient:
     
     def _generate_client_id(self) -> str:
         """生成客户端ID"""
-        hostname = os.environ.get('COMPUTERNAME', os.environ.get('HOSTNAME', 'unknown'))
+        # Windows: COMPUTERNAME, Linux/Mac: HOSTNAME
+        hostname = os.environ.get('COMPUTERNAME') or os.environ.get('HOSTNAME') or 'unknown'
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         hash_input = f"{hostname}-{timestamp}"
         return hashlib.md5(hash_input.encode()).hexdigest()[:12]
@@ -324,8 +325,11 @@ class MonitorClient:
                     self.ws_connected = True
                     self.logger.info("✅ WebSocket连接成功")
                     
-                    # 发送初始ping
-                    await ws.send(json.dumps({"type": "ping"}))
+                    # 发送注册消息（服务端重启后需要重新注册）
+                    await ws.send(json.dumps({
+                        "type": "register",
+                        "client_name": self.config.client_name
+                    }))
                     
                     # 接收消息循环
                     while self.is_running:
@@ -356,6 +360,17 @@ class MonitorClient:
         
         if msg_type == "pong":
             pass  # 心跳响应
+        elif msg_type == "register_ack":
+            # 注册确认
+            if data.get("success"):
+                self.logger.info("✅ WebSocket注册成功")
+            else:
+                self.logger.warning(f"⚠️ WebSocket注册失败: {data.get('message', '未知错误')}")
+        elif msg_type == "heartbeat_ack":
+            # 心跳确认
+            if data.get("error") == "CLIENT_NOT_REGISTERED":
+                self.logger.warning("⚠️ 服务端未识别客户端，将通过WebSocket重新注册")
+                # 下次WebSocket重连时会自动发送注册消息
         elif msg_type == "progress":
             # 任务进度更新
             progress_data = data.get("data", {})
@@ -509,10 +524,6 @@ def load_config_from_env() -> ClientConfig:
         config.client_id = os.getenv('ASD_CLIENT_ID')
     if os.getenv('ASD_MONITOR_DIR'):
         config.monitor_dir = os.getenv('ASD_MONITOR_DIR')
-    if os.getenv('ASD_ALGORITHM'):
-        config.algorithm = os.getenv('ASD_ALGORITHM')
-    if os.getenv('ASD_DEVICE'):
-        config.device = os.getenv('ASD_DEVICE')
     if os.getenv('ASD_LOG_LEVEL'):
         config.log_level = os.getenv('ASD_LOG_LEVEL')
     if os.getenv('ASD_LOG_FILE'):
@@ -533,19 +544,21 @@ async def main():
     print(f"客户端名称: {config.client_name}")
     print(f"服务器地址: {config.server_url}")
     print(f"监控目录: {config.monitor_dir}")
-    print(f"检测算法: {config.algorithm}")
     print("=" * 60)
     
     # 创建客户端
     client = MonitorClient(config)
     
-    # 设置信号处理
+    # 设置信号处理（Windows 只支持 SIGINT）
     def signal_handler(sig, frame):
         print("\n🛑 收到中断信号，正在停止...")
         asyncio.create_task(client.stop())
     
     signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    
+    # Windows 不支持 SIGTERM
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, signal_handler)
     
     # 启动客户端
     try:
