@@ -695,8 +695,8 @@
     <div class="container">
         <div class="tabs">
             <button class="tab active" onclick="switchTab('offline')">💻 离线检测</button>
-            <button class="tab" onclick="switchTab('monitor')">📡 实时监控</button>
-            <button class="tab" onclick="switchTab('client-monitor')">🖥️ 客户端监控</button>
+            <button class="tab" style="display:none" onclick="switchTab('monitor')">📡 实时监控</button>
+            <button class="tab" onclick="switchTab('client-monitor')">🖥️ 实时检测</button>
             <button class="tab" onclick="switchTab('cluster')">📊 特征聚类</button>
             <button class="tab" onclick="switchTab('zero-shot')">🎯 零样本检测</button>
             <button class="tab" onclick="switchTab('few-shot')">🔬 少样本检测</button>
@@ -896,7 +896,7 @@
             </div>
         </div>
         
-        <!-- 客户端监控 -->
+        <!-- 实时检测 -->
         <div id="client-monitor" class="content">
             <div class="stats-grid">
                 <div class="stat-card">
