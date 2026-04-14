@@ -7,6 +7,54 @@ from core import AlgorithmRegistry, ConfigManager
 from core.base_detector import BaseDetector
 
 
+# 延迟导入适配器模块的标志
+_adapters_imported = False
+
+def _import_adapters():
+    """延迟导入所有适配器模块，避免启动时触发 torch 初始化"""
+    global _adapters_imported
+    if _adapters_imported:
+        return
+    
+    # 自动导入所有算法适配器，完成注册
+    try:
+        from . import dinomaly_adapter
+    except Exception as e:
+        print(f"[algorithms] dinomaly_adapter 导入失败: {e}")
+
+    try:
+        from . import ader_adapter
+    except Exception as e:
+        print(f"[algorithms] ader_adapter 导入失败: {e}")
+
+    try:
+        from . import anomalib_adapter
+    except Exception as e:
+        print(f"[algorithms] anomalib_adapter 导入失败: {e}")
+
+    try:
+        from . import baseasd_adapter
+    except Exception as e:
+        print(f"[algorithms] baseasd_adapter 导入失败: {e}")
+
+    try:
+        from . import other_adapters
+    except Exception as e:
+        print(f"[algorithms] other_adapters 导入失败: {e}")
+
+    try:
+        from . import musc_adapter
+    except Exception as e:
+        print(f"[algorithms] musc_adapter 导入失败: {e}")
+
+    try:
+        from . import subspacead_adapter
+    except Exception as e:
+        print(f"[algorithms] subspacead_adapter 导入失败: {e}")
+    
+    _adapters_imported = True
+
+
 def create_detector(algorithm_name: str, 
                    model_path: Optional[str] = None,
                    config_manager: Optional[ConfigManager] = None,
@@ -32,6 +80,9 @@ def create_detector(algorithm_name: str,
         >>> result = detector.predict("image.png")
     """
     import os
+    
+    # 延迟导入适配器（确保 CUDA 环境变量已设置）
+    _import_adapters()
     
     # 使用配置管理器获取配置
     if config_manager is None:

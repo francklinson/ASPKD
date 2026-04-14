@@ -283,8 +283,7 @@ async def export_monitor_results():
                     "文件名": r.get("filename", ""),
                     "异常分数": r.get("anomaly_score", 0),
                     "检测结果": r.get("status", ""),
-                    "是否异常": "是" if r.get("is_anomaly") else "否",
-                    "热力图路径": r.get("heatmap_path", "")
+                    "是否异常": "是" if r.get("is_anomaly") else "否"
                 })
             
             df = pd.DataFrame(excel_data)
@@ -296,15 +295,14 @@ async def export_monitor_results():
             csv_path = os.path.join(export_dir, "监控结果.csv")
             with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
-                writer.writerow(["时间", "文件名", "异常分数", "检测结果", "是否异常", "热力图路径"])
+                writer.writerow(["时间", "文件名", "异常分数", "检测结果", "是否异常"])
                 for r in results:
                     writer.writerow([
                         r.get("timestamp", ""),
                         r.get("filename", ""),
                         r.get("anomaly_score", 0),
                         r.get("status", ""),
-                        "是" if r.get("is_anomaly") else "否",
-                        r.get("heatmap_path", "")
+                        "是" if r.get("is_anomaly") else "否"
                     ])
         
         # 2. 收集热力图叠加原图

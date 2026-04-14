@@ -6,7 +6,6 @@ Dinomaly算法适配器
 import os
 import sys
 import time
-import torch
 import numpy as np
 from typing import Optional
 from PIL import Image
@@ -165,6 +164,7 @@ class DinomalyBaseAdapter(BaseDetector):
         
         # 使用新的可视化函数生成三种图像
         # 1. 准备数据加载器
+        import torch
         data_transform, _ = get_data_transforms(512, 448)
         pred_data = PredictDataset(input_img_pth=image_paths, transform=data_transform)
         pred_dataloader = torch.utils.data.DataLoader(

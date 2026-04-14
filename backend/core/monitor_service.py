@@ -19,8 +19,9 @@ if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent
 
-from backend.core.task_manager import task_manager
 from backend.core.websocket import websocket_manager
+
+# task_manager 在函数内部延迟导入，避免启动时触发 torch 初始化
 
 
 class AudioFileHandler(FileSystemEventHandler):

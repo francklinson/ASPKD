@@ -24,9 +24,10 @@ if os.path.exists(config_path):
         print(f"[Main] Warning: Failed to load environment variables from config: {e}")
 
 # 确保 CUDA 设备设置正确
+# 默认暴露所有 GPU，用户可通过前端选择具体使用哪张
 if 'CUDA_VISIBLE_DEVICES' not in os.environ:
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    print("[Main] Set default CUDA_VISIBLE_DEVICES=0")
+    # 不设置则 PyTorch 能看到所有 GPU，用户在前端选择
+    print("[Main] CUDA_VISIBLE_DEVICES not set, exposing all GPUs")
 
 # ========== 设置 Python 路径 ==========
 # 首先确保虚拟环境路径正确
@@ -45,9 +46,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from backend.api import detection, monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot
+# ========== 导入路由和核心组件 ==========
+# 注意：这些导入必须在 CUDA 环境变量设置之后
+print(f"[Main] CUDA_VISIBLE_DEVICES before imports: {os.environ.get('CUDA_VISIBLE_DEVICES', '未设置')}")
+
+# 检查 torch 是否已经被导入
+if 'torch' in sys.modules:
+    print(f"[Main] WARNING: torch already imported before route imports!")
+else:
+    print(f"[Main] torch not yet imported - good")
+
+from backend.api import detection, monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor
 from backend.core.websocket import websocket_manager
 from backend.core.task_manager import task_manager
+
+print(f"[Main] CUDA_VISIBLE_DEVICES after imports: {os.environ.get('CUDA_VISIBLE_DEVICES', '未设置')}")
+if 'torch' in sys.modules:
+    print(f"[Main] WARNING: torch was imported during route imports!")
+    import torch
+    print(f"[Main] torch.cuda.is_available() at import time: {torch.cuda.is_available()}")
 
 
 @asynccontextmanager
@@ -90,6 +107,7 @@ app.include_router(reference_audio.router, prefix="/api/reference-audio", tags=[
 app.include_router(feature_cluster.router, prefix="/api/cluster", tags=["特征聚类"])
 app.include_router(zero_shot.router, prefix="/api/zero-shot", tags=["零样本检测"])
 app.include_router(few_shot.router, prefix="/api/few-shot", tags=["少样本检测"])
+app.include_router(client_monitor.router, prefix="/api/client", tags=["客户端管理"])
 
 # WebSocket 路由 - 使用标准装饰器方式
 @app.websocket("/ws/progress/{task_id}")

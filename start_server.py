@@ -26,9 +26,10 @@ if os.path.exists(config_path):
         print(f"[StartServer] Warning: Failed to load environment variables from config: {e}")
 
 # 确保 CUDA 设备设置正确
+# 默认暴露所有 GPU，用户可通过前端选择具体使用哪张
 if 'CUDA_VISIBLE_DEVICES' not in os.environ:
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    print("[StartServer] Set default CUDA_VISIBLE_DEVICES=0")
+    # 不设置则 PyTorch 能看到所有 GPU，用户在前端选择
+    print("[StartServer] CUDA_VISIBLE_DEVICES not set, exposing all GPUs")
 
 # 确保项目根目录在路径中
 if project_root not in sys.path:

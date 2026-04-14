@@ -7,12 +7,10 @@ Zero-Shot工业异常检测 - ICLR 2024
 import os
 import sys
 import time
-import torch
 import numpy as np
 from typing import Optional, List, Dict, Tuple
 from PIL import Image
 import cv2
-import torch.nn.functional as F
 
 from core import BaseDetector, DetectionResult, register_algorithm
 

@@ -625,6 +625,8 @@ class TaskManager:
             "current_file": task.current_file,
             "results": task.results,
             "error": task.error,
+            "algorithm": task.algorithm,
+            "device": task.device,
             "created_at": task.created_at.isoformat() if task.created_at else None,
             "completed_at": task.completed_at.isoformat() if task.completed_at else None
         }

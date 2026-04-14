@@ -10,48 +10,22 @@
 """
 
 from core import BaseDetector, DetectionResult, AlgorithmRegistry
-from .factory import create_detector, list_available_algorithms
-
-# 自动导入所有算法适配器，完成注册
-try:
-    from . import dinomaly_adapter
-except Exception as e:
-    print(f"[algorithms] dinomaly_adapter 导入失败: {e}")
-
-try:
-    from . import ader_adapter
-except Exception as e:
-    print(f"[algorithms] ader_adapter 导入失败: {e}")
-
-try:
-    from . import anomalib_adapter
-except Exception as e:
-    print(f"[algorithms] anomalib_adapter 导入失败: {e}")
-
-try:
-    from . import baseasd_adapter
-except Exception as e:
-    print(f"[algorithms] baseasd_adapter 导入失败: {e}")
-
-try:
-    from . import other_adapters
-except Exception as e:
-    print(f"[algorithms] other_adapters 导入失败: {e}")
-
-try:
-    from . import musc_adapter
-except Exception as e:
-    print(f"[algorithms] musc_adapter 导入失败: {e}")
-
-try:
-    from . import subspacead_adapter
-except Exception as e:
-    print(f"[algorithms] subspacead_adapter 导入失败: {e}")
 
 __all__ = [
     'BaseDetector',
     'DetectionResult',
     'AlgorithmRegistry',
-    'create_detector',
-    'list_available_algorithms'
 ]
+
+# 延迟导入工厂函数，避免启动时加载所有适配器（会触发 torch 初始化）
+def create_detector(algorithm_name: str, *args, **kwargs):
+    """创建检测器 - 延迟加载工厂模块"""
+    from .factory import create_detector as _create_detector
+    return _create_detector(algorithm_name, *args, **kwargs)
+
+def list_available_algorithms():
+    """列出可用算法 - 延迟加载工厂模块"""
+    from .factory import list_available_algorithms as _list_algorithms
+    return _list_algorithms()
+
+__all__.extend(['create_detector', 'list_available_algorithms'])

@@ -4,9 +4,9 @@
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 
-from backend.core.task_manager import task_manager
-
 router = APIRouter()
+
+# task_manager 在函数内部延迟导入，避免启动时触发 torch 初始化
 
 
 @router.get("/list")
@@ -22,6 +22,7 @@ async def list_tasks(
     - **limit**: 返回数量
     - **offset**: 偏移量
     """
+    from backend.core.task_manager import task_manager
     tasks = task_manager.list_tasks(
         status=status,
         limit=limit,
@@ -39,6 +40,7 @@ async def list_tasks(
 @router.get("/stats")
 async def get_task_stats():
     """获取任务统计信息"""
+    from backend.core.task_manager import task_manager
     stats = task_manager.get_stats()
     return stats
 
@@ -55,6 +57,7 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
     import os
     import shutil
     from datetime import datetime
+    from backend.core.task_manager import task_manager
     
     file_stats = {"uploads": 0, "visualize": 0, "exports": 0, "errors": []}
     
@@ -144,6 +147,7 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
 @router.delete("/{task_id}")
 async def delete_task(task_id: str):
     """删除任务记录"""
+    from backend.core.task_manager import task_manager
     success = task_manager.delete_task(task_id)
     if not success:
         raise HTTPException(status_code=404, detail="任务不存在")

@@ -12,10 +12,11 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Background
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from backend.core.task_manager import task_manager
 from backend.core.websocket import websocket_manager
 
 router = APIRouter()
+
+# task_manager 在函数内部延迟导入，避免启动时触发 torch 初始化
 
 
 class DetectionRequest(BaseModel):
@@ -77,6 +78,9 @@ async def upload_and_detect(
     # Shazam 模式只需要数据库中有指纹，不需要实际文件存在
     # 非 Shazam 模式会在创建预处理器时检查文件是否存在
     
+    # 延迟导入 task_manager，避免启动时触发 torch 初始化
+    from backend.core.task_manager import task_manager
+    
     # 创建任务
     task_id = await task_manager.create_task(
         files=files,
@@ -113,6 +117,8 @@ async def detect_batch(
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail=f"文件不存在: {path}")
     
+    from backend.core.task_manager import task_manager
+    
     task_id = await task_manager.create_batch_task(
         file_paths=file_paths,
         algorithm=request.algorithm,
@@ -131,6 +137,7 @@ async def detect_batch(
 @router.get("/result/{task_id}", response_model=DetectionResult)
 async def get_result(task_id: str):
     """获取检测结果"""
+    from backend.core.task_manager import task_manager
     result = task_manager.get_task_result(task_id)
     if not result:
         raise HTTPException(status_code=404, detail="任务不存在")
@@ -141,6 +148,7 @@ async def get_result(task_id: str):
 @router.post("/cancel/{task_id}")
 async def cancel_task(task_id: str):
     """取消正在进行的任务"""
+    from backend.core.task_manager import task_manager
     success = await task_manager.cancel_task(task_id)
     if not success:
         raise HTTPException(status_code=400, detail="任务不存在或已完成")
@@ -233,11 +241,26 @@ async def get_available_reference_audios():
 @router.get("/devices")
 async def get_available_devices():
     """获取可用设备列表（包含显存信息）"""
-    import torch
+    import sys
     import os
 
+    # 检查 torch 是否已经在 sys.modules 中
+    if 'torch' in sys.modules:
+        print(f"[Devices] WARNING: torch already in sys.modules before explicit import!")
+        import torch
+        print(f"[Devices] torch.cuda.is_available() before explicit import: {torch.cuda.is_available()}")
+    else:
+        print(f"[Devices] torch not in sys.modules before import - good")
+
+    # 在导入 torch 前打印环境变量
+    print(f"[Devices] CUDA_VISIBLE_DEVICES before import torch: {os.environ.get('CUDA_VISIBLE_DEVICES', '未设置')}")
+    
+    import torch
+    
+    # 导入后再次检查
+    print(f"[Devices] CUDA_VISIBLE_DEVICES after import torch: {os.environ.get('CUDA_VISIBLE_DEVICES', '未设置')}")
+
     print(f"[Devices] ========== 开始查询GPU设备 ==========")
-    print(f"[Devices] CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', '未设置')}")
     print(f"[Devices] torch 版本: {torch.__version__}")
 
     devices = [
@@ -353,6 +376,7 @@ async def export_task_results(task_id: str):
     
     - **task_id**: 任务ID
     """
+    from backend.core.task_manager import task_manager
     result = task_manager.get_task_result(task_id)
     if not result:
         raise HTTPException(status_code=404, detail="任务不存在")
@@ -379,8 +403,7 @@ async def export_task_results(task_id: str):
                     "文件名": r.get("filename", ""),
                     "异常分数": r.get("anomaly_score", 0),
                     "检测结果": r.get("status", ""),
-                    "是否异常": "是" if r.get("is_anomaly") else "否",
-                    "热力图路径": r.get("heatmap_path", "")
+                    "是否异常": "是" if r.get("is_anomaly") else "否"
                 })
             
             df = pd.DataFrame(excel_data)
@@ -392,14 +415,13 @@ async def export_task_results(task_id: str):
             csv_path = os.path.join(export_dir, "检测结果.csv")
             with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
-                writer.writerow(["文件名", "异常分数", "检测结果", "是否异常", "热力图路径"])
+                writer.writerow(["文件名", "异常分数", "检测结果", "是否异常"])
                 for r in results:
                     writer.writerow([
                         r.get("filename", ""),
                         r.get("anomaly_score", 0),
                         r.get("status", ""),
-                        "是" if r.get("is_anomaly") else "否",
-                        r.get("heatmap_path", "")
+                        "是" if r.get("is_anomaly") else "否"
                     ])
         
         # 2. 收集热力图叠加原图

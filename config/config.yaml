@@ -2,7 +2,8 @@
 # 所有检测算法的配置、模型路径、阈值等在此管理
 
 # 参考文件配置
-ref_file: "ref/渡口片段10s.wav"
+# 作为默认参考音频名称（Shazam模式下只需要数据库中存在对应指纹，不需要实际文件）
+ref_file: "渡口片段"
 example_audio_file: "ref/asd_src_audio.wav"
 pic_output_dir: "slice"
 
@@ -281,7 +282,8 @@ inference:
   
 # 预处理配置
 preprocessing:
-  ref_file: "ref/渡口片段10s.wav"
+  # 默认参考音频名称（Shazam模式下匹配数据库中的music_name）
+  ref_file: "渡口片段"
   split_method: "shazam"  # shazam, mfcc_dtw, corr
   shazam:
     threshold: 10
@@ -333,7 +335,11 @@ model_architectures:
 # 环境变量配置
 environments:
   DINOMALY_ENCODER_DIR: "pre_trained"
-  CUDA_VISIBLE_DEVICES: "0"
+  # CUDA_VISIBLE_DEVICES: 控制可见的 GPU 设备
+  # - 不设置: 暴露所有 GPU（推荐，用户可在前端选择）
+  # - "0": 只暴露 GPU 0
+  # - "0,1,2": 暴露 GPU 0,1,2
+  # CUDA_VISIBLE_DEVICES: "0"
   PRETRAINED_MODELS_DIR: "pre_trained"
   TORCH_HOME: "pre_trained"
   HF_HOME: "pre_trained/huggingface"
