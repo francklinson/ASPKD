@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from backend.core.local_monitor_service import monitor_service
+from backend.core.websocket import websocket_manager
 
 router = APIRouter()
 
@@ -201,6 +202,17 @@ async def update_reference_audios(request: UpdateReferenceAudiosRequest):
     - **reference_audios**: 新的参考音频路径列表
     """
     result = await monitor_service.update_reference_audios(request.reference_audios)
+    
+    # 广播配置变更给所有连接的客户端（用于多客户端同步）
+    await websocket_manager.broadcast({
+        "type": "monitor_config_update",
+        "data": {
+            "config_type": "reference_audios",
+            "reference_audios": request.reference_audios,
+            "timestamp": datetime.now().isoformat()
+        }
+    })
+    
     return result
 
 

@@ -4,13 +4,57 @@
 
 set -e
 
-# 配置
-CLIENT_DIR="/home/zhouchenghao/PycharmProjects/ASD_for_SPK/client"
-PROJECT_DIR="/home/zhouchenghao/PycharmProjects/ASD_for_SPK"
+# 获取脚本所在目录（支持从任意位置调用）
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLIENT_DIR="$SCRIPT_DIR"
+PROJECT_DIR="$(dirname "$CLIENT_DIR")"
 VENV_PYTHON="$PROJECT_DIR/.venv/bin/python"
 PID_FILE="$CLIENT_DIR/.client.pid"
 LOG_FILE="$CLIENT_DIR/client.log"
-SERVER_URL="${ASD_SERVER_URL:-http://localhost:8004}"
+ENV_FILE="$CLIENT_DIR/.env"
+
+# 默认配置
+DEFAULT_SERVER_URL="http://localhost:8004"
+DEFAULT_MONITOR_DIR="$CLIENT_DIR/monitor"
+DEFAULT_CLIENT_NAME="客户端-01"
+
+# 从.env文件加载配置
+load_env_file() {
+    if [ -f "$ENV_FILE" ]; then
+        # 读取服务器地址
+        local env_server=$(grep "^ASD_SERVER_URL=" "$ENV_FILE" | cut -d'=' -f2- | tr -d '\r')
+        if [ -n "$env_server" ]; then
+            SERVER_URL="$env_server"
+        fi
+        
+        # 读取监控目录
+        local env_monitor=$(grep "^ASD_MONITOR_DIR=" "$ENV_FILE" | cut -d'=' -f2- | tr -d '\r')
+        if [ -n "$env_monitor" ]; then
+            MONITOR_DIR="$env_monitor"
+        fi
+        
+        # 读取客户端名称
+        local env_name=$(grep "^ASD_CLIENT_NAME=" "$ENV_FILE" | cut -d'=' -f2- | tr -d '\r')
+        if [ -n "$env_name" ]; then
+            CLIENT_NAME="$env_name"
+        fi
+        
+        # 读取日志级别
+        local env_log_level=$(grep "^ASD_LOG_LEVEL=" "$ENV_FILE" | cut -d'=' -f2- | tr -d '\r')
+        if [ -n "$env_log_level" ]; then
+            LOG_LEVEL="$env_log_level"
+        fi
+    fi
+    
+    # 使用默认值（如果.env中没有设置）
+    SERVER_URL="${SERVER_URL:-$DEFAULT_SERVER_URL}"
+    MONITOR_DIR="${MONITOR_DIR:-$DEFAULT_MONITOR_DIR}"
+    CLIENT_NAME="${CLIENT_NAME:-$DEFAULT_CLIENT_NAME}"
+    LOG_LEVEL="${LOG_LEVEL:-INFO}"
+}
+
+# 加载环境变量
+load_env_file
 
 # 颜色输出
 RED='\033[0;31m'
@@ -23,7 +67,7 @@ NC='\033[0m' # No Color
 show_help() {
     echo -e "${BLUE}ASD 客户端监控服务管理脚本${NC}"
     echo ""
-    echo "用法: ./client.sh [命令]"
+    echo "用法: ./start_client.sh [命令]"
     echo ""
     echo "命令:"
     echo "  start      启动客户端"
@@ -33,6 +77,15 @@ show_help() {
     echo "  log        查看实时日志"
     echo "  test       测试与服务端的连接"
     echo ""
+    echo "配置文件: $ENV_FILE"
+    echo ""
+    echo "当前配置:"
+    echo "  服务器地址: $SERVER_URL"
+    echo "  监控目录: $MONITOR_DIR"
+    echo "  客户端名称: $CLIENT_NAME"
+    echo "  日志级别: $LOG_LEVEL"
+    echo "  客户端目录: $CLIENT_DIR"
+    echo "  Python: $VENV_PYTHON"
 }
 
 # 检查虚拟环境
@@ -64,16 +117,6 @@ is_running() {
     return 1
 }
 
-# 加载环境变量
-load_env() {
-    if [ -f "$CLIENT_DIR/.env" ]; then
-        echo -e "${BLUE}加载客户端配置...${NC}"
-        # 读取监控目录配置
-        local monitor_dir=$(grep "ASD_MONITOR_DIR" "$CLIENT_DIR/.env" | cut -d'=' -f2-)
-        echo -e "${BLUE}监控目录:${NC} $monitor_dir"
-    fi
-}
-
 # 启动客户端
 start_client() {
     check_venv
@@ -84,14 +127,25 @@ start_client() {
     fi
     
     echo -e "${BLUE}正在启动 ASD 客户端监控...${NC}"
+    echo ""
+    echo -e "${BLUE}配置信息:${NC}"
+    echo "  服务器地址: $SERVER_URL"
+    echo "  监控目录: $MONITOR_DIR"
+    echo "  客户端名称: $CLIENT_NAME"
+    echo "  日志级别: $LOG_LEVEL"
+    echo ""
     
     cd "$CLIENT_DIR"
     
-    # 加载环境变量
-    load_env
-    
     # 清空旧日志
     > "$LOG_FILE"
+    
+    # 设置环境变量并启动客户端
+    export ASD_SERVER_URL="$SERVER_URL"
+    export ASD_MONITOR_DIR="$MONITOR_DIR"
+    export ASD_CLIENT_NAME="$CLIENT_NAME"
+    export ASD_LOG_FILE="$LOG_FILE"
+    export ASD_LOG_LEVEL="$LOG_LEVEL"
     
     # 启动客户端
     nohup "$VENV_PYTHON" "$CLIENT_DIR/client_monitor.py" > "$LOG_FILE" 2>&1 &
@@ -129,6 +183,7 @@ start_client() {
             fi
             
             echo "  服务端: $SERVER_URL"
+            echo "  监控目录: $MONITOR_DIR"
             echo "  日志文件: $LOG_FILE"
             echo -e "  进程 PID: ${GREEN}$pid${NC}"
             echo ""
@@ -251,9 +306,16 @@ show_status() {
         local residual=$(pgrep -f "client_monitor.py" | head -1)
         if [ -n "$residual" ]; then
             echo -e "${YELLOW}发现残留进程: $residual${NC}"
-            echo "建议运行: ./client.sh stop"
+            echo "建议运行: ./start_client.sh stop"
         fi
     fi
+    
+    # 显示配置信息
+    echo ""
+    echo -e "${BLUE}配置信息:${NC}"
+    echo "  服务器地址: $SERVER_URL"
+    echo "  监控目录: $MONITOR_DIR"
+    echo "  客户端名称: $CLIENT_NAME"
     
     # 日志文件大小
     if [ -f "$LOG_FILE" ]; then
@@ -278,6 +340,13 @@ show_logs() {
 # 测试连接
 test_connection() {
     echo -e "${BLUE}=== 连接测试 ===${NC}"
+    echo ""
+    
+    # 显示当前配置
+    echo -e "${BLUE}当前配置:${NC}"
+    echo "  服务器地址: $SERVER_URL"
+    echo "  监控目录: $MONITOR_DIR"
+    echo "  客户端名称: $CLIENT_NAME"
     echo ""
     
     # 测试服务端健康检查

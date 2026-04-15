@@ -2388,6 +2388,9 @@
                     // 处理监控日志消息
                     const logData = data.data;
                     monitorLog(logData.message);
+                } else if (data.type === 'monitor_config_update') {
+                    // 处理配置变更通知（多客户端同步）
+                    handleMonitorConfigUpdate(data.data);
                 }
             };
             
@@ -2436,6 +2439,55 @@
                 }
             } catch (error) {
                 monitorLog(`❌ 错误: ${error.message}`);
+            }
+        }
+        
+        // 处理监控配置变更通知（多客户端同步）
+        async function handleMonitorConfigUpdate(configData) {
+            console.log('[Monitor] 收到配置变更通知:', configData);
+            
+            if (configData.config_type === 'reference_audios') {
+                const newRefs = configData.reference_audios || [];
+                
+                // 检查是否是当前页面发起的变更（通过时间戳简单判断，避免重复更新）
+                // 实际应用中可以使用更精确的方式，如页面ID
+                
+                // 从参考音频列表中查找对应的名称
+                const refsWithNames = [];
+                for (const refPath of newRefs) {
+                    // 尝试从已加载的参考音频列表中查找名称
+                    const select = document.getElementById('monitorReferenceAudioSelect');
+                    let refName = null;
+                    
+                    for (let i = 0; i < select.options.length; i++) {
+                        if (select.options[i].value === refPath) {
+                            refName = select.options[i].dataset.name || select.options[i].textContent.split(' (')[0];
+                            break;
+                        }
+                    }
+                    
+                    // 如果没找到，使用文件名作为名称
+                    if (!refName) {
+                        refName = refPath.split('/').pop().split('\\').pop().replace(/\.[^/.]+$/, '');
+                    }
+                    
+                    refsWithNames.push({ path: refPath, name: refName });
+                }
+                
+                // 更新本地参考音频列表
+                monitorSelectedReferences = refsWithNames;
+                
+                // 更新UI显示
+                updateMonitorSelectedRefsDisplay();
+                
+                // 显示同步提示
+                if (refsWithNames.length > 0) {
+                    monitorLog(`🔄 [同步] 参考音频已更新: ${refsWithNames.map(r => r.name).join(', ')}`);
+                } else {
+                    monitorLog(`🔄 [同步] 参考音频已清空，使用自动匹配`);
+                }
+                
+                console.log('[Monitor] 参考音频已同步:', monitorSelectedReferences);
             }
         }
         
