@@ -298,9 +298,52 @@ echo 正在启动Python程序...
 REM 先创建一个空的日志文件确保路径正确
 echo. > "%LOG_FILE%" 2>nul
 
-REM 使用start /B命令启动，重定向到日志文件
-REM 注意：Windows批处理中start /B的重定向需要特殊处理
-start /B /MIN cmd /C "%PYTHON% client_monitor.py > "%LOG_FILE%" 2>&1"
+REM 方式1: 尝试使用PowerShell启动后台进程（推荐方式）
+set "PID="
+powershell -WindowStyle Hidden -Command "
+    try {
+        $env:ASD_SERVER_URL = '%SERVER_URL%'
+        $env:ASD_WS_URL = '%WS_URL%'
+        $env:ASD_MONITOR_DIR = '%MONITOR_DIR%'
+        $env:ASD_CLIENT_NAME = '%CLIENT_NAME%'
+        $env:ASD_LOG_LEVEL = '%LOG_LEVEL%'
+        $env:ASD_LOG_FILE = '%LOG_FILE%'
+        $proc = Start-Process -FilePath '%PYTHON%' -ArgumentList 'client_monitor.py' -WorkingDirectory '%CLIENT_DIR%' -WindowStyle Hidden -PassThru
+        $proc.Id | Out-File -FilePath '%PID_FILE%' -Encoding ASCII
+    } catch {
+        Write-Host 'FAILED'
+    }
+" 2>nul
+
+REM 检查是否成功获取PID
+if exist "%PID_FILE%" (
+    set /p PID=<"%PID_FILE%"
+    if "!PID!"=="FAILED" set "PID="
+)
+
+REM 方式2: 如果PowerShell方式失败，使用传统start命令
+if not defined PID (
+    echo [提示] 使用备用启动方式...
+    
+    REM 使用start命令启动新窗口（最小化）
+    start /MIN "ASD Client" cmd /C "set ASD_SERVER_URL=%SERVER_URL% && set ASD_WS_URL=%WS_URL% && set ASD_MONITOR_DIR=%MONITOR_DIR% && set ASD_CLIENT_NAME=%CLIENT_NAME% && set ASD_LOG_LEVEL=%LOG_LEVEL% && set ASD_LOG_FILE=%LOG_FILE% && %PYTHON% client_monitor.py"
+    
+    REM 等待进程启动
+    timeout /t 3 /nobreak >nul
+    
+    REM 获取PID - 通过查找最近启动的python进程
+    set "FOUND=0"
+    for /f "skip=1 tokens=2 delims=," %%a in ('wmic process where "name='python.exe' or name='python3.exe'" get ProcessId,CommandLine /format:csv 2^>nul ^| findstr "client_monitor.py"') do (
+        if !FOUND!==0 (
+            set "PID=%%a"
+            set "FOUND=1"
+        )
+    )
+    
+    if defined PID (
+        echo !PID! > "%PID_FILE%"
+    )
+)
 
 REM 记录启动时间戳
 set "START_TIME=%TIME%"
@@ -309,34 +352,7 @@ echo 启动时间: %START_TIME%
 REM 等待进程启动
 timeout /t 2 /nobreak >nul
 
-REM 获取PID - 通过查找最近启动的python进程
-set "PID="
-set "FOUND=0"
-
-REM 方法1: 使用wmic获取最近启动的python进程
-for /f "skip=1 tokens=2 delims=," %%a in ('wmic process where "name='python.exe' or name='python3.exe'" get ProcessId,CommandLine /format:csv 2^>nul ^| findstr "client_monitor.py"') do (
-    if !FOUND!==0 (
-        set "PID=%%a"
-        set "FOUND=1"
-    )
-)
-
-REM 方法2: 如果wmic失败，尝试从tasklist查找
-if not defined PID (
-    for /f "tokens=2" %%a in ('tasklist /fi "imagename eq python.exe" /fo list ^| findstr /i "PID:"') do (
-        REM 验证这个PID是否是我们的进程（通过检查日志文件是否被写入）
-        timeout /t 1 /nobreak >nul
-        findstr /c:"客户端初始化" "%LOG_FILE%" >nul 2>&1
-        if !errorlevel!==0 (
-            set "PID=%%a"
-            goto :pid_found
-        )
-    )
-)
-
-:pid_found
 if defined PID (
-    echo !PID! > "%PID_FILE%"
     echo 检测到进程PID: !PID!
 ) else (
     echo [警告] 无法获取进程PID，但程序可能仍在运行
@@ -471,7 +487,27 @@ if not exist "%LOG_FILE%" (
 )
 echo 正在监听日志: %LOG_FILE%
 echo 按 Ctrl+C 退出...
-type "%LOG_FILE%"
+echo.
+
+REM 先显示最后30行
+echo [最近日志]:
+powershell -Command "Get-Content '%LOG_FILE%' -Tail 30" 2>nul || type "%LOG_FILE%"
+
+echo.
+echo [实时监控 - 按 Ctrl+C 停止]:
+
+REM 使用PowerShell实现类似tail -f的功能
+powershell -Command "
+    $path = '%LOG_FILE%'
+    $reader = [System.IO.StreamReader]::new($path)
+    $reader.BaseStream.Seek(0, [System.IO.SeekOrigin]::End) | Out-Null
+    while ($true) {
+        $line = $reader.ReadLine()
+        if ($line) { Write-Host $line }
+        else { Start-Sleep -Milliseconds 100 }
+    }
+" 2>nul
+
 goto :eof
 
 REM ============================================
