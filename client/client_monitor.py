@@ -226,38 +226,114 @@ class MonitorClient:
         
         return True
     
-    async def stop(self):
-        """停止客户端"""
-        self.logger.info("🛑 正在停止客户端...")
+    async def stop(self, timeout: float = 10.0):
+        """停止客户端（带超时保护）"""
+        self.logger.info(f"🛑 正在停止客户端（超时: {timeout}秒）...")
         self.is_running = False
-        
-        # 断开WebSocket
+
+        try:
+            # 使用超时保护整个停止过程
+            await asyncio.wait_for(self._do_stop(), timeout=timeout)
+            self.logger.info("👋 客户端已正常停止")
+        except asyncio.TimeoutError:
+            self.logger.warning("⏱️ 停止超时，执行强制清理...")
+            await self._force_stop()
+
+    async def _do_stop(self):
+        """执行优雅的停止流程"""
+        # 1. 先通知服务器断开（WebSocket还连着时通知更可靠）
+        if self.is_registered and self.http_client:
+            try:
+                await asyncio.wait_for(
+                    self._notify_disconnect(),
+                    timeout=3.0
+                )
+            except asyncio.TimeoutError:
+                self.logger.warning("通知服务器断开超时")
+            except Exception as e:
+                self.logger.warning(f"通知服务器断开时出错: {e}")
+
+        # 2. 断开WebSocket
+        if self.ws_connection:
+            try:
+                # 发送关闭帧，优雅关闭
+                await asyncio.wait_for(
+                    self.ws_connection.close(),
+                    timeout=2.0
+                )
+            except asyncio.TimeoutError:
+                self.logger.warning("WebSocket关闭超时")
+            except:
+                pass
+            finally:
+                self.ws_connection = None
+
+        # 3. 停止文件监控（带超时）
+        if self.observer:
+            try:
+                self.observer.stop()
+                # 使用线程join的超时版本
+                import threading
+                if threading.current_thread() != self.observer:
+                    self.observer.join(timeout=3.0)
+                    if self.observer.is_alive():
+                        self.logger.warning("文件监控线程未正常停止")
+            except Exception as e:
+                self.logger.warning(f"停止文件监控时出错: {e}")
+
+        # 4. 关闭HTTP客户端
+        if self.http_client:
+            try:
+                await asyncio.wait_for(
+                    self.http_client.aclose(),
+                    timeout=2.0
+                )
+            except asyncio.TimeoutError:
+                self.logger.warning("HTTP客户端关闭超时")
+            except:
+                pass
+
+    async def _notify_disconnect(self):
+        """通知服务器客户端断开（异步发送，不阻塞）"""
+        try:
+            response = await self.http_client.post(
+                urljoin(self.config.server_url, "/api/client/disconnect"),
+                data={"client_id": self.config.client_id},
+                timeout=2.0  # 短超时，快速失败
+            )
+            if response.status_code == 200:
+                self.logger.debug("已通知服务器断开连接")
+        except Exception:
+            # 静默失败，不影响停止流程
+            pass
+
+    async def _force_stop(self):
+        """强制停止（清理资源，不保证通知服务器）"""
+        self.logger.warning("执行强制停止...")
+
+        # 强制关闭WebSocket
         if self.ws_connection:
             try:
                 await self.ws_connection.close()
             except:
                 pass
-        
-        # 停止文件监控
+            self.ws_connection = None
+
+        # 强制停止文件监控
         if self.observer:
-            self.observer.stop()
-            self.observer.join()
-        
-        # 通知服务器断开
-        if self.is_registered:
             try:
-                await self.http_client.post(
-                    urljoin(self.config.server_url, "/api/client/disconnect"),
-                    data={"client_id": self.config.client_id}
-                )
-            except Exception as e:
-                self.logger.warning(f"通知服务器断开时出错: {e}")
-        
-        # 关闭HTTP客户端
+                self.observer.stop()
+            except:
+                pass
+
+        # 强制关闭HTTP客户端
         if self.http_client:
-            await self.http_client.aclose()
-        
-        self.logger.info("👋 客户端已停止")
+            try:
+                await self.http_client.aclose()
+            except:
+                pass
+
+        self.logger.info("👋 客户端已强制停止")
     
     async def _register(self) -> bool:
         """注册客户端到服务器"""
@@ -550,23 +626,50 @@ async def main():
     client = MonitorClient(config)
     
     # 设置信号处理（Windows 只支持 SIGINT）
+    stop_event = asyncio.Event()
+
     def signal_handler(sig, frame):
         print("\n🛑 收到中断信号，正在停止...")
-        asyncio.create_task(client.stop())
-    
+        stop_event.set()
+
     signal.signal(signal.SIGINT, signal_handler)
-    
+
     # Windows 不支持 SIGTERM
     if hasattr(signal, 'SIGTERM'):
         signal.signal(signal.SIGTERM, signal_handler)
-    
+
     # 启动客户端
+    start_task = asyncio.create_task(client.start())
+    stop_task = asyncio.create_task(stop_event.wait())
+
+    # 等待停止信号或客户端异常
     try:
-        await client.start()
+        done, pending = await asyncio.wait(
+            [start_task, stop_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # 取消 pending 的任务
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
     except Exception as e:
         print(f"客户端异常: {e}")
     finally:
-        await client.stop()
+        # 取消启动任务（如果还在运行）
+        if not start_task.done():
+            start_task.cancel()
+            try:
+                await start_task
+            except asyncio.CancelledError:
+                pass
+
+        # 执行停止（带超时）
+        await client.stop(timeout=10.0)
 
 
 if __name__ == "__main__":

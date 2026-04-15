@@ -71,7 +71,8 @@ class ClientDetectionService:
         try:
             from core.precise_segment_locator.adapter import PreciseSegmentLocatorAdapter
             from core.long_audio_analyzer import AnalyzerConfig
-            
+            from core.shazam.database.connector import MySQLConnector
+
             # 创建配置（使用固定默认值）
             # 注意：AnalyzerConfig 参数与 SegmentLocatorConfig 不同
             config = AnalyzerConfig(
@@ -85,11 +86,54 @@ class ClientDetectionService:
                 max_workers=4,          # 最大线程数
                 batch_size=10           # 批处理大小
             )
-            
+
+            # 创建数据库连接
+            db_connector = MySQLConnector()
+
             # 创建分析器
-            self._analyzer = PreciseSegmentLocatorAdapter(config)
+            self._analyzer = PreciseSegmentLocatorAdapter(config=config, db_connector=db_connector)
+
+            # 如果用户指定了参考音频，添加到索引
+            if self.reference_audios:
+                print(f"[ClientDetection] [分析器初始化] 用户指定了 {len(self.reference_audios)} 个参考音频，只加载这些音频到索引")
+                for ref_path in self.reference_audios:
+                    music_id = None
+                    music_name = None
+
+                    # 首先尝试通过完整路径查找
+                    if os.path.exists(ref_path):
+                        music_id = db_connector.find_music_by_music_path(ref_path)
+                    else:
+                        # 文件不存在，尝试通过文件名（不含扩展名）查找
+                        ref_name = os.path.splitext(os.path.basename(ref_path))[0]
+                        print(f"[ClientDetection] [分析器初始化] 参考音频文件不存在，尝试使用名称查找: {ref_name}")
+                        music_id = db_connector.find_music_by_music_name(ref_name)
+                        if music_id:
+                            print(f"[ClientDetection] [分析器初始化] 通过名称找到音乐ID: {music_id}")
+
+                    if music_id:
+                        music_name = db_connector.find_music_name_by_music_id(music_id)
+                        # PreciseSegmentLocator 直接使用数据库加载
+                        success = self._analyzer.locator.add_reference(music_id, music_name)
+
+                        if success:
+                            print(f"[ClientDetection] [分析器初始化] 添加参考音频到索引: {music_name} (ID: {music_id})")
+                        else:
+                            print(f"[ClientDetection] [分析器初始化] 添加参考音频失败: {ref_path}")
+                    else:
+                        print(f"[ClientDetection] [分析器初始化] 未找到参考音频: {ref_path}")
+            else:
+                # 用户未指定参考音频，加载所有歌曲到索引
+                print(f"[ClientDetection] [分析器初始化] 用户未指定参考音频，加载所有歌曲到索引")
+                # 获取所有参考音频ID并添加
+                sql = "SELECT music_id, music_name FROM music"
+                db_connector.cursor.execute(sql)
+                musics = db_connector.cursor.fetchall()
+                for music_id, music_name in musics:
+                    self._analyzer.locator.add_reference(music_id, music_name)
+
             print("[ClientDetection] 长音频分析器初始化完成")
-            
+
         except Exception as e:
             print(f"[ClientDetection] 初始化长音频分析器失败: {e}")
             import traceback
@@ -559,21 +603,28 @@ class ClientDetectionService:
     
     async def update_config(self, algorithm: str = None, device: str = None, reference_audios: List[str] = None):
         """更新配置"""
-        need_reinit = False
-        
+        need_reinit_detector = False
+        need_reinit_analyzer = False
+
         if algorithm and algorithm != self.algorithm:
             self.algorithm = algorithm
-            need_reinit = True
-            
+            need_reinit_detector = True
+
         if device and device != self.device:
             self.device = device
-            need_reinit = True
-        
+            need_reinit_detector = True
+
         if reference_audios is not None:
-            self.reference_audios = reference_audios
-        
+            # 检查参考音频是否发生变化
+            old_refs = set(self.reference_audios)
+            new_refs = set(reference_audios)
+            if old_refs != new_refs:
+                self.reference_audios = reference_audios
+                need_reinit_analyzer = True
+                print(f"[ClientDetection] 参考音频变更，从 {len(old_refs)} 个变为 {len(new_refs)} 个")
+
         # 如果算法或设备改变，重新初始化检测器
-        if need_reinit:
+        if need_reinit_detector:
             print(f"[ClientDetection] 配置变更，重新初始化检测器: {self.algorithm}")
             # 释放旧检测器
             if self._detector:
@@ -585,9 +636,22 @@ class ClientDetectionService:
                     pass
                 self._detector = None
                 self._current_algorithm = None
-            
-            # 重新初始化
+
+            # 重新初始化检测器
             await self._init_detector()
+
+        # 如果参考音频改变，重新初始化分析器
+        if need_reinit_analyzer:
+            print(f"[ClientDetection] 参考音频变更，重新初始化分析器")
+            # 释放旧分析器
+            if self._analyzer:
+                try:
+                    self._analyzer.close()
+                except:
+                    pass
+                self._analyzer = None
+
+            # 重新初始化分析器
             await self._init_analyzer()
     
     def get_status(self) -> Dict:

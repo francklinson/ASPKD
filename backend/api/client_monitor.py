@@ -9,7 +9,7 @@ import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional, Set
 from dataclasses import dataclass, field
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 import shutil
@@ -44,19 +44,34 @@ class ClientManager:
         self._lock = asyncio.Lock()
     
     async def register_client(self, client_id: str, name: str, ip_address: str, websocket: WebSocket = None) -> ClientInfo:
-        """注册新客户端"""
+        """注册新客户端或重新激活已存在的客户端"""
         async with self._lock:
             now = datetime.now()
-            client = ClientInfo(
-                client_id=client_id,
-                name=name,
-                ip_address=ip_address,
-                connected_at=now,
-                last_heartbeat=now,
-                websocket=websocket
-            )
-            self.clients[client_id] = client
-            print(f"[ClientManager] 客户端注册: {client_id} ({name}) from {ip_address}")
+
+            # 检查客户端是否已存在
+            if client_id in self.clients:
+                # 已存在，更新状态而不是创建新记录
+                client = self.clients[client_id]
+                client.name = name
+                client.ip_address = ip_address
+                client.status = "online"
+                client.last_heartbeat = now
+                client.websocket = websocket
+                # 保留原有的 connected_at、total_uploaded、anomaly_detected
+                print(f"[ClientManager] 客户端重新上线: {client_id} ({name}) from {ip_address}, 累计上传: {client.total_uploaded}")
+            else:
+                # 新客户端，创建记录
+                client = ClientInfo(
+                    client_id=client_id,
+                    name=name,
+                    ip_address=ip_address,
+                    connected_at=now,
+                    last_heartbeat=now,
+                    websocket=websocket
+                )
+                self.clients[client_id] = client
+                print(f"[ClientManager] 新客户端注册: {client_id} ({name}) from {ip_address}")
+
             return client
     
     async def unregister_client(self, client_id: str):
@@ -138,31 +153,45 @@ class ClientStatusResponse(BaseModel):
 
 
 @router.post("/register")
-async def register_client(request: ClientRegisterRequest):
+async def register_client(request: ClientRegisterRequest, fastapi_request: Request):
     """
     客户端注册
-    
+
     - **client_name**: 客户端名称（用于显示）
     - **client_id**: 客户端ID（可选，不传则自动生成）
-    
+
     返回客户端ID和连接配置
     """
     client_id = request.client_id or str(uuid.uuid4())
-    
-    # 获取IP地址（实际应该从请求中获取）
-    ip_address = "unknown"  # FastAPI中可以通过Request对象获取
-    
+
+    # 获取客户端真实IP地址
+    try:
+        # 尝试从请求头中获取真实IP（适用于反向代理场景）
+        if "x-forwarded-for" in fastapi_request.headers:
+            ip_address = fastapi_request.headers["x-forwarded-for"].split(",")[0].strip()
+        elif "x-real-ip" in fastapi_request.headers:
+            ip_address = fastapi_request.headers["x-real-ip"]
+        else:
+            # 直接从连接获取
+            ip_address = fastapi_request.client.host if fastapi_request.client else "unknown"
+    except Exception as e:
+        ip_address = "unknown"
+        print(f"[ClientRegister] 获取IP地址失败: {e}")
+
     client = await client_manager.register_client(
         client_id=client_id,
         name=request.client_name,
         ip_address=ip_address
     )
-    
+
+    print(f"[ClientRegister] 客户端注册成功: {client_id} ({request.client_name}) IP: {ip_address}")
+
     return {
         "success": True,
         "client_id": client.client_id,
         "server_time": datetime.now().isoformat(),
-        "message": "客户端注册成功"
+        "message": "客户端注册成功",
+        "ip_address": ip_address
     }
 
 
@@ -391,21 +420,31 @@ async def get_client_detection_status():
 async def client_websocket(websocket: WebSocket, client_id: str):
     """
     客户端 WebSocket 连接
-    
+
     用于实时推送检测结果给特定客户端
     支持服务端重启后自动重新注册
     """
     await websocket.accept()
-    
+
+    # 获取客户端真实IP地址
+    try:
+        # 尝试从websocket.client获取IP
+        client_host = websocket.client.host if websocket.client else "unknown"
+    except:
+        client_host = "unknown"
+
     # 检查客户端是否已注册（服务端重启后可能丢失）
     client = client_manager.get_client(client_id)
     if not client:
-        print(f"[ClientWS] 客户端 {client_id} 未注册，等待注册消息...")
+        print(f"[ClientWS] 客户端 {client_id} 未注册，等待注册消息... (IP: {client_host})")
     else:
-        # 注册WebSocket连接
+        # 注册WebSocket连接，并更新IP地址
         async with client_manager._lock:
             client_manager.clients[client_id].websocket = websocket
-        print(f"[ClientWS] 客户端WebSocket连接: {client_id}")
+            # 更新IP地址（如果之前是unknown或websocket）
+            if client_manager.clients[client_id].ip_address in ("unknown", "websocket"):
+                client_manager.clients[client_id].ip_address = client_host
+        print(f"[ClientWS] 客户端WebSocket连接: {client_id} (IP: {client_host})")
     
     try:
         while True:
@@ -419,14 +458,15 @@ async def client_websocket(websocket: WebSocket, client_id: str):
             elif message.get("type") == "register":
                 # 客户端重新注册（服务端重启后）
                 client_name = message.get("client_name", "未知客户端")
+                # 使用WebSocket连接时获取的真实IP
                 await client_manager.register_client(
                     client_id=client_id,
                     name=client_name,
-                    ip_address="websocket",  # WebSocket连接时无法获取真实IP
+                    ip_address=client_host,  # 使用从WebSocket获取的真实IP
                     websocket=websocket
                 )
                 await websocket.send_json({"type": "register_ack", "success": True})
-                print(f"[ClientWS] 客户端通过WebSocket注册: {client_id} ({client_name})")
+                print(f"[ClientWS] 客户端通过WebSocket注册: {client_id} ({client_name}) IP: {client_host}")
             
             elif message.get("type") == "heartbeat":
                 # 如果客户端不存在，返回错误提示需要重新注册
