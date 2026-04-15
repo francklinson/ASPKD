@@ -619,17 +619,33 @@ def load_config_from_env() -> ClientConfig:
 
 async def main():
     """主函数"""
+    # 打印启动标记（用于脚本检测）
+    print("=" * 60)
+    print("客户端初始化开始")
+    print("=" * 60)
+    
     # 加载配置
     config = load_config_from_env()
     
     # 打印启动信息
-    print("=" * 60)
-    print("🔊 音频异常检测 - 客户端监控脚本")
+    print("\n🔊 音频异常检测 - 客户端监控脚本")
     print("=" * 60)
     print(f"客户端名称: {config.client_name}")
     print(f"服务器地址: {config.server_url}")
+    print(f"WebSocket地址: {config.ws_url}")
     print(f"监控目录: {config.monitor_dir}")
+    print(f"日志级别: {config.log_level}")
     print("=" * 60)
+    
+    # 检查监控目录
+    if not os.path.exists(config.monitor_dir):
+        print(f"\n⚠️ 监控目录不存在，正在创建: {config.monitor_dir}")
+        try:
+            os.makedirs(config.monitor_dir, exist_ok=True)
+            print(f"✅ 监控目录创建成功")
+        except Exception as e:
+            print(f"❌ 监控目录创建失败: {e}")
+            return
     
     # 创建客户端
     client = MonitorClient(config)

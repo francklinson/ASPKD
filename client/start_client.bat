@@ -292,44 +292,99 @@ if defined ENV_CLIENT_ID (
     set "ASD_CLIENT_ID=!ENV_CLIENT_ID!"
 )
 
-REM 启动客户端（隐藏窗口）
-start /B "ASD Client" %PYTHON% client_monitor.py > "%LOG_FILE%" 2>&1
+REM 启动客户端（后台运行）
+echo 正在启动Python程序...
+
+REM 先创建一个空的日志文件确保路径正确
+echo. > "%LOG_FILE%" 2>nul
+
+REM 使用start /B命令启动，重定向到日志文件
+REM 注意：Windows批处理中start /B的重定向需要特殊处理
+start /B /MIN cmd /C "%PYTHON% client_monitor.py > "%LOG_FILE%" 2>&1"
+
+REM 记录启动时间戳
+set "START_TIME=%TIME%"
+echo 启动时间: %START_TIME%
 
 REM 等待进程启动
-timeout /t 1 /nobreak >nul
+timeout /t 2 /nobreak >nul
 
-REM 获取PID - 改进的检测方式
-for /f "tokens=2" %%a in ('tasklist /fi "imagename eq python.exe" /fo list ^| findstr /i "PID:"') do (
-    set "PID=%%a"
-    echo !PID! > "%PID_FILE%"
-    goto :started
-)
-for /f "tokens=2" %%a in ('tasklist /fi "imagename eq python3.exe" /fo list ^| findstr /i "PID:"') do (
-    set "PID=%%a"
-    echo !PID! > "%PID_FILE%"
-    goto :started
+REM 获取PID - 通过查找最近启动的python进程
+set "PID="
+set "FOUND=0"
+
+REM 方法1: 使用wmic获取最近启动的python进程
+for /f "skip=1 tokens=2 delims=," %%a in ('wmic process where "name='python.exe' or name='python3.exe'" get ProcessId,CommandLine /format:csv 2^>nul ^| findstr "client_monitor.py"') do (
+    if !FOUND!==0 (
+        set "PID=%%a"
+        set "FOUND=1"
+    )
 )
 
-:started
-echo 等待客户端启动...
+REM 方法2: 如果wmic失败，尝试从tasklist查找
+if not defined PID (
+    for /f "tokens=2" %%a in ('tasklist /fi "imagename eq python.exe" /fo list ^| findstr /i "PID:"') do (
+        REM 验证这个PID是否是我们的进程（通过检查日志文件是否被写入）
+        timeout /t 1 /nobreak >nul
+        findstr /c:"客户端初始化" "%LOG_FILE%" >nul 2>&1
+        if !errorlevel!==0 (
+            set "PID=%%a"
+            goto :pid_found
+        )
+    )
+)
+
+:pid_found
+if defined PID (
+    echo !PID! > "%PID_FILE%"
+    echo 检测到进程PID: !PID!
+) else (
+    echo [警告] 无法获取进程PID，但程序可能仍在运行
+)
+
+echo.
+echo 等待客户端初始化...
 timeout /t 3 /nobreak >nul
+
+REM 检查日志输出
+echo.
+echo [最近日志输出]:
+REM 使用PowerShell显示最后20行（兼容Windows）
+powershell -Command "if (Test-Path '%LOG_FILE%') { Get-Content '%LOG_FILE%' -Tail 20 } else { Write-Host '日志文件不存在' }"
 
 REM 检查是否注册成功
 findstr /c:"客户端注册成功" "%LOG_FILE%" >nul 2>&1
 if %errorlevel%==0 (
-    echo 客户端启动成功!
-    echo PID: !PID!
-    echo 日志文件: %LOG_FILE%
     echo.
-    echo 查看日志: start_client.bat log
+    echo ============================================
+    echo  客户端启动成功!
+    echo ============================================
+    if defined PID echo  PID: !PID!
+    echo  日志文件: %LOG_FILE%
+    echo.
+    echo  查看日志: start_client.bat log
+    echo  查看状态: start_client.bat status
 ) else (
     findstr /c:"ERROR" "%LOG_FILE%" >nul 2>&1
     if %errorlevel%==0 (
-        echo [警告] 客户端启动可能出错
+        echo.
+        echo [错误] 客户端启动出错，请查看日志:
         type "%LOG_FILE%"
     ) else (
-        echo 客户端正在初始化...
-        echo 查看日志: %LOG_FILE%
+        findstr /c:"客户端初始化" "%LOG_FILE%" >nul 2>&1
+        if %errorlevel%==0 (
+            echo.
+            echo [提示] 客户端正在初始化中...
+            echo  查看日志: start_client.bat log
+            echo  等待几秒后查看状态: start_client.bat status
+        ) else (
+            echo.
+            echo [错误] 客户端可能未能正常启动
+            echo  请检查:
+            echo    1. Python是否正常工作: %PYTHON% --version
+            echo    2. 依赖是否安装: %PYTHON% -c "import httpx, websockets, watchdog"
+            echo    3. 查看详细日志: type "%LOG_FILE%"
+        )
     )
 )
 goto :eof
