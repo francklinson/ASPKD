@@ -149,11 +149,17 @@ if not exist "%MONITOR_DIR%" (
 )
 echo.
 
-echo 检查服务器连接...
+echo 检查服务器连接 (最多等待10秒)...
 call :check_server
 echo.
 
 echo === 环境检查完成 ===
+echo.
+echo 提示: 如果服务器连接失败，请检查:
+echo   1. 服务器地址是否正确 (当前: %SERVER_URL%)
+echo   2. 服务端是否已启动
+echo   3. 防火墙是否允许连接
+echo   4. 网络连接是否正常
 pause
 goto :eof
 
@@ -339,39 +345,94 @@ call :http_request "%SERVER_URL%/api/client/register" "POST" "{\"client_name\":\
 goto :eof
 
 REM ============================================
-REM 检查服务器连接 (兼容多种方式)
+REM 检查服务器连接 (兼容多种方式，带超时)
 REM ============================================
 :check_server
 REM 尝试多种方式检测服务器
 set "SERVER_OK=0"
+set "CHECK_TIMEOUT=8"
 
-REM 方式1: PowerShell (Windows 7+)
-powershell -Command "try { Invoke-WebRequest -Uri '%SERVER_URL%/health' -TimeoutSec 5 -UseBasicParsing | Out-Null; exit 0 } catch { exit 1 }" 2>nul
-if %errorlevel%==0 (
-    echo 服务端连接: 正常
-    set "SERVER_OK=1"
-    goto :check_done
+echo   正在检测 %SERVER_URL%/health ...
+
+REM 方式1: PowerShell (Windows 7+) - 使用Start-Process实现超时控制
+set "PS_TIMEOUT=0"
+timeout /t 1 /nobreak >nul
+
+REM 创建临时脚本文件
+echo try { Invoke-WebRequest -Uri '%SERVER_URL%/health' -TimeoutSec 5 -UseBasicParsing ^| Out-Null; exit 0 } catch { exit 1 } > "%TEMP%\asd_check.ps1"
+
+REM 使用Start-Process启动PowerShell并等待，带超时
+start /B /MIN powershell -ExecutionPolicy Bypass -File "%TEMP%\asd_check.ps1" >nul 2>&1
+set "PS_PID=!ERRORLEVEL!"
+
+REM 等待最多6秒
+for /l %%i in (1,1,6) do (
+    timeout /t 1 /nobreak >nul
+    tasklist /fi "imagename eq powershell.exe" /fo csv 2>nul | findstr /i "asd_check" >nul
+    if errorlevel 1 (
+        REM 进程已结束，检查退出码
+        set "PS_TIMEOUT=0"
+        goto :ps_done
+    )
 )
+set "PS_TIMEOUT=1"
+taskkill /f /im powershell.exe 2>nul
 
-REM 方式2: 使用bitsadmin (Windows XP+)
-bitsadmin /transfer test /download /priority normal "%SERVER_URL%/health" "%TEMP%\health_test.tmp" >nul 2>&1
-if %errorlevel%==0 (
-    echo 服务端连接: 正常
-    set "SERVER_OK=1"
-    del "%TEMP%\health_test.tmp" 2>nul
-    goto :check_done
+:ps_done
+if %PS_TIMEOUT%==0 (
+    REM 检查是否成功
+    powershell -Command "try { Invoke-WebRequest -Uri '%SERVER_URL%/health' -TimeoutSec 3 -UseBasicParsing ^| Out-Null; Write-Host 'OK'; exit 0 } catch { exit 1 }" 2>nul | findstr "OK" >nul
+    if !errorlevel!==0 (
+        echo 服务端连接: 正常
+        set "SERVER_OK=1"
+        del "%TEMP%\asd_check.ps1" 2>nul
+        goto :check_done
+    )
 )
+del "%TEMP%\asd_check.ps1" 2>nul
 
-REM 方式3: 使用certutil
+REM 方式2: 使用bitsadmin (Windows XP+) - 自带超时
+echo   尝试使用 bitsadmin 检测...
+bitsadmin /transfer asd_test /download /priority normal "%SERVER_URL%/health" "%TEMP%\health_test.tmp" >nul 2>&1
+if %errorlevel%==0 (
+    if exist "%TEMP%\health_test.tmp" (
+        echo 服务端连接: 正常
+        set "SERVER_OK=1"
+        del "%TEMP%\health_test.tmp" 2>nul
+        goto :check_done
+    )
+)
+del "%TEMP%\health_test.tmp" 2>nul
+
+REM 方式3: 使用certutil - 快速超时
+echo   尝试使用 certutil 检测...
 certutil -urlcache -split -f "%SERVER_URL%/health" "%TEMP%\health_test.tmp" >nul 2>&1
+timeout /t 2 /nobreak >nul
 if %errorlevel%==0 (
-    echo 服务端连接: 正常
-    set "SERVER_OK=1"
-    del "%TEMP%\health_test.tmp" 2>nul
-    goto :check_done
+    if exist "%TEMP%\health_test.tmp" (
+        for %%F in ("%TEMP%\health_test.tmp") do set "FSIZE=%%~zF"
+        if !FSIZE! gtr 0 (
+            echo 服务端连接: 正常
+            set "SERVER_OK=1"
+            del "%TEMP%\health_test.tmp" 2>nul
+            goto :check_done
+        )
+    )
 )
+del "%TEMP%\health_test.tmp" 2>nul
 
-echo 服务端连接: 无法连接 (或检测工具不可用)
+REM 方式4: 使用ping检测主机是否可达
+echo   尝试 ping 检测主机...
+for /f "tokens=2 delims=/:" %%a in ("%SERVER_URL%") do set "HOST=%%a"
+for /f "tokens=1 delims=:" %%a in ("%HOST%") do set "HOST=%%a"
+ping -n 1 -w 2000 !HOST! >nul 2>&1
+if %errorlevel%==0 (
+    echo 服务端连接: 主机可达，但HTTP服务可能未启动
+    echo   请检查: 1) 服务端是否运行  2) 端口是否正确  3) 防火墙设置
+) else (
+    echo 服务端连接: 无法连接 (主机不可达)
+    echo   请检查: 1) 服务器地址是否正确  2) 网络连接  3) 防火墙设置
+)
 
 :check_done
 goto :eof
