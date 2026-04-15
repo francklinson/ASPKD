@@ -44,9 +44,20 @@ class ClientManager:
         self._lock = asyncio.Lock()
     
     async def register_client(self, client_id: str, name: str, ip_address: str, websocket: WebSocket = None) -> ClientInfo:
-        """注册新客户端或重新激活已存在的客户端"""
+        """注册新客户端或重新激活已存在的客户端（同一IP只保留最新客户端）"""
         async with self._lock:
             now = datetime.now()
+
+            # 检查该IP是否已有其他客户端，如果有则移除旧的
+            clients_to_remove = []
+            for existing_id, existing_client in self.clients.items():
+                if existing_client.ip_address == ip_address and existing_id != client_id:
+                    clients_to_remove.append(existing_id)
+                    print(f"[ClientManager] 同一IP新客户端注册，移除旧客户端: {existing_id} ({existing_client.name}) from {ip_address}")
+            
+            # 移除同一IP的旧客户端
+            for old_id in clients_to_remove:
+                del self.clients[old_id]
 
             # 检查客户端是否已存在
             if client_id in self.clients:
@@ -100,12 +111,13 @@ class ClientManager:
                     self.clients[client_id].anomaly_detected = anomaly_detected
     
     def get_active_clients(self) -> List[dict]:
-        """获取所有活跃客户端"""
-        result = []
+        """获取所有活跃客户端（同一IP只保留最新客户端）"""
         now = datetime.now()
+        result = []
+        
         for client in self.clients.values():
-            # 检查是否超时（5分钟无心跳视为离线）
-            if (now - client.last_heartbeat).total_seconds() > 300:
+            # 检查是否超时（30秒无心跳视为离线）
+            if (now - client.last_heartbeat).total_seconds() > 30:
                 client.status = "offline"
             
             result.append({
@@ -119,7 +131,8 @@ class ClientManager:
                 "anomaly_detected": client.anomaly_detected,
                 "current_task": client.current_task_id
             })
-        return sorted(result, key=lambda x: x["connected_at"], reverse=True)
+        
+        return sorted(result, key=lambda x: x["last_heartbeat"], reverse=True)
     
     def get_client(self, client_id: str) -> Optional[ClientInfo]:
         """获取客户端信息"""
@@ -438,12 +451,15 @@ async def client_websocket(websocket: WebSocket, client_id: str):
     if not client:
         print(f"[ClientWS] 客户端 {client_id} 未注册，等待注册消息... (IP: {client_host})")
     else:
-        # 注册WebSocket连接，并更新IP地址
+        # 注册WebSocket连接，并更新IP地址和心跳时间
         async with client_manager._lock:
             client_manager.clients[client_id].websocket = websocket
             # 更新IP地址（如果之前是unknown或websocket）
             if client_manager.clients[client_id].ip_address in ("unknown", "websocket"):
                 client_manager.clients[client_id].ip_address = client_host
+            # 更新心跳时间（WebSocket连接视为活跃）
+            client_manager.clients[client_id].last_heartbeat = datetime.now()
+            client_manager.clients[client_id].status = "online"
         print(f"[ClientWS] 客户端WebSocket连接: {client_id} (IP: {client_host})")
     
     try:
