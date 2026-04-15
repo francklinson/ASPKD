@@ -23,9 +23,11 @@ if exist "%ENV_FILE%" (
     for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
         set "KEY=%%a"
         set "VAL=%%b"
-        REM 去除空格
+        REM 去除空格（包括开头的空格）
         for /f "tokens=*" %%k in ("!KEY!") do set "KEY=%%k"
         for /f "tokens=*" %%v in ("!VAL!") do set "VAL=%%v"
+        REM 去除末尾的回车符（兼容Windows换行）
+        set "VAL=!VAL:\r=!"
         REM 设置到环境变量
         if "!KEY!"=="ASD_SERVER_URL" set "ENV_SERVER_URL=!VAL!"
         if "!KEY!"=="ASD_WS_URL" set "ENV_WS_URL=!VAL!"
@@ -79,9 +81,16 @@ if defined ASD_WS_URL (
 ) else (
     set "WS_URL=!SERVER_URL!"
 )
-REM 将http替换为ws
+REM 将http替换为ws（注意：使用延迟变量扩展确保正确替换）
 set "WS_URL=!WS_URL:http://=ws://!"
 set "WS_URL=!WS_URL:https://=wss://!"
+
+REM 确保ws://格式正确（如果替换后格式不对，进行修正）
+if "!WS_URL:~0,5!=="ws:/" (
+    if not "!WS_URL:~0,6!=="ws://" (
+        set "WS_URL=!WS_URL:ws:/=ws://!"
+    )
+)
 
 REM 监控目录配置
 if defined ASD_MONITOR_DIR (
@@ -302,13 +311,19 @@ REM 方式1: 尝试使用PowerShell启动后台进程（推荐方式）
 set "PID="
 powershell -WindowStyle Hidden -Command "
     try {
-        $env:ASD_SERVER_URL = '%SERVER_URL%'
-        $env:ASD_WS_URL = '%WS_URL%'
-        $env:ASD_MONITOR_DIR = '%MONITOR_DIR%'
-        $env:ASD_CLIENT_NAME = '%CLIENT_NAME%'
-        $env:ASD_LOG_LEVEL = '%LOG_LEVEL%'
-        $env:ASD_LOG_FILE = '%LOG_FILE%'
-        $proc = Start-Process -FilePath '%PYTHON%' -ArgumentList 'client_monitor.py' -WorkingDirectory '%CLIENT_DIR%' -WindowStyle Hidden -PassThru
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = '%PYTHON%'
+        $psi.Arguments = 'client_monitor.py'
+        $psi.WorkingDirectory = '%CLIENT_DIR%'
+        $psi.WindowStyle = 'Hidden'
+        $psi.UseShellExecute = $false
+        $psi.EnvironmentVariables['ASD_SERVER_URL'] = '%SERVER_URL%'
+        $psi.EnvironmentVariables['ASD_WS_URL'] = '%WS_URL%'
+        $psi.EnvironmentVariables['ASD_MONITOR_DIR'] = '%MONITOR_DIR%'
+        $psi.EnvironmentVariables['ASD_CLIENT_NAME'] = '%CLIENT_NAME%'
+        $psi.EnvironmentVariables['ASD_LOG_LEVEL'] = '%LOG_LEVEL%'
+        $psi.EnvironmentVariables['ASD_LOG_FILE'] = '%LOG_FILE%'
+        $proc = [System.Diagnostics.Process]::Start($psi)
         $proc.Id | Out-File -FilePath '%PID_FILE%' -Encoding ASCII
     } catch {
         Write-Host 'FAILED'
