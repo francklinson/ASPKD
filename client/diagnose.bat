@@ -8,22 +8,43 @@ setlocal enabledelayedexpansion
 
 set "CLIENT_DIR=%~dp0"
 set "CLIENT_DIR=!CLIENT_DIR:~0,-1!"
+set "ENV_FILE=%CLIENT_DIR%\.env"
 
-REM 读取配置
+REM ============================================
+REM 从.env文件加载配置
+REM ============================================
 echo 正在读取配置...
-if exist "%CLIENT_DIR%\.env" (
-    for /f "usebackq tokens=1,2 delims==" %%a in ("%CLIENT_DIR%\.env") do (
-        if "%%a"=="ASD_SERVER_URL" set "SERVER_URL=%%b"
+if exist "%ENV_FILE%" (
+    echo   找到配置文件: %ENV_FILE%
+    for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
+        set "KEY=%%a"
+        set "VAL=%%b"
+        REM 去除空格
+        for /f "tokens=*" %%k in ("!KEY!") do set "KEY=%%k"
+        for /f "tokens=*" %%v in ("!VAL!") do set "VAL=%%v"
+        REM 读取配置
+        if "!KEY!"=="ASD_SERVER_URL" set "SERVER_URL=!VAL!"
+        if "!KEY!"=="ASD_MONITOR_DIR" set "MONITOR_DIR=!VAL!"
+        if "!KEY!"=="ASD_CLIENT_NAME" set "CLIENT_NAME=!VAL!"
     )
+) else (
+    echo   未找到配置文件，使用默认设置
 )
+
+REM 设置默认值
 if not defined SERVER_URL set "SERVER_URL=http://localhost:8004"
+if not defined MONITOR_DIR set "MONITOR_DIR=%CLIENT_DIR%\monitor"
+if not defined CLIENT_NAME set "CLIENT_NAME=客户端-01"
 
 cls
 echo ============================================
 echo    ASD 客户端 - 连接诊断工具
 echo ============================================
 echo.
-echo 目标服务器: %SERVER_URL%
+echo [配置信息]
+echo   服务器地址: %SERVER_URL%
+echo   监控目录:   %MONITOR_DIR%
+echo   客户端名:   %CLIENT_NAME%
 echo.
 
 REM ============================================

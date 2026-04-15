@@ -7,16 +7,46 @@ REM 兼容: Windows 7/8/10/11 及 Windows Server 2008+
 setlocal enabledelayedexpansion
 
 REM ============================================
-REM 配置区域 - 可通过环境变量覆盖
+REM 配置区域 - 可从.env文件或环境变量读取
 REM ============================================
 set "CLIENT_DIR=%~dp0"
 set "CLIENT_DIR=!CLIENT_DIR:~0,-1!"
 set "PID_FILE=%CLIENT_DIR%\.client.pid"
 set "LOG_FILE=%CLIENT_DIR%\client.log"
+set "ENV_FILE=%CLIENT_DIR%\.env"
 
-REM 从环境变量读取配置，如果没有则使用默认值
+REM ============================================
+REM 从.env文件加载配置 (如果存在)
+REM ============================================
+if exist "%ENV_FILE%" (
+    REM 读取.env文件中的配置
+    for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
+        set "KEY=%%a"
+        set "VAL=%%b"
+        REM 去除空格
+        for /f "tokens=*" %%k in ("!KEY!") do set "KEY=%%k"
+        for /f "tokens=*" %%v in ("!VAL!") do set "VAL=%%v"
+        REM 设置到环境变量
+        if "!KEY!"=="ASD_SERVER_URL" set "ENV_SERVER_URL=!VAL!"
+        if "!KEY!"=="ASD_WS_URL" set "ENV_WS_URL=!VAL!"
+        if "!KEY!"=="ASD_CLIENT_NAME" set "ENV_CLIENT_NAME=!VAL!"
+        if "!KEY!"=="ASD_CLIENT_ID" set "ENV_CLIENT_ID=!VAL!"
+        if "!KEY!"=="ASD_MONITOR_DIR" set "ENV_MONITOR_DIR=!VAL!"
+        if "!KEY!"=="ASD_LOG_LEVEL" set "ENV_LOG_LEVEL=!VAL!"
+        if "!KEY!"=="ASD_LOG_FILE" set "ENV_LOG_FILE=!VAL!"
+        if "!KEY!"=="ASD_PYTHON" set "ENV_PYTHON=!VAL!"
+    )
+)
+
+REM ============================================
+REM 配置优先级: 环境变量 > .env文件 > 默认值
+REM ============================================
+
+REM Python配置
 if defined ASD_PYTHON (
     set "PYTHON=!ASD_PYTHON!"
+) else if defined ENV_PYTHON (
+    set "PYTHON=!ENV_PYTHON!"
 ) else (
     REM 自动检测Python
     set "PYTHON="
@@ -35,15 +65,49 @@ if defined ASD_PYTHON (
 REM 服务器地址配置
 if defined ASD_SERVER_URL (
     set "SERVER_URL=!ASD_SERVER_URL!"
+) else if defined ENV_SERVER_URL (
+    set "SERVER_URL=!ENV_SERVER_URL!"
 ) else (
     set "SERVER_URL=http://localhost:8004"
 )
 
+REM WebSocket地址配置
+if defined ASD_WS_URL (
+    set "WS_URL=!ASD_WS_URL!"
+) else if defined ENV_WS_URL (
+    set "WS_URL=!ENV_WS_URL!"
+) else (
+    set "WS_URL=!SERVER_URL!"
+)
+REM 将http替换为ws
+set "WS_URL=!WS_URL:http://=ws://!"
+set "WS_URL=!WS_URL:https://=wss://!"
+
 REM 监控目录配置
 if defined ASD_MONITOR_DIR (
     set "MONITOR_DIR=!ASD_MONITOR_DIR!"
+) else if defined ENV_MONITOR_DIR (
+    set "MONITOR_DIR=!ENV_MONITOR_DIR!"
 ) else (
     set "MONITOR_DIR=%CLIENT_DIR%\monitor"
+)
+
+REM 客户端名称配置
+if defined ASD_CLIENT_NAME (
+    set "CLIENT_NAME=!ASD_CLIENT_NAME!"
+) else if defined ENV_CLIENT_NAME (
+    set "CLIENT_NAME=!ENV_CLIENT_NAME!"
+) else (
+    set "CLIENT_NAME=客户端-01"
+)
+
+REM 日志级别配置
+if defined ASD_LOG_LEVEL (
+    set "LOG_LEVEL=!ASD_LOG_LEVEL!"
+) else if defined ENV_LOG_LEVEL (
+    set "LOG_LEVEL=!ENV_LOG_LEVEL!"
+) else (
+    set "LOG_LEVEL=INFO"
 )
 
 REM ============================================
@@ -124,6 +188,20 @@ REM ============================================
 echo === 环境检查 ===
 echo.
 
+REM 显示配置来源
+echo [配置信息]
+if exist "%ENV_FILE%" (
+    echo   配置文件: %ENV_FILE% (已加载)
+) else (
+    echo   配置文件: 未找到 (使用默认配置)
+)
+echo   服务器地址: %SERVER_URL%
+echo   WebSocket:  %WS_URL%
+echo   监控目录:   %MONITOR_DIR%
+echo   客户端名:   %CLIENT_NAME%
+echo   日志级别:   %LOG_LEVEL%
+echo.
+
 echo Python版本:
 %PYTHON% --version 2>nul || (
     echo [错误] Python未找到: %PYTHON%
@@ -174,9 +252,14 @@ if not "!PID!"=="" (
 )
 
 echo 正在启动 ASD 客户端监控...
-echo Python: %PYTHON%
-echo 服务器: %SERVER_URL%
-echo 监控目录: %MONITOR_DIR%
+echo ============================================
+echo Python:     %PYTHON%
+echo 服务器:     %SERVER_URL%
+echo WebSocket:  %WS_URL%
+echo 监控目录:   %MONITOR_DIR%
+echo 客户端名:   %CLIENT_NAME%
+echo 日志级别:   %LOG_LEVEL%
+echo ============================================
 cd /d "%CLIENT_DIR%"
 
 REM 检查主程序是否存在
@@ -196,9 +279,18 @@ if not exist "%MONITOR_DIR%" (
     mkdir "%MONITOR_DIR%"
 )
 
-REM 设置环境变量并启动客户端
+REM 设置环境变量并启动客户端 (传递所有配置给Python程序)
 set "ASD_SERVER_URL=%SERVER_URL%"
+set "ASD_WS_URL=%WS_URL%"
 set "ASD_MONITOR_DIR=%MONITOR_DIR%"
+set "ASD_CLIENT_NAME=%CLIENT_NAME%"
+set "ASD_LOG_LEVEL=%LOG_LEVEL%"
+set "ASD_LOG_FILE=%LOG_FILE%"
+
+REM 如果.env中有CLIENT_ID也传递
+if defined ENV_CLIENT_ID (
+    set "ASD_CLIENT_ID=!ENV_CLIENT_ID!"
+)
 
 REM 启动客户端（隐藏窗口）
 start /B "ASD Client" %PYTHON% client_monitor.py > "%LOG_FILE%" 2>&1
