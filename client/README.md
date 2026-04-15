@@ -108,20 +108,33 @@ python backend/main.py
 
 ### 2. 安装客户端
 
+**Windows (推荐方式):**
+```cmd
+cd client
+install_windows.bat
+```
+该安装脚本会自动：
+- 检测Python安装
+- 安装pip依赖
+- 创建默认配置文件
+- 创建监控目录
+
+**Windows (手动方式):**
+```cmd
+cd client
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+
+REM 创建配置文件
+copy .env.example .env
+```
+
 **Linux/Mac:**
 ```bash
 cd client
 python -m venv venv
 source venv/bin/activate
-
-pip install -r requirements.txt
-```
-
-**Windows:**
-```cmd
-cd client
-python -m venv venv
-venv\Scripts\activate
 
 pip install -r requirements.txt
 ```
@@ -161,15 +174,30 @@ python client_monitor.py
 
 **Windows:**
 ```cmd
-# 方法1: 使用批处理脚本
+# 方法1: 使用批处理脚本 (推荐，兼容性最好)
 cd client
 start_client.bat start
 
-# 方法2: 使用PowerShell脚本
+# 方法2: 先检查环境再启动
+start_client.bat setup
+start_client.bat start
+
+# 方法3: 使用PowerShell脚本
 powershell -ExecutionPolicy Bypass -File start_client.ps1 start
 
-# 方法3: 直接使用Python
+# 方法4: 直接使用Python
 python client_monitor.py
+```
+
+**Windows 批处理脚本命令:**
+```cmd
+start_client.bat setup   - 检查环境并安装依赖
+start_client.bat start   - 启动客户端
+start_client.bat stop    - 停止客户端
+start_client.bat restart - 重启客户端
+start_client.bat status  - 查看状态
+start_client.bat test    - 测试连接
+start_client.bat log     - 查看日志
 ```
 
 ### 5. 验证连接

@@ -2,21 +2,75 @@
 chcp 65001 >nul
 REM ASD 客户端监控服务管理脚本 (Windows)
 REM 支持: start | stop | restart | status
+REM 兼容: Windows 7/8/10/11 及 Windows Server 2008+
 
 setlocal enabledelayedexpansion
 
-REM 配置
+REM ============================================
+REM 配置区域 - 可通过环境变量覆盖
+REM ============================================
 set "CLIENT_DIR=%~dp0"
-set "PID_FILE=%CLIENT_DIR%.client.pid"
-set "LOG_FILE=%CLIENT_DIR%client.log"
-set "PYTHON=python"
+set "CLIENT_DIR=!CLIENT_DIR:~0,-1!"
+set "PID_FILE=%CLIENT_DIR%\.client.pid"
+set "LOG_FILE=%CLIENT_DIR%\client.log"
 
-REM 颜色设置
-set "RED=[31m"
-set "GREEN=[32m"
-set "YELLOW=[33m"
-set "BLUE=[34m"
-set "NC=[0m"
+REM 从环境变量读取配置，如果没有则使用默认值
+if defined ASD_PYTHON (
+    set "PYTHON=!ASD_PYTHON!"
+) else (
+    REM 自动检测Python
+    set "PYTHON="
+    for %%P in (python python3 py) do (
+        if not defined PYTHON (
+            %%P --version >nul 2>&1 && set "PYTHON=%%P"
+        )
+    )
+    if not defined PYTHON (
+        echo [错误] 未找到Python，请安装Python或设置ASD_PYTHON环境变量
+        pause
+        exit /b 1
+    )
+)
+
+REM 服务器地址配置
+if defined ASD_SERVER_URL (
+    set "SERVER_URL=!ASD_SERVER_URL!"
+) else (
+    set "SERVER_URL=http://localhost:8004"
+)
+
+REM 监控目录配置
+if defined ASD_MONITOR_DIR (
+    set "MONITOR_DIR=!ASD_MONITOR_DIR!"
+) else (
+    set "MONITOR_DIR=%CLIENT_DIR%\monitor"
+)
+
+REM ============================================
+REM 颜色设置 - 兼容旧版Windows
+REM ============================================
+set "USE_COLOR=0"
+for /f "tokens=2 delims=[]" %%a in ('ver') do set "WIN_VER=%%a"
+echo %WIN_VER% | findstr "10\." >nul && set "USE_COLOR=1"
+echo %WIN_VER% | findstr "6\." >nul && set "USE_COLOR=1"
+
+if %USE_COLOR%==1 (
+    set "RED=[31m"
+    set "GREEN=[32m"
+    set "YELLOW=[33m"
+    set "BLUE=[34m"
+    set "NC=[0m"
+) else (
+    set "RED="
+    set "GREEN="
+    set "YELLOW="
+    set "BLUE="
+    set "NC="
+)
+
+REM ============================================
+REM 主逻辑
+REM ============================================
 
 REM 显示帮助
 if "%~1"=="" goto :show_help
@@ -37,6 +91,16 @@ echo   restart    重启客户端
 echo   status     查看客户端状态
 echo   log        查看实时日志
 echo   test       测试与服务端的连接
+echo   setup      检查环境并安装依赖
+echo.
+echo 环境变量:
+echo   ASD_PYTHON      Python解释器路径 (默认: 自动检测)
+echo   ASD_SERVER_URL  服务器地址 (默认: http://localhost:8004)
+echo   ASD_MONITOR_DIR 监控目录 (默认: .\monitor)
+echo.
+echo 示例:
+echo   set ASD_SERVER_URL=http://192.168.1.100:8004
+echo   start_client.bat start
 echo.
 pause
 goto :eof
@@ -49,11 +113,54 @@ if "%~1"=="status" goto :show_status
 if "%~1"=="log" goto :show_logs
 if "%~1"=="logs" goto :show_logs
 if "%~1"=="test" goto :test_connection
+if "%~1"=="setup" goto :setup_env
 echo 未知命令: %~1
 goto :show_help
 
+REM ============================================
+REM 环境检查和设置
+REM ============================================
+:setup_env
+echo === 环境检查 ===
+echo.
+
+echo Python版本:
+%PYTHON% --version 2>nul || (
+    echo [错误] Python未找到: %PYTHON%
+    exit /b 1
+)
+echo.
+
+echo 检查依赖...
+%PYTHON% -c "import httpx, websockets, watchdog" 2>nul && (
+    echo [OK] 所有依赖已安装
+) || (
+    echo [提示] 正在安装依赖...
+    %PYTHON% -m pip install -r "%CLIENT_DIR%\requirements.txt"
+)
+echo.
+
+echo 创建监控目录...
+if not exist "%MONITOR_DIR%" (
+    mkdir "%MONITOR_DIR%"
+    echo [OK] 已创建: %MONITOR_DIR%
+) else (
+    echo [OK] 目录已存在: %MONITOR_DIR%
+)
+echo.
+
+echo 检查服务器连接...
+call :check_server
+echo.
+
+echo === 环境检查完成 ===
+pause
+goto :eof
+
+REM ============================================
+REM 启动客户端
+REM ============================================
 :start_client
-REM 检查是否已运行
 call :get_pid
 if not "!PID!"=="" (
     echo 客户端已在运行中 (PID: !PID!)
@@ -61,18 +168,45 @@ if not "!PID!"=="" (
 )
 
 echo 正在启动 ASD 客户端监控...
+echo Python: %PYTHON%
+echo 服务器: %SERVER_URL%
+echo 监控目录: %MONITOR_DIR%
 cd /d "%CLIENT_DIR%"
+
+REM 检查主程序是否存在
+if not exist "client_monitor.py" (
+    echo [错误] 未找到 client_monitor.py
+    pause
+    exit /b 1
+)
 
 REM 清空旧日志
 if exist "%LOG_FILE%" (
     echo. > "%LOG_FILE%"
 )
 
+REM 创建监控目录
+if not exist "%MONITOR_DIR%" (
+    mkdir "%MONITOR_DIR%"
+)
+
+REM 设置环境变量并启动客户端
+set "ASD_SERVER_URL=%SERVER_URL%"
+set "ASD_MONITOR_DIR=%MONITOR_DIR%"
+
 REM 启动客户端（隐藏窗口）
 start /B "ASD Client" %PYTHON% client_monitor.py > "%LOG_FILE%" 2>&1
 
-REM 获取PID
+REM 等待进程启动
+timeout /t 1 /nobreak >nul
+
+REM 获取PID - 改进的检测方式
 for /f "tokens=2" %%a in ('tasklist /fi "imagename eq python.exe" /fo list ^| findstr /i "PID:"') do (
+    set "PID=%%a"
+    echo !PID! > "%PID_FILE%"
+    goto :started
+)
+for /f "tokens=2" %%a in ('tasklist /fi "imagename eq python3.exe" /fo list ^| findstr /i "PID:"') do (
     set "PID=%%a"
     echo !PID! > "%PID_FILE%"
     goto :started
@@ -91,17 +225,28 @@ if %errorlevel%==0 (
     echo.
     echo 查看日志: start_client.bat log
 ) else (
-    echo 客户端启动失败或仍在初始化
-    echo 查看日志: %LOG_FILE%
+    findstr /c:"ERROR" "%LOG_FILE%" >nul 2>&1
+    if %errorlevel%==0 (
+        echo [警告] 客户端启动可能出错
+        type "%LOG_FILE%"
+    ) else (
+        echo 客户端正在初始化...
+        echo 查看日志: %LOG_FILE%
+    )
 )
 goto :eof
 
+REM ============================================
+REM 停止客户端
+REM ============================================
 :stop_client
 call :get_pid
 if "!PID!"=="" (
     echo 客户端未运行
     REM 清理残留
     taskkill /f /im python.exe 2>nul
+    taskkill /f /im python3.exe 2>nul
+    taskkill /f /im py.exe 2>nul
     if exist "%PID_FILE%" del "%PID_FILE%"
     goto :eof
 )
@@ -112,12 +257,18 @@ if exist "%PID_FILE%" del "%PID_FILE%"
 echo 客户端已停止
 goto :eof
 
+REM ============================================
+REM 重启客户端
+REM ============================================
 :restart_client
 call :stop_client
 timeout /t 2 /nobreak >nul
 call :start_client
 goto :eof
 
+REM ============================================
+REM 查看状态
+REM ============================================
 :show_status
 echo === 客户端状态 ===
 echo.
@@ -148,12 +299,7 @@ if "!PID!"=="" (
     REM 测试服务端连接
     echo.
     echo 服务端连接测试...
-    curl -s http://localhost:8004/health >nul 2>&1
-    if %errorlevel%==0 (
-        echo 服务端连接: 正常
-    ) else (
-        echo 服务端连接: 无法连接
-    )
+    call :check_server
 )
 
 if exist "%LOG_FILE%" (
@@ -162,6 +308,9 @@ if exist "%LOG_FILE%" (
 )
 goto :eof
 
+REM ============================================
+REM 查看日志
+REM ============================================
 :show_logs
 if not exist "%LOG_FILE%" (
     echo 日志文件不存在
@@ -172,28 +321,79 @@ echo 按 Ctrl+C 退出...
 type "%LOG_FILE%"
 goto :eof
 
+REM ============================================
+REM 测试连接
+REM ============================================
 :test_connection
 echo === 连接测试 ===
 echo.
+echo 服务器地址: %SERVER_URL%
+echo.
 
 echo 服务端健康检查...
-curl -s http://localhost:8004/health 2>nul
-if %errorlevel%==0 (
-    echo 正常
-) else (
-    echo 失败
-)
+call :check_server
 
 echo.
 echo 客户端注册接口测试...
-curl -s -X POST http://localhost:8004/api/client/register -H "Content-Type: application/json" -d "{\"client_name\":\"test\"}" 2>nul
-if %errorlevel%==0 (
-    echo 正常
-) else (
-    echo 失败
-)
+call :http_request "%SERVER_URL%/api/client/register" "POST" "{\"client_name\":\"test\"}"
 goto :eof
 
+REM ============================================
+REM 检查服务器连接 (兼容多种方式)
+REM ============================================
+:check_server
+REM 尝试多种方式检测服务器
+set "SERVER_OK=0"
+
+REM 方式1: PowerShell (Windows 7+)
+powershell -Command "try { Invoke-WebRequest -Uri '%SERVER_URL%/health' -TimeoutSec 5 -UseBasicParsing | Out-Null; exit 0 } catch { exit 1 }" 2>nul
+if %errorlevel%==0 (
+    echo 服务端连接: 正常
+    set "SERVER_OK=1"
+    goto :check_done
+)
+
+REM 方式2: 使用bitsadmin (Windows XP+)
+bitsadmin /transfer test /download /priority normal "%SERVER_URL%/health" "%TEMP%\health_test.tmp" >nul 2>&1
+if %errorlevel%==0 (
+    echo 服务端连接: 正常
+    set "SERVER_OK=1"
+    del "%TEMP%\health_test.tmp" 2>nul
+    goto :check_done
+)
+
+REM 方式3: 使用certutil
+certutil -urlcache -split -f "%SERVER_URL%/health" "%TEMP%\health_test.tmp" >nul 2>&1
+if %errorlevel%==0 (
+    echo 服务端连接: 正常
+    set "SERVER_OK=1"
+    del "%TEMP%\health_test.tmp" 2>nul
+    goto :check_done
+)
+
+echo 服务端连接: 无法连接 (或检测工具不可用)
+
+:check_done
+goto :eof
+
+REM ============================================
+REM HTTP请求 (兼容多种方式)
+REM ============================================
+:http_request
+set "URL=%~1"
+set "METHOD=%~2"
+set "DATA=%~3"
+
+REM 尝试PowerShell
+powershell -Command "$url='%URL%'; $method='%METHOD%'; $body='%DATA%'; try { $r=Invoke-WebRequest -Uri $url -Method $method -Body $body -ContentType 'application/json' -TimeoutSec 5 -UseBasicParsing; Write-Host '请求成功' } catch { Write-Host '请求失败' }" 2>nul
+if %errorlevel%==0 goto :eof
+
+echo 无法执行HTTP请求 (PowerShell不可用)
+goto :eof
+
+REM ============================================
+REM 获取PID
+REM ============================================
 :get_pid
 set "PID="
 if exist "%PID_FILE%" (

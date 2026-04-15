@@ -189,8 +189,10 @@ class MonitorClient:
         """生成客户端ID"""
         # Windows: COMPUTERNAME, Linux/Mac: HOSTNAME
         hostname = os.environ.get('COMPUTERNAME') or os.environ.get('HOSTNAME') or 'unknown'
+        # 添加用户名增加唯一性
+        username = os.environ.get('USERNAME') or os.environ.get('USER') or 'user'
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        hash_input = f"{hostname}-{timestamp}"
+        hash_input = f"{hostname}-{username}-{timestamp}"
         return hashlib.md5(hash_input.encode()).hexdigest()[:12]
     
     async def start(self):
@@ -583,10 +585,12 @@ def load_config_from_env() -> ClientConfig:
         from dotenv import load_dotenv
         env_path = os.path.join(os.path.dirname(__file__), '.env')
         if os.path.exists(env_path):
-            load_dotenv(env_path)
+            load_dotenv(env_path, encoding='utf-8')
             print(f"✅ 已加载配置文件: {env_path}")
     except ImportError:
         pass  # python-dotenv 未安装时忽略
+    except Exception as e:
+        print(f"⚠️ 加载.env文件失败: {e}")
     
     config = ClientConfig()
     
@@ -604,6 +608,11 @@ def load_config_from_env() -> ClientConfig:
         config.log_level = os.getenv('ASD_LOG_LEVEL')
     if os.getenv('ASD_LOG_FILE'):
         config.log_file = os.getenv('ASD_LOG_FILE')
+    
+    # Windows路径兼容性处理
+    config.monitor_dir = os.path.normpath(config.monitor_dir)
+    if config.log_file:
+        config.log_file = os.path.normpath(config.log_file)
     
     return config
 
