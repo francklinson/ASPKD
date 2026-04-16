@@ -345,3 +345,13 @@ environments:
   HF_HOME: "pre_trained/huggingface"
   TRANSFORMERS_CACHE: "pre_trained/huggingface"
   HUGGINGFACE_HUB_CACHE: "pre_trained/huggingface"
+
+# Python 虚拟环境配置
+# 用于动态添加虚拟环境 site-packages 到 Python 路径
+python_venv:
+  # 虚拟环境根目录（相对于项目根目录）
+  venv_dir: ".venv"
+  # site-packages 路径模板，{python_version} 会被替换为实际 Python 版本
+  site_packages_template: "lib/python{python_version}/site-packages"
+  # 或者可以直接指定完整路径（优先级高于模板）
+  # site_packages_path: ".venv/lib/python3.12/site-packages"

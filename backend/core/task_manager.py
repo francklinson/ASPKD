@@ -51,11 +51,37 @@ class TaskManager:
         """导入项目依赖模块"""
         try:
             import sys
+            import yaml
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
             sys.path.insert(0, project_root)
-            
+
+            # 从配置文件读取虚拟环境路径
+            config_path = os.path.join(project_root, "config", "config.yaml")
+            venv_site_packages = None
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = yaml.safe_load(f) or {}
+                    venv_config = config.get('python_venv', {})
+
+                    # 优先使用直接指定的路径
+                    if venv_config.get('site_packages_path'):
+                        venv_site_packages = os.path.join(project_root, venv_config['site_packages_path'])
+                    else:
+                        # 使用模板构建路径
+                        venv_dir = venv_config.get('venv_dir', '.venv')
+                        template = venv_config.get('site_packages_template', 'lib/python{python_version}/site-packages')
+                        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+                        site_packages_relative = template.format(python_version=python_version)
+                        venv_site_packages = os.path.join(project_root, venv_dir, site_packages_relative)
+                except Exception as e:
+                    print(f"[TaskManager] Warning: Failed to load venv config: {e}")
+
+            # 如果配置读取失败，使用默认路径
+            if not venv_site_packages:
+                venv_site_packages = os.path.join(project_root, ".venv", "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages")
+
             # 添加虚拟环境 site-packages 到路径
-            venv_site_packages = os.path.join(project_root, ".venv", "lib", "python3.12", "site-packages")
             if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
                 sys.path.insert(0, venv_site_packages)
             

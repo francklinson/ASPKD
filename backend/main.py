@@ -30,8 +30,31 @@ if 'CUDA_VISIBLE_DEVICES' not in os.environ:
     print("[Main] CUDA_VISIBLE_DEVICES not set, exposing all GPUs")
 
 # ========== 设置 Python 路径 ==========
+# 从配置文件读取虚拟环境路径
+venv_site_packages = None
+if os.path.exists(config_path):
+    try:
+        # 已经加载过 config，直接使用
+        venv_config = config.get('python_venv', {})
+
+        # 优先使用直接指定的路径
+        if venv_config.get('site_packages_path'):
+            venv_site_packages = os.path.join(project_root, venv_config['site_packages_path'])
+        else:
+            # 使用模板构建路径
+            venv_dir = venv_config.get('venv_dir', '.venv')
+            template = venv_config.get('site_packages_template', 'lib/python{python_version}/site-packages')
+            python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+            site_packages_relative = template.format(python_version=python_version)
+            venv_site_packages = os.path.join(project_root, venv_dir, site_packages_relative)
+    except Exception as e:
+        print(f"[Main] Warning: Failed to load venv config: {e}")
+
+# 如果配置读取失败，使用默认路径
+if not venv_site_packages:
+    venv_site_packages = os.path.join(project_root, ".venv", "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages")
+
 # 首先确保虚拟环境路径正确
-venv_site_packages = os.path.join(project_root, ".venv", "lib", "python3.12", "site-packages")
 if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
     sys.path.insert(0, venv_site_packages)
 

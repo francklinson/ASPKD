@@ -6,11 +6,21 @@ set -e
 
 # 配置
 PROJECT_DIR="/home/zhouchenghao/PycharmProjects/ASD_for_SPK"
-VENV_PYTHON="$PROJECT_DIR/.venv/bin/python"
+VENV_DIR="$PROJECT_DIR/.venv"
+VENV_PYTHON="$VENV_DIR/bin/python"
 PID_FILE="$PROJECT_DIR/.service.pid"
 CURRENT_LOG_FILE="$PROJECT_DIR/.current_log"  # 记录当前日志文件路径
 HOST="0.0.0.0"
 PORT="8004"
+
+# 自动检测 Python 版本
+get_python_version() {
+    if [ -f "$VENV_PYTHON" ]; then
+        "$VENV_PYTHON" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.12"
+    else
+        echo "3.12"
+    fi
+}
 
 # 颜色输出
 RED='\033[0;31m'
@@ -76,12 +86,13 @@ get_log_file() {
 # 加载环境变量
 load_environment() {
     echo -e "${BLUE}加载环境变量...${NC}"
-    
-    # 设置虚拟环境路径
-    VENV_SITE_PACKAGES="$PROJECT_DIR/.venv/lib/python3.12/site-packages"
+
+    # 自动检测 Python 版本并设置虚拟环境路径
+    PYTHON_VERSION=$(get_python_version)
+    VENV_SITE_PACKAGES="$VENV_DIR/lib/python${PYTHON_VERSION}/site-packages"
     if [ -d "$VENV_SITE_PACKAGES" ]; then
         export PYTHONPATH="$VENV_SITE_PACKAGES:$PYTHONPATH"
-        echo -e "${GREEN}✓ 虚拟环境路径设置成功${NC}"
+        echo -e "${GREEN}✓ 虚拟环境路径设置成功 (Python ${PYTHON_VERSION})${NC}"
     else
         echo -e "${YELLOW}⚠ 虚拟环境路径不存在: $VENV_SITE_PACKAGES${NC}"
     fi
