@@ -278,7 +278,7 @@ models:
 inference:
   device: "auto"  # auto, cuda, cpu
   batch_size: 1
-  num_workers: 4
+  num_workers: 0
   
 # 预处理配置
 preprocessing:

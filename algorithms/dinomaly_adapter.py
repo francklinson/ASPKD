@@ -171,7 +171,7 @@ class DinomalyBaseAdapter(BaseDetector):
             pred_data,
             batch_size=1,
             shuffle=False,
-            num_workers=4
+            num_workers=0
         )
         
         # 2. 调用推理获取分数（禁用内部可视化，避免重复生成）

@@ -49,9 +49,20 @@ class ModelInfo:
 
 class ModelRegistry:
     """模型注册表 - 管理所有需要下载的模型"""
-    
-    def __init__(self, pretrained_dir: str = "pre_trained"):
-        self.pretrained_dir = Path(pretrained_dir)
+
+    def __init__(self, pretrained_dir: str = None):
+        # 获取脚本所在目录
+        script_dir = Path(__file__).parent.absolute()
+        # 获取项目根目录（脚本目录的父目录）
+        project_root = script_dir.parent
+
+        if pretrained_dir is None:
+            # 默认保存到项目根目录下的 pre_trained 目录
+            self.pretrained_dir = project_root / "pre_trained"
+        else:
+            # 如果提供的是相对路径，相对于项目根目录解析
+            self.pretrained_dir = project_root / pretrained_dir
+
         self.pretrained_dir.mkdir(parents=True, exist_ok=True)
         self.models: Dict[str, ModelInfo] = {}
         self._register_all_models()
@@ -325,13 +336,28 @@ class ModelDownloader:
                 hash_sha256.update(chunk)
         return hash_sha256.hexdigest()
     
+    def _get_path_size(self, filepath: str) -> float:
+        """获取路径大小（文件或目录），返回MB"""
+        if os.path.isfile(filepath):
+            return os.path.getsize(filepath) / (1024 * 1024)
+        elif os.path.isdir(filepath):
+            # 递归计算目录总大小
+            total_size = 0
+            for dirpath, dirnames, filenames in os.walk(filepath):
+                for filename in filenames:
+                    file_path = os.path.join(dirpath, filename)
+                    if os.path.isfile(file_path):
+                        total_size += os.path.getsize(file_path)
+            return total_size / (1024 * 1024)
+        return 0
+
     def _verify_integrity(self, filepath: str, model_info: ModelInfo) -> bool:
         """验证文件完整性"""
         if not os.path.exists(filepath):
             return False
-        
-        # 检查文件大小
-        actual_size = os.path.getsize(filepath) / (1024 * 1024)  # MB
+
+        # 检查文件大小（支持文件和目录）
+        actual_size = self._get_path_size(filepath)
         if actual_size < model_info.size_mb * 0.9:  # 允许10%的误差
             logger.warning(f"File size mismatch: expected ~{model_info.size_mb}MB, got {actual_size:.1f}MB")
             return False
@@ -636,8 +662,8 @@ Examples:
                         help='Verify all downloaded models')
     parser.add_argument('--export-config', type=str,
                         help='Export model configuration to JSON file')
-    parser.add_argument('--pretrained-dir', type=str, default='pre_trained',
-                        help='Directory to store downloaded models')
+    parser.add_argument('--pretrained-dir', type=str, default=None,
+                        help='Directory to store downloaded models (relative to project root, default: pre_trained)')
     
     args = parser.parse_args()
     

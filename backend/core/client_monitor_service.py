@@ -283,8 +283,9 @@ class ClientDetectionService:
                 file_path = file_info["path"]
                 filename = file_info["filename"]
                 client_name = file_info["client_name"]
+                client_id = file_info.get("client_id")
                 
-                segments = await self._analyze_file_only(file_path, filename, client_name)
+                segments = await self._analyze_file_only(file_path, filename, client_name, client_id)
                 
                 if segments:
                     all_segments.extend(segments)
@@ -337,7 +338,7 @@ class ClientDetectionService:
                 }
             })
     
-    async def _analyze_file_only(self, file_path: str, filename: str, client_name: str) -> List[Dict]:
+    async def _analyze_file_only(self, file_path: str, filename: str, client_name: str, client_id: str = None) -> List[Dict]:
         """仅分析文件，返回匹配片段信息"""
         print(f"[ClientDetection] 分析文件: {filename}")
         
@@ -382,6 +383,7 @@ class ClientDetectionService:
                         'file_path': file_path,
                         'filename': filename,
                         'client_name': client_name,
+                        'client_id': client_id,
                         'segment': segment
                     })
                 print(f"[ClientDetection] {filename}: 发现 {len(segments)} 个匹配片段")
@@ -534,10 +536,17 @@ class ClientDetectionService:
         """处理所有检测结果"""
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         
+        # 导入 client_manager 用于更新客户端统计
+        from backend.api.client_monitor import client_manager
+        
+        # 用于统计每个客户端的异常数
+        client_anomaly_counts = {}
+        
         for spec_info, detection_result_obj in zip(spectrogram_data, detection_results):
             try:
                 filename = spec_info['filename']
                 client_name = spec_info['client_name']
+                client_id = spec_info.get('client_id')
                 file_path = spec_info['file_path']
                 segment = spec_info['segment']
                 
@@ -577,6 +586,9 @@ class ClientDetectionService:
                 # 更新统计
                 if is_anomaly:
                     self.anomaly_count += 1
+                    # 统计每个客户端的异常数
+                    if client_id:
+                        client_anomaly_counts[client_id] = client_anomaly_counts.get(client_id, 0) + 1
                 
                 # 构建结果 - 与实时检测对齐
                 detection_result = {
@@ -627,6 +639,19 @@ class ClientDetectionService:
                 import traceback
                 traceback.print_exc()
                 continue
+        
+        # 更新每个客户端的异常数统计
+        for client_id, anomaly_count in client_anomaly_counts.items():
+            try:
+                # 获取当前客户端信息
+                client = client_manager.get_client(client_id)
+                if client:
+                    # 累加异常数（而不是覆盖）
+                    new_anomaly_count = client.anomaly_detected + anomaly_count
+                    await client_manager.update_stats(client_id, anomaly_detected=new_anomaly_count)
+                    print(f"[ClientDetection] 更新客户端 {client_id} 异常数: +{anomaly_count} = {new_anomaly_count}")
+            except Exception as e:
+                print(f"[ClientDetection] 更新客户端异常数失败 {client_id}: {e}")
     
     async def update_config(self, algorithm: str = None, device: str = None, reference_audios: List[str] = None):
         """更新配置"""
