@@ -3169,13 +3169,10 @@
             }
         }
 
-        // 页面加载时获取设备列表和参考音频列表
+        // 页面加载时获取设备列表和参考音频列表（设备列表只需查询一次）
         loadAvailableDevices();
         loadReferenceAudios();
         loadMonitorReferenceAudios();
-
-        // 定期刷新设备列表（每30秒）
-        setInterval(loadAvailableDevices, 30000);
         
         // 监控页面已选择的参考音频列表
         let monitorSelectedReferences = [];
