@@ -162,15 +162,15 @@ ENCODER_CONFIGS = {
     "dinov3": {
         "small": {
             "name": "dinov3_vits16",
-            "weight": "weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
+            "weight": "pre_trained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
         },
         "base": {
             "name": "dinov3_vitb16",
-            "weight": "weights/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth",
+            "weight": "pre_trained/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth",
         },
         "large": {
             "name": "dinov3_vitl16",
-            "weight": "weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
+            "weight": "pre_trained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
         },
     },
 }

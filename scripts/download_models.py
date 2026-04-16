@@ -229,7 +229,86 @@ class ModelRegistry:
             required=True,
             dependencies=["torch>=2.1.0", "timm==0.9.12"]
         ))
-        
+
+        # ==================== Dinomaly DINOv2 with Registers 模型 ====================
+        self.register(ModelInfo(
+            name="dinov2-vits14-reg4-pretrain",
+            url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_reg4_pretrain.pth",
+            local_path=str(self.pretrained_dir / "dinov2_vits14_reg4_pretrain.pth"),
+            description="DINOv2 ViT-S/14 with Registers 预训练权重 - 用于Dinomaly",
+            size_mb=88.0,
+            source="direct",
+            required=True,
+            dependencies=["torch>=2.1.0", "timm==0.9.12"]
+        ))
+
+        self.register(ModelInfo(
+            name="dinov2-vitb14-reg4-pretrain",
+            url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_reg4_pretrain.pth",
+            local_path=str(self.pretrained_dir / "dinov2_vitb14_reg4_pretrain.pth"),
+            description="DINOv2 ViT-B/14 with Registers 预训练权重 - 用于Dinomaly",
+            size_mb=330.0,
+            source="direct",
+            required=True,
+            dependencies=["torch>=2.1.0", "timm==0.9.12"]
+        ))
+
+        self.register(ModelInfo(
+            name="dinov2-vitl14-reg4-pretrain",
+            url="https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_reg4_pretrain.pth",
+            local_path=str(self.pretrained_dir / "dinov2_vitl14_reg4_pretrain.pth"),
+            description="DINOv2 ViT-L/14 with Registers 预训练权重 - 用于Dinomaly",
+            size_mb=1150.0,
+            source="direct",
+            required=True,
+            dependencies=["torch>=2.1.0", "timm==0.9.12"]
+        ))
+
+        # ==================== Dinomaly DINOv3 模型 ====================
+        self.register(ModelInfo(
+            name="dinov3-vits16-pretrain",
+            url="https://dl.fbaipublicfiles.com/dinov3/dinov3_vits16/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
+            local_path=str(self.pretrained_dir / "dinov3_vits16_pretrain_lvd1689m-08c60483.pth"),
+            description="DINOv3 ViT-S/16 预训练权重 - 用于Dinomaly",
+            size_mb=83.0,
+            source="direct",
+            required=True,
+            dependencies=["torch>=2.1.0", "timm==0.9.12"]
+        ))
+
+        self.register(ModelInfo(
+            name="dinov3-vitb16-pretrain",
+            url="https://dl.fbaipublicfiles.com/dinov3/dinov3_vitb16/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth",
+            local_path=str(self.pretrained_dir / "dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth"),
+            description="DINOv3 ViT-B/16 预训练权重 - 用于Dinomaly",
+            size_mb=327.0,
+            source="direct",
+            required=True,
+            dependencies=["torch>=2.1.0", "timm==0.9.12"]
+        ))
+
+        self.register(ModelInfo(
+            name="dinov3-vitl16-pretrain",
+            url="https://dl.fbaipublicfiles.com/dinov3/dinov3_vitl16/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
+            local_path=str(self.pretrained_dir / "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"),
+            description="DINOv3 ViT-L/16 预训练权重 - 用于Dinomaly",
+            size_mb=1157.0,
+            source="direct",
+            required=True,
+            dependencies=["torch>=2.1.0", "timm==0.9.12"]
+        ))
+
+        self.register(ModelInfo(
+            name="dinov3-vits16plus-pretrain",
+            url="https://dl.fbaipublicfiles.com/dinov3/dinov3_vits16plus/dinov3_vits16plus_pretrain_lvd1689m-4057cbaa.pth",
+            local_path=str(self.pretrained_dir / "dinov3_vits16plus_pretrain_lvd1689m-4057cbaa.pth"),
+            description="DINOv3 ViT-S/16+ 预训练权重 - 用于Dinomaly",
+            size_mb=110.0,
+            source="direct",
+            required=False,
+            dependencies=["torch>=2.1.0", "timm==0.9.12"]
+        ))
+
         # ==================== ResNet 骨干网络 ====================
         # 用于多种算法的骨干网络
         self.register(ModelInfo(
