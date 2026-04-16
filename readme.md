@@ -123,6 +123,7 @@ graph TB
             FE_Monitor[实时监控模块]
             FE_Reference[参考音频管理]
             FE_Cluster[特征聚类模块]
+            FE_Clients[客户端监控模块]
         end
         FE_WS[WebSocket客户端]
     end
@@ -146,6 +147,7 @@ graph TB
     subgraph CoreLayer[核心组件层]
         Shazam[Shazam指纹识别]
         Preprocessor[音频预处理器 MFCC+DTW指纹定位]
+        PreciseLocator[PreciseSegmentLocator 精确片段定位]
         FeatureExtractor[特征提取器 HuBERT/MFCC/Mel/AST]
     end
 
@@ -185,6 +187,7 @@ graph TB
     
     CoreServices --> Preprocessor
     CoreServices --> Shazam
+    CoreServices --> PreciseLocator
     CoreServices --> FeatureExtractor
     
     Preprocessor --> AnomalibAlgo
@@ -205,33 +208,37 @@ graph LR
         A --> C[实时监控]
         A --> D[参考音频管理]
         A --> E[特征聚类]
-        A --> F[WebSocket客户端]
+        A --> F[客户端监控]
+        A --> G[WebSocket客户端]
     end
 
     subgraph Backend[后端层 backend]
-        G[main.py] --> H[API路由]
-        H --> I[detection.py]
-        H --> J[monitor.py]
-        H --> K[reference_audio.py]
-        H --> L[feature_cluster.py]
+        H[main.py] --> I[API路由]
+        I --> J[detection.py]
+        I --> K[monitor.py]
+        I --> L[reference_audio.py]
+        I --> M[feature_cluster.py]
+        I --> N[client_monitor.py]
         
-        G --> M[核心服务]
-        M --> N[task_manager.py]
-        M --> O[monitor_service.py]
-        M --> P[websocket.py]
+        H --> O[核心服务]
+        O --> P[task_manager.py]
+        O --> Q[local_monitor_service.py]
+        O --> R[client_monitor_service.py]
+        O --> S[websocket.py]
     end
 
     subgraph Core[核心组件 core]
-        Q[shazam-api.py] --> R[数据库连接器]
-        S[预处理器] --> T[MFCC+DTW]
-        S --> U[Shazam定位]
+        T[shazam-api.py] --> U[数据库连接器]
+        V[预处理器] --> W[MFCC+DTW]
+        V --> X[Shazam定位]
+        Y[precise_segment_locator] --> Z[全局指纹提取]
     end
 
     subgraph Algorithms[算法层 algorithms]
-        V[Anomalib] 
-        W[ADer]
-        X[BaseASD]
-        Y[AudioFeatureCluster]
+        AA[Anomalib] 
+        AB[ADer]
+        AC[BaseASD]
+        AD[AudioFeatureCluster]
     end
 
     Frontend --> Backend
@@ -283,6 +290,24 @@ sequenceDiagram
         TM-->>FE: WebSocket通知结果
     end
 
+    Note over User,DB: 客户端监控流程
+    User->>Client: 启动客户端
+    Client->>API: POST api-client-register
+    API-->>Client: 返回client_id
+    
+    loop 心跳维持
+        Client->>API: POST api-client-heartbeat
+    end
+    
+    loop 文件监听
+        Client->>Client: 检测新文件
+        Client->>API: POST api-client-upload
+        API->>Pre: 处理上传文件
+        API->>Algo: 异常检测
+        API-->>Client: WebSocket推送结果
+        Client-->>FE: 转发结果(可选)
+    end
+
     Note over User,DB: 参考音频管理流程
     User->>FE: 上传参考音频
     FE->>API: POST api-reference-upload
@@ -311,10 +336,17 @@ ASD_for_SPK/
 │       └── websocket.py        # WebSocket 实时通信
 │
 ├── core/                        # 核心组件
-│   └── shazam/                 # Shazam 音频指纹识别
-│       ├── api.py              # 指纹识别 API
-│       ├── database/           # 数据库连接器
-│       └── config/             # 配置文件
+│   ├── shazam/                 # Shazam 音频指纹识别
+│   │   ├── api.py              # 指纹识别 API
+│   │   ├── database/           # 数据库连接器
+│   │   └── config/             # 配置文件
+│   ├── long_audio_analyzer/    # 长音频分析器
+│   │   ├── analyzer.py         # 主分析器
+│   │   ├── fingerprint_extractor.py  # 指纹提取
+│   │   └── matching_engine.py  # 匹配引擎
+│   └── precise_segment_locator/# 精确片段定位
+│       ├── locator.py          # 核心定位器
+│       └── adapter.py          # 适配器
 │
 ├── algorithms/                  # 异常检测算法库
 │   ├── AudioFeatureCluster/    # 音频特征聚类分析
@@ -324,11 +356,18 @@ ASD_for_SPK/
 │   ├── Dinomaly/               # Dinomaly 方法
 │   └── ...                     # 其他算法实现
 │
-├── gradio_gui/                  # Gradio GUI 界面
+├── client/                      # 分布式客户端
+│   ├── client_monitor.py       # 客户端主程序
+│   └── README.md               # 客户端使用指南
+├── frontend/                    # Web前端
+│   ├── index.html              # 主页面
+│   └── login.html              # 登录页面
 ├── config/                      # 配置文件目录
+│   └── config.yaml             # 主配置文件
 ├── ref/                         # 参考音频片段
 ├── slice/                       # 音频切片输出目录
-└── uploads/                     # 上传文件临时目录
+├── uploads/                     # 上传文件临时目录
+└── 技术交流展示文档.md          # 技术交流展示文档
 ```
 
 ### 后端架构 (FastAPI)
@@ -340,16 +379,18 @@ ASD_for_SPK/
 | 模块 | 文件 | 功能说明 |
 |------|------|----------|
 | **离线检测** | `api/detection.py` | 音频上传、异步检测、结果导出 |
-| **实时监控** | `api/monitor.py` | 目录监控、自动检测、实时推送 |
+| **实时监控** | `api/local_monitor.py` | 目录监控、自动检测、实时推送 |
 | **参考音频管理** | `api/reference_audio.py` | Shazam 指纹库管理 (增删改查) |
 | **特征聚类** | `api/feature_cluster.py` | 音频特征提取、聚类可视化 |
+| **客户端监控** | `api/client_monitor.py` | 分布式客户端管理、文件接收 |
 
 #### 核心服务
 
 | 服务 | 文件 | 功能说明 |
 |------|------|----------|
 | **任务管理器** | `core/task_manager.py` | 异步任务队列、任务状态管理 |
-| **监控服务** | `core/monitor_service.py` | 文件系统监听、自动触发检测 |
+| **本地监控服务** | `core/local_monitor_service.py` | 文件系统监听、自动触发检测 |
+| **客户端管理服务** | `core/client_monitor_service.py` | 客户端注册、心跳管理、状态统计 |
 | **WebSocket** | `core/websocket.py` | 实时通信、日志推送 |
 
 ### API 接口说明
@@ -375,6 +416,16 @@ ASD_for_SPK/
 | `/api/monitor/status` | GET | 获取监控状态 |
 | `/api/monitor/results` | GET | 获取检测结果列表 |
 | `/api/monitor/export` | GET | 导出所有监控结果为 ZIP |
+
+#### 客户端监控接口 (`/api/client/*`)
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/client/register` | POST | 客户端注册 |
+| `/api/client/heartbeat` | POST | 客户端心跳 |
+| `/api/client/status` | GET | 获取所有客户端状态 |
+| `/api/client/upload` | POST | 客户端文件上传 |
+| `/api/client/config` | GET/POST | 获取/更新客户端配置 |
 
 #### 参考音频管理接口 (`/api/reference/*`)
 
@@ -699,10 +750,14 @@ python start_server.py
 python backend/main.py
 
 # 访问 Web 界面
-# 打开浏览器访问 http://localhost:8000
+# 打开浏览器访问 http://localhost:8004
+
+# 启动客户端（在采集点部署）
+cd client
+python client_monitor.py
 ```
 
-服务默认运行在 `http://0.0.0.0:8000`
+服务默认运行在 `http://0.0.0.0:8004`
 
 ### 功能模块
 
@@ -747,7 +802,35 @@ python backend/main.py
 | **异常检测** | 自动识别聚类中的离群点 |
 | **分析报告** | 生成详细的聚类和异常检测报告 |
 
-#### 5. 任务管理
+#### 5. 客户端监控 (分布式部署)
+
+| 功能 | 说明 |
+|------|------|
+| **客户端注册** | 分布式客户端自动注册到服务端 |
+| **目录监控** | 客户端本地监控指定目录的新增音频文件 |
+| **自动上传** | 检测到新文件后自动上传到服务端进行检测 |
+| **实时结果** | WebSocket实时接收检测结果 |
+| **状态管理** | 在线/离线状态监控、心跳管理 |
+| **上传统计** | 各客户端上传数量和检测结果统计 |
+
+**适用场景**：
+- 音频采集点分布在不同位置
+- 服务端无法直接访问音频目录
+- 跨网络/跨地域的音频采集
+
+**部署方式**：
+```bash
+# 服务端（已集成在backend中）
+python backend/main.py
+
+# 客户端（在采集点部署）
+cd client
+python client_monitor.py
+```
+
+详细文档：[客户端使用指南](client/README.md)
+
+#### 6. 任务管理
 
 | 功能 | 说明 |
 |------|------|
@@ -779,6 +862,12 @@ python backend/main.py
 3. 点击"上传音频"添加新的参考音频
 4. 点击删除按钮移除不需要的音频
 
+**客户端监控：**
+1. 切换到"客户端监控"标签页
+2. 查看所有连接的客户端状态
+3. 在采集点部署并启动客户端
+4. 实时查看各客户端上传的音频和检测结果
+
 **特征聚类分析：**
 1. 切换到"特征聚类"标签页
 2. 上传多个音频文件进行分析
@@ -790,7 +879,7 @@ python backend/main.py
 
 ## 配置管理
 
-项目使用YAML配置文件 (`config/asd_gui_config.yaml`) 集中管理参数：
+项目使用YAML配置文件 (`config/config.yaml`) 集中管理参数：
 
 ```yaml
 # 参考音频文件
@@ -827,8 +916,14 @@ server:
 ```
 
 **配置修改方式**：
-1. 直接编辑 `config/asd_gui_config.yaml` 文件
+1. 直接编辑 `config/config.yaml` 文件
 2. 重启服务后配置自动生效
+
+**配置内容包括**：
+- 算法配置（模型路径、阈值等）
+- 预处理配置（参考音频、定位方法等）
+- 推理配置（设备、批大小等）
+- 环境变量配置（CUDA、缓存路径等）
 
 ---
 
@@ -902,17 +997,29 @@ data/spk/
 | 6 | 特征聚类分析 | 音频特征提取、t-SNE聚类、3D可视化 | ✅ 已完成 |
 | 7 | 多GPU设备选择 | 动态获取GPU显存，支持用户选择 | ✅ 已完成 |
 | 8 | 音频定位算法 | 支持MFCC+DTW和Shazam指纹定位 | ✅ 已完成 |
+| 9 | 客户端监控 | 分布式客户端部署、自动上传检测 | ✅ 已完成 |
+| 10 | 精确片段定位 | PreciseSegmentLocator全局指纹提取 | ✅ 已完成 |
 
 ### 近期优化目标
 
 | 序号 | 任务 | 优先级 | 状态 |
 |------|------|--------|------|
-| 1 | 优化项目文件结构，统一存放算法模块 | 高 | 进行中 |
-| 2 | 增加更多预训练模型支持 | 中 | 待完成 |
+| 1 | 优化项目文件结构，统一存放算法模块 | 高 | ✅ 已完成 |
+| 2 | 增加更多预训练模型支持 | 中 | 进行中 |
 | 3 | 支持批量参考音频导入 | 中 | 待完成 |
 | 4 | 聚类分析支持更多降维算法 | 低 | 待完成 |
+| 5 | 模型热加载与缓存优化 | 高 | 进行中 |
+| 6 | 分布式部署与负载均衡 | 中 | 规划中 |
 
 ---
+
+## 相关文档
+
+| 文档 | 说明 |
+|------|------|
+| [技术交流展示文档](技术交流展示文档.md) | 完整的技术架构与功能介绍，适合技术分享 |
+| [客户端使用指南](client/README.md) | 分布式客户端部署与使用说明 |
+| [算法说明](algorithms/README_ALGORITHMS.md) | 各算法库的详细说明 |
 
 ## 开发团队
 
