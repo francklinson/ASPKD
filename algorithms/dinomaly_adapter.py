@@ -174,9 +174,9 @@ class DinomalyBaseAdapter(BaseDetector):
             num_workers=4
         )
         
-        # 2. 调用推理获取分数
-        result_dict, _ = self._inferencer.predict(image_paths)
-        
+        # 2. 调用推理获取分数（禁用内部可视化，避免重复生成）
+        result_dict, _ = self._inferencer.predict(image_paths, generate_visualization=False)
+
         # 3. 生成三种图像（原图、叠加图、纯热力图）
         visualize_save_dir = f"dinomaly_{self.dinov_version}_{self.model_size}_predict"
         image_paths_dict = visualize_when_predict_with_all_images(

@@ -130,10 +130,14 @@ class DinomalyBaseInferencer(ABC):
             resize_mask: int = 256,
             model_name=None,
             save_to_xlsx=False,
+            generate_visualization: bool = True,
     ):
         """
         预测图像的异常分数
         返回 {文件名:(异常分数，是否异常) ,}字典 、 异常热力图路径列表
+
+        参数:
+            generate_visualization: 是否生成可视化热力图，默认为True
         """
         data_transform, _ = get_data_transforms(image_size, crop_size)
         gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(self.device)
@@ -172,30 +176,32 @@ class DinomalyBaseInferencer(ABC):
                 img_path_list.extend(list(img_path))
                 sp_score_list.extend(sp_score.tolist())
 
-            # 使用统一的目录命名格式：dinomaly_{dinov_version}_{model_size}_predict
-            # 与 dinomaly_adapter.py 保持一致
-            if self.dinov_version:
-                visualize_save_dir = f"dinomaly_{self.dinov_version}_{self.model_size}_predict"
-            else:
-                # 兼容旧代码，如果子类未设置 dinov_version
-                visualize_save_dir = f"{self.__class__.__name__.lower()}_{self.model_size}_predict"
-
-            # 使用 visualize_when_predict_with_all_images 生成三种图像（原图、叠加图、纯热力图）
-            image_paths_dict = visualize_when_predict_with_all_images(
-                self.model,
-                dataloader=pred_dataloader,
-                device=self.device,
-                _class_="predict",
-                save_name=visualize_save_dir
-            )
-
-            # 将字典转换为路径列表（保持向后兼容）
+            # 根据参数决定是否生成可视化
             save_img_path_list = []
-            for name, paths in image_paths_dict.items():
-                if paths.get('heatmap'):
-                    save_img_path_list.append(paths['heatmap'])
+            if generate_visualization:
+                # 使用统一的目录命名格式：dinomaly_{dinov_version}_{model_size}_predict
+                # 与 dinomaly_adapter.py 保持一致
+                if self.dinov_version:
+                    visualize_save_dir = f"dinomaly_{self.dinov_version}_{self.model_size}_predict"
+                else:
+                    # 兼容旧代码，如果子类未设置 dinov_version
+                    visualize_save_dir = f"{self.__class__.__name__.lower()}_{self.model_size}_predict"
 
-            print(f"Visualization done!! Saved to ./visualize/{visualize_save_dir}")
+                # 使用 visualize_when_predict_with_all_images 生成三种图像（原图、叠加图、纯热力图）
+                image_paths_dict = visualize_when_predict_with_all_images(
+                    self.model,
+                    dataloader=pred_dataloader,
+                    device=self.device,
+                    _class_="predict",
+                    save_name=visualize_save_dir
+                )
+
+                # 将字典转换为路径列表（保持向后兼容）
+                for name, paths in image_paths_dict.items():
+                    if paths.get('heatmap'):
+                        save_img_path_list.append(paths['heatmap'])
+
+                print(f"Visualization done!! Saved to ./visualize/{visualize_save_dir}")
         pred_res_dict = dict()
         for i in range(len(sp_score_list)):
             score = sp_score_list[i]
