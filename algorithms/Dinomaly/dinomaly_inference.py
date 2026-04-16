@@ -16,7 +16,7 @@ from .dinov3.hub.backbones import load_dinov3_model
 from .models import vit_encoder
 from .models.uad import ViTill, ViTillDinoV2
 from .models.vision_transformer import Block as VitBlock, bMlp, LinearAttention2
-from .utils import get_gaussian_kernel, cal_anomaly_maps, visualize_when_predict
+from .utils import get_gaussian_kernel, cal_anomaly_maps, visualize_when_predict_with_all_images
 
 
 class ModelConfig:
@@ -82,11 +82,14 @@ class ModelConfig:
 class DinomalyBaseInferencer(ABC):
     """异常检测器基类"""
 
+    # 子类需要覆盖此属性来指定 DINOv 版本
+    dinov_version = None
+
     def __init__(self, model_path: str, model_size: str, device: str = 'cuda:0', threshold: float = 0.5):
         print(f"[DEBUG] DinomalyBaseInferencer.__init__: model_path={model_path}, type={type(model_path)}")
         if not model_path:
             raise ValueError(f"DinomalyBaseInferencer 接收到无效的 model_path: {model_path}")
-        
+
         # 设备选择逻辑：检查指定设备是否可用
         if torch.cuda.is_available():
             # 如果指定了cuda设备，检查该设备是否存在
@@ -169,15 +172,29 @@ class DinomalyBaseInferencer(ABC):
                 img_path_list.extend(list(img_path))
                 sp_score_list.extend(sp_score.tolist())
 
-            visualize_save_dir = f"{self.__class__.__name__.lower()}_{self.model_size}_predict"
-            save_img_path_list = visualize_when_predict(
+            # 使用统一的目录命名格式：dinomaly_{dinov_version}_{model_size}_predict
+            # 与 dinomaly_adapter.py 保持一致
+            if self.dinov_version:
+                visualize_save_dir = f"dinomaly_{self.dinov_version}_{self.model_size}_predict"
+            else:
+                # 兼容旧代码，如果子类未设置 dinov_version
+                visualize_save_dir = f"{self.__class__.__name__.lower()}_{self.model_size}_predict"
+
+            # 使用 visualize_when_predict_with_all_images 生成三种图像（原图、叠加图、纯热力图）
+            image_paths_dict = visualize_when_predict_with_all_images(
                 self.model,
                 dataloader=pred_dataloader,
                 device=self.device,
                 _class_="predict",
-                save_name=visualize_save_dir,
-                overlay_on_image=True  # 热力图叠加原图显示
+                save_name=visualize_save_dir
             )
+
+            # 将字典转换为路径列表（保持向后兼容）
+            save_img_path_list = []
+            for name, paths in image_paths_dict.items():
+                if paths.get('heatmap'):
+                    save_img_path_list.append(paths['heatmap'])
+
             print(f"Visualization done!! Saved to ./visualize/{visualize_save_dir}")
         pred_res_dict = dict()
         for i in range(len(sp_score_list)):
@@ -211,6 +228,8 @@ class DinomalyBaseInferencer(ABC):
 
 class DinomalyDinoV2Inference(DinomalyBaseInferencer):
     """DINOv2异常检测器实现"""
+
+    dinov_version = 'v2'
 
     def __init__(self, model_path: str, model_size: str, device: str = 'cuda:0', threshold: float = 0.02):
         super().__init__(model_path, model_size, device, threshold)
@@ -293,6 +312,8 @@ class DinomalyDinoV2Inference(DinomalyBaseInferencer):
 
 class DinomalyDinoV3Inference(DinomalyBaseInferencer):
     """DINOv3异常检测器实现"""
+
+    dinov_version = 'v3'
 
     def __init__(self, model_path: str, model_size: str, device: str = 'cuda:0', threshold: float = 0.033):
         super().__init__(model_path, model_size, device, threshold)
