@@ -919,7 +919,7 @@
                     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
                         <span>🖥️ 已连接客户端</span>
                         <button class="btn btn-secondary" onclick="refreshClientStatus()" style="padding: 6px 12px; font-size: 12px;">
-                            🔄 刷新
+                            🔄 刷新状态
                         </button>
                     </div>
                     <div id="clientList" style="max-height: 220px; overflow-y: auto; flex-shrink: 0; margin-bottom: 12px; padding-right: 4px;">
@@ -5207,23 +5207,35 @@
         // 刷新客户端状态
         async function refreshClientStatus() {
             try {
+                // 先调用刷新状态接口，更新离线客户端
+                const refreshResponse = await fetch(`${API_BASE}/api/client/refresh-status`, {
+                    method: 'POST'
+                });
+                if (refreshResponse.ok) {
+                    const refreshData = await refreshResponse.json();
+                    if (refreshData.updated_count > 0) {
+                        console.log(`[ClientMonitor] 已更新 ${refreshData.updated_count} 个客户端状态为离线`);
+                    }
+                }
+
+                // 然后获取最新客户端列表
                 const response = await fetch(`${API_BASE}/api/client/status`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                
+
                 const data = await response.json();
-                
+
                 // 更新统计
                 document.getElementById('clientTotalActive').textContent = data.total_active;
-                
+
                 // 计算总文件数
                 const totalFiles = data.clients.reduce((sum, c) => sum + c.total_uploaded, 0);
                 document.getElementById('clientTotalFiles').textContent = totalFiles;
-                
+
                 // 渲染客户端列表
                 renderClientList(data.clients);
-                
+
             } catch (error) {
                 console.error('[ClientMonitor] 获取客户端状态失败:', error);
             }

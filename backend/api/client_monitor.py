@@ -138,6 +138,19 @@ class ClientManager:
         """获取客户端信息"""
         return self.clients.get(client_id)
 
+    async def refresh_client_status(self) -> int:
+        """刷新所有客户端状态，将超时的客户端标记为离线，返回更新的数量"""
+        async with self._lock:
+            now = datetime.now()
+            updated_count = 0
+            for client in self.clients.values():
+                # 检查是否超时（30秒无心跳视为离线）
+                if (now - client.last_heartbeat).total_seconds() > 30 and client.status == "online":
+                    client.status = "offline"
+                    updated_count += 1
+                    print(f"[ClientManager] 客户端状态更新为离线: {client.client_id} ({client.name})")
+            return updated_count
+
 
 # 全局客户端管理器
 client_manager = ClientManager()
@@ -234,19 +247,34 @@ async def client_heartbeat(request: ClientHeartbeatRequest):
 async def get_client_status():
     """
     获取所有客户端状态
-    
+
     供前端UI显示客户端连接情况
     """
     clients = client_manager.get_active_clients()
-    
+
     active_count = sum(1 for c in clients if c["status"] == "online")
     offline_count = sum(1 for c in clients if c["status"] == "offline")
-    
+
     return ClientStatusResponse(
         clients=clients,
         total_active=active_count,
         total_offline=offline_count
     )
+
+
+@router.post("/refresh-status")
+async def refresh_client_status():
+    """
+    刷新客户端状态
+
+    检查所有客户端的心跳时间，将超时的客户端标记为离线
+    """
+    updated_count = await client_manager.refresh_client_status()
+    return {
+        "success": True,
+        "message": f"已更新 {updated_count} 个客户端状态",
+        "updated_count": updated_count
+    }
 
 
 @router.post("/upload")
