@@ -460,24 +460,36 @@ class Preprocessor:
         self.shazam_auto_match = shazam_auto_match
         self.max_workers = max_workers
 
+        # 支持的方法: 仅 shazam（其他方法已暂时屏蔽）
+        if not SHAZAM_AVAILABLE:
+            raise ValueError("Shazam 模块不可用，无法进行音频分割")
+
+        # 强制使用 shazam 模式
+        if split_method != 'shazam':
+            print(f"[Preprocessor] 非 Shazam 模式已屏蔽，强制使用 shazam 模式")
+            split_method = 'shazam'
+
+        # 如果没有提供参考音频，自动启用 shazam_auto_match 模式
+        if not ref_file and not shazam_auto_match:
+            print(f"[Preprocessor] 未指定参考音频，自动启用 Shazam 自动匹配模式")
+            self.shazam_auto_match = True
+
         # 获取目标音频时长
         if ref_file and os.path.exists(ref_file):
             # 参考音频文件存在，直接加载
             self.target_segment_duration = librosa.get_duration(path=self.ref_file)
             self.y_target, self.sr_target = librosa.load(self.ref_file)
-        elif ref_file and split_method == 'shazam':
-            # Shazam 模式：参考音频文件不存在但数据库中有指纹，使用默认时长
-            # 实际时长会在定位时从数据库获取
-            self.target_segment_duration = 10.0  # 默认10秒
-            self.y_target, self.sr_target = None, 22050
-            print(f"[Preprocessor] 参考音频文件不存在，使用 Shazam 数据库模式: {ref_file}")
         elif ref_file:
-            # 非 Shazam 模式：参考音频文件必须存在
-            raise FileNotFoundError(f"参考音频文件不存在: {ref_file}")
-        else:
-            # 无参考音频模式：使用默认时长
+            # 参考音频文件不存在，但指定了参考音频名称（用于Shazam匹配验证）
+            # 使用默认时长，实际时长会在定位时从数据库获取
             self.target_segment_duration = 10.0  # 默认10秒
             self.y_target, self.sr_target = None, 22050
+            print(f"[Preprocessor] 使用指定参考音频进行验证匹配: {ref_file}")
+        else:
+            # 无参考音频模式（auto_match）：使用默认时长
+            self.target_segment_duration = 10.0  # 默认10秒
+            self.y_target, self.sr_target = None, 22050
+            print(f"[Preprocessor] 使用 Shazam 自动匹配模式，将从数据库自动匹配参考音频")
 
         self.src_audio_gen_pic_map_file = "src_audio_gen_pic_map.json"
         self.src_audio_gen_pic_map = dict()
@@ -485,19 +497,6 @@ class Preprocessor:
         if os.path.exists(self.src_audio_gen_pic_map_file):
             with open(self.src_audio_gen_pic_map_file, 'r', encoding="utf-8") as f:
                 self.src_audio_gen_pic_map = json.load(f)
-
-        # 支持的方法: 仅 shazam（其他方法已暂时屏蔽）
-        if not SHAZAM_AVAILABLE:
-            raise ValueError("Shazam 模块不可用，无法进行音频分割")
-        
-        # 强制使用 shazam 模式
-        if split_method != 'shazam':
-            print(f"[Preprocessor] 非 Shazam 模式已屏蔽，强制使用 shazam 模式")
-            split_method = 'shazam'
-
-        # 检查参数
-        if not ref_file and not shazam_auto_match:
-            raise ValueError("Shazam 方法需要提供 ref_file 或设置 shazam_auto_match=True")
 
         self.split_method = split_method
         if ref_file:

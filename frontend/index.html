@@ -1820,12 +1820,8 @@
             formData.append('algorithm', document.getElementById('algorithm').value);
             formData.append('device', document.getElementById('device').value);
 
-            // 添加参考音频参数
-            const referenceAudio = document.getElementById('referenceAudio').value;
-            if (referenceAudio) {
-                formData.append('reference_audio', referenceAudio);
-                log(`🎵 使用参考音频: ${referenceAudio.split('/').pop()}`);
-            }
+            // 系统自动匹配参考音频，不传递reference_audio参数
+            log(`🎵 系统将自动从参考音频库中匹配`);
 
             log('⬆️ 正在上传文件...');
 

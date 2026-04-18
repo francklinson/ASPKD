@@ -96,10 +96,6 @@ class TaskManager:
             # 加载配置
             config_path = os.path.join(project_root, "config", "config.yaml")
             self.config = ConfigManager(config_path)
-            
-            ref_file = self.config.config.get('preprocessing', {}).get('ref_file', '')
-            if ref_file and not os.path.isabs(ref_file):
-                ref_file = os.path.join(project_root, ref_file)
 
             # 获取预处理配置（强制使用 shazam 模式，非 shazam 模式已屏蔽）
             split_method = 'shazam'
@@ -108,13 +104,12 @@ class TaskManager:
             shazam_auto_match = shazam_config.get('auto_match', False)
             max_workers = shazam_config.get('max_workers', 1)
 
-            # 如果没有指定参考音频且未启用 auto_match，则启用 auto_match
-            if not ref_file and not shazam_auto_match:
-                print("[TaskManager] 未指定参考音频，自动启用 Shazam auto_match 模式")
-                shazam_auto_match = True
+            # 不再使用配置文件中的 ref_file，强制使用 auto_match 模式
+            print("[TaskManager] 初始化：使用 Shazam 自动匹配模式（不再依赖配置文件中的 ref_file）")
+            shazam_auto_match = True
 
             self.preprocessor = Preprocessor(
-                ref_file=ref_file if ref_file else None,
+                ref_file=None,
                 split_method=split_method,
                 shazam_threshold=shazam_threshold,
                 shazam_auto_match=shazam_auto_match,
@@ -379,15 +374,9 @@ class TaskManager:
                 "message": f"使用参考音频: {os.path.basename(ref_file)}"
             })
         else:
-            # 使用默认参考音频
-            ref_file = self.config.config.get('preprocessing', {}).get('ref_file', '')
-            if ref_file and not os.path.isabs(ref_file):
-                project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                ref_file = os.path.join(project_root, ref_file)
-            if ref_file:
-                print(f"[TaskManager] 使用默认参考音频: {ref_file}")
-            else:
-                print(f"[TaskManager] 警告: 未配置默认参考音频")
+            # 用户未指定参考音频，使用 Shazam 自动匹配模式
+            ref_file = None
+            print(f"[TaskManager] 用户未指定参考音频，将使用 Shazam 自动匹配模式")
         
         # 创建任务特定的预处理器（强制使用 shazam 模式，非 shazam 模式已屏蔽）
         split_method = 'shazam'
@@ -420,7 +409,10 @@ class TaskManager:
         
         try:
             # 批量预处理（自动使用多线程），传入 original_names 避免 task_id 作为文件名前缀
-            print(f"[TaskManager] 开始预处理，使用参考音频: {ref_file}")
+            if ref_file:
+                print(f"[TaskManager] 开始预处理，使用指定参考音频: {ref_file}")
+            else:
+                print(f"[TaskManager] 开始预处理，使用 Shazam 自动匹配模式")
             result = task_preprocessor.process_audio(task.files, save_dir="slice", original_names=original_names)
             print(f"[TaskManager] 预处理完成，结果数量: {len(result)}")
             
