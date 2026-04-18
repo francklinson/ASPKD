@@ -240,3 +240,41 @@ def on_select_row(evt: gr.SelectData, gallery_data):
             return gr.update(selected_index=idx)
 
     return gr.update()
+
+
+def on_select_row_with_audio(evt: gr.SelectData):
+    """处理表格行选择事件 - 加载对应的音频文件用于试听"""
+    if evt.index is None:
+        return gr.update(value=None), "请在左侧表格中点击某行来选择要试听的音频"
+
+    selected_filename = evt.row_value[0] if isinstance(evt.row_value, (list, tuple)) else None
+    if not selected_filename:
+        return gr.update(value=None), "无法获取文件名"
+
+    # 从文件名构建音频文件路径
+    # 文件名格式: {name}.png，对应音频文件: slice/audio/{name}.wav
+    base_name = os.path.splitext(selected_filename)[0]
+    audio_path = os.path.join("slice", "audio", f"{base_name}.wav")
+
+    # 获取异常分数和状态信息
+    anomaly_score = evt.row_value[1] if len(evt.row_value) > 1 else "N/A"
+    is_anomaly = evt.row_value[2] if len(evt.row_value) > 2 else "N/A"
+    status = evt.row_value[3] if len(evt.row_value) > 3 else "N/A"
+
+    if os.path.exists(audio_path):
+        info_text = f"文件名: {selected_filename}\n异常分数: {anomaly_score}\n是否异常: {'是' if is_anomaly == 1 else '否'}\n状态: {status}"
+        return gr.update(value=audio_path), info_text
+    else:
+        # 尝试其他可能的命名格式
+        # 有些文件名可能包含原始音频名和位置信息
+        import glob
+        audio_dir = os.path.join("slice", "audio")
+        if os.path.exists(audio_dir):
+            # 尝试模糊匹配
+            pattern = os.path.join(audio_dir, f"*{base_name}*.wav")
+            matching_files = glob.glob(pattern)
+            if matching_files:
+                info_text = f"文件名: {selected_filename}\n异常分数: {anomaly_score}\n是否异常: {'是' if is_anomaly == 1 else '否'}\n状态: {status}"
+                return gr.update(value=matching_files[0]), info_text
+
+        return gr.update(value=None), f"未找到对应的音频文件: {audio_path}\n文件名: {selected_filename}"

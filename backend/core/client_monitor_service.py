@@ -589,7 +589,25 @@ class ClientDetectionService:
                     # 统计每个客户端的异常数
                     if client_id:
                         client_anomaly_counts[client_id] = client_anomaly_counts.get(client_id, 0) + 1
-                
+
+                # 构建音频切片路径（与图片同名，但扩展名为.wav）
+                audio_slice_path = None
+                if overlay_path:
+                    # 从 overlay_path 推断音频路径
+                    # 注意：客户端监控的音频保存在 uploads/clients/segments/ 目录下
+                    # 注意：overlay_path 文件名包含 _overlay 后缀，但音频文件没有
+                    base_name = os.path.splitext(os.path.basename(overlay_path))[0]
+                    # 去除 _overlay 后缀
+                    if base_name.endswith('_overlay'):
+                        base_name = base_name[:-8]
+                    audio_slice_path = f"uploads/clients/segments/{base_name}.wav"
+                    # 检查文件是否存在
+                    full_audio_path = os.path.join(project_root, audio_slice_path)
+                    print(f"[ClientMonitor Debug] 构建音频路径: overlay={overlay_path}, base={base_name}, audio={audio_slice_path}")
+                    print(f"[ClientMonitor Debug] 完整音频路径: {full_audio_path}, 存在={os.path.exists(full_audio_path)}")
+                    if not os.path.exists(full_audio_path):
+                        audio_slice_path = None
+
                 # 构建结果 - 与实时检测对齐
                 detection_result = {
                     "timestamp": datetime.now().isoformat(),
@@ -602,6 +620,7 @@ class ClientDetectionService:
                     "original_path": original_path,
                     "overlay_path": overlay_path,
                     "heatmap_path": heatmap_path,
+                    "audio_slice_path": audio_slice_path,  # 添加音频切片路径
                     "segment_info": {
                         "music_name": segment.music_name,
                         "start_time": spec_info.get('start_time', segment.start_time),

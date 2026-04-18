@@ -22,24 +22,24 @@ try:
     from .managers import UnifiedAlgorithmManager
     from .monitor import DirectoryMonitor
     from .components import JS_AUTOSCROLL, create_offline_tab_components, create_online_tab_components
-    from .offline_handlers import run_offline_detection, on_select_row
+    from .offline_handlers import run_offline_detection, on_select_row, on_select_row_with_audio
     from .online_handlers import (
         update_monitor_status, start_monitoring_fn, stop_monitoring_fn,
         confirm_detect_existing_fn, confirm_skip_existing_fn,
         cleanup_temp_files_fn, export_monitor_zip_fn, refresh_monitor_status,
-        on_algorithm_change, on_monitor_select_row, monitor_logs
+        on_algorithm_change, on_monitor_select_row, on_monitor_select_row_with_audio, monitor_logs
     )
 except ImportError:
     # 直接运行时使用绝对导入
     from gradio_gui.managers import UnifiedAlgorithmManager
     from gradio_gui.monitor import DirectoryMonitor
     from gradio_gui.components import JS_AUTOSCROLL, create_offline_tab_components, create_online_tab_components
-    from gradio_gui.offline_handlers import run_offline_detection, on_select_row
+    from gradio_gui.offline_handlers import run_offline_detection, on_select_row, on_select_row_with_audio
     from gradio_gui.online_handlers import (
         update_monitor_status, start_monitoring_fn, stop_monitoring_fn,
         confirm_detect_existing_fn, confirm_skip_existing_fn,
         cleanup_temp_files_fn, export_monitor_zip_fn, refresh_monitor_status,
-        on_algorithm_change, on_monitor_select_row, monitor_logs
+        on_algorithm_change, on_monitor_select_row, on_monitor_select_row_with_audio, monitor_logs
     )
 
 # 全局实例
@@ -85,11 +85,17 @@ def create_demo():
         with gr.Tab("💻 离线模式", id=0):
             offline_comps = create_offline_tab_components(model_manager)
 
-            # 绑定表格选择事件
+            # 绑定表格选择事件 - 热力图跳转
             offline_comps['results_table'].select(
                 fn=on_select_row,
                 inputs=[offline_comps['heatmap_gallery']],
                 outputs=[offline_comps['heatmap_gallery']]
+            )
+
+            # 绑定表格选择事件 - 音频试听
+            offline_comps['results_table'].select(
+                fn=on_select_row_with_audio,
+                outputs=[offline_comps['audio_preview'], offline_comps['audio_preview_info']]
             )
 
         # ==================== 在线模式 Tab ====================
@@ -178,11 +184,17 @@ def create_demo():
                 outputs=[online_comps['monitor_interval']]
             )
 
-            # 表格选择事件
+            # 表格选择事件 - 热力图跳转
             online_comps['monitor_results_table'].select(
                 fn=on_monitor_select_row,
                 inputs=[online_comps['recent_anomaly_gallery']],
                 outputs=[online_comps['recent_anomaly_gallery']]
+            )
+
+            # 表格选择事件 - 音频试听
+            online_comps['monitor_results_table'].select(
+                fn=on_monitor_select_row_with_audio,
+                outputs=[online_comps['monitor_audio_preview'], online_comps['monitor_audio_preview_info']]
             )
 
             # 算法切换

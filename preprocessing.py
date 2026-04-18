@@ -658,27 +658,26 @@ class Preprocessor:
                         self.src_audio_gen_pic_map[_file] = '{}.png'.format(new_file_name)
 
                         # 记录到结果字典
-                        if _file not in result_dict:
-                            result_dict[_file] = {"dk": None, "qzgy": None}
                         # 根据参考音频类型判断是dk还是qzgy
                         # auto_match模式下根据匹配到的参考音频名称判断
+                        matched_name = ''
                         if self.shazam_auto_match:
                             # 从Shazam定位器获取最后一次匹配的参考音频名称
                             matched_name = getattr(self._shazam_finder, '_last_matched_name', '')
                             if "qzgy" in matched_name.lower() or "青藏高原" in matched_name:
-                                result_dict[_file]["qzgy"] = pic_output_path
+                                result_dict[_file] = {"dk": None, "qzgy": pic_output_path, "music_name": matched_name}
                                 print(f"[Shazam] 自动匹配到 '{matched_name}'，分类为 qzgy")
                             elif "dk" in matched_name.lower() or "渡口" in matched_name:
-                                result_dict[_file]["dk"] = pic_output_path
+                                result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": matched_name}
                                 print(f"[Shazam] 自动匹配到 '{matched_name}'，分类为 dk")
                             else:
                                 # 无法确定分类，默认保存到dk
-                                result_dict[_file]["dk"] = pic_output_path
+                                result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": matched_name}
                                 print(f"[Shazam] 自动匹配到 '{matched_name}'，无法确定分类，默认保存到 dk")
                         elif "qzgy" in self.ref_file.lower() or "青藏高原" in self.ref_file:
-                            result_dict[_file]["qzgy"] = pic_output_path
+                            result_dict[_file] = {"dk": None, "qzgy": pic_output_path, "music_name": os.path.basename(self.ref_file)}
                         else:
-                            result_dict[_file]["dk"] = pic_output_path
+                            result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": os.path.basename(self.ref_file)}
 
                     except Exception as e:
                         print(f"Data transform failed! Error: {e} \nPlease check file:{_file}")
@@ -857,7 +856,7 @@ class Preprocessor:
                 self.src_audio_gen_pic_map[_file] = f'{new_file_name}.png'
 
                 if _file not in result_dict:
-                    result_dict[_file] = {"dk": None, "qzgy": None}
+                    result_dict[_file] = {"dk": None, "qzgy": None, "music_name": ref_name}
 
                 # 分类
                 if self.shazam_auto_match:
@@ -1013,24 +1012,21 @@ class Preprocessor:
                         self.src_audio_gen_pic_map[_file] = '{}.png'.format(new_file_name)
 
                         # 记录到结果字典
-                        if _file not in result_dict:
-                            result_dict[_file] = {"dk": None, "qzgy": None}
-
                         if self.shazam_auto_match:
                             matched_name = getattr(self._shazam_finder, '_last_matched_name', '')
                             if "qzgy" in matched_name.lower() or "青藏高原" in matched_name:
-                                result_dict[_file]["qzgy"] = pic_output_path
+                                result_dict[_file] = {"dk": None, "qzgy": pic_output_path, "music_name": matched_name}
                                 print(f"[Shazam] 自动匹配到 '{matched_name}'，分类为 qzgy")
                             elif "dk" in matched_name.lower() or "渡口" in matched_name:
-                                result_dict[_file]["dk"] = pic_output_path
+                                result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": matched_name}
                                 print(f"[Shazam] 自动匹配到 '{matched_name}'，分类为 dk")
                             else:
-                                result_dict[_file]["dk"] = pic_output_path
+                                result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": matched_name}
                                 print(f"[Shazam] 自动匹配到 '{matched_name}'，无法确定分类，默认保存到 dk")
                         elif "qzgy" in self.ref_file.lower() or "青藏高原" in self.ref_file:
-                            result_dict[_file]["qzgy"] = pic_output_path
+                            result_dict[_file] = {"dk": None, "qzgy": pic_output_path, "music_name": os.path.basename(self.ref_file)}
                         else:
-                            result_dict[_file]["dk"] = pic_output_path
+                            result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": os.path.basename(self.ref_file)}
 
                     except Exception as e:
                         print(f"Data transform failed! Error: {e} \nPlease check file:{_file}")

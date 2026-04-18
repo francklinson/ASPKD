@@ -1879,7 +1879,23 @@
                     const data = JSON.parse(stored);
                     offlineResultsData = data.results || [];
                     console.log(`[Offline] 从本地存储加载了 ${offlineResultsData.length} 条历史结果`);
-                    
+
+                    // 为历史记录重建 audio_slice_path（如果缺失）
+                    let rebuiltCount = 0;
+                    offlineResultsData.forEach(r => {
+                        if (!r.audio_slice_path && r.overlay_path) {
+                            // 从 overlay_path 推断音频路径
+                            // 注意：overlay_path 文件名包含 _overlay 后缀，但音频文件没有
+                            const baseName = r.overlay_path.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/_overlay$/, '');
+                            r.audio_slice_path = `slice/audio/${baseName}.wav`;
+                            rebuiltCount++;
+                            console.log(`[Offline] 为历史记录重建音频路径: ${r.filename} -> ${r.audio_slice_path}`);
+                        }
+                    });
+                    if (rebuiltCount > 0) {
+                        console.log(`[Offline] 为 ${rebuiltCount} 条历史记录重建了音频路径`);
+                    }
+
                     // 恢复显示
                     if (offlineResultsData.length > 0) {
                         restoreOfflineResultsDisplay();
@@ -1955,6 +1971,12 @@
                 const isFailed = r.status === '预处理失败';
                 const isNoMatch = r.status === '未匹配';
                 
+                // 调试：输出音频路径信息
+                console.log(`[Debug] 结果 ${i}: filename=${r.filename}, audio_slice_path=${r.audio_slice_path}, overlay_path=${r.overlay_path}`);
+                if (!r.audio_slice_path && r.overlay_path) {
+                    console.log(`[Debug] 警告: 有overlay_path但没有audio_slice_path，可能是历史记录`);
+                }
+                
                 let statusColor, statusBg, statusText;
                 if (isFailed || isNoMatch) {
                     statusColor = '#856404';
@@ -1985,28 +2007,45 @@
                 
                 resultsHtml += `
                     <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
-                        <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa;">
-                            <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.filename}">
+                        <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa; display: flex; align-items: center; gap: 8px;">
+                            <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;" title="${r.filename}">
                                 🎵 ${r.filename}
                             </div>
+                            ${r.audio_slice_path ? `
+                                <button onclick="toggleAudioPlay('${r.audio_slice_path}', this)"
+                                        class="audio-play-btn"
+                                        title="点击试听"
+                                        style="width: 22px; height: 22px; border: none; background: #6366f1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: all 0.2s; outline: none; flex-shrink: 0;"
+                                        onmouseover="this.style.background='#4f46e5'"
+                                        onmouseout="this.style.background='#6366f1'"
+                                        onfocus="this.style.boxShadow='0 0 0 2px rgba(99, 102, 241, 0.5)'"
+                                        onblur="this.style.boxShadow='none'">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                                        <polygon points="5,3 19,12 5,21"/>
+                                    </svg>
+                                </button>
+                            ` : ''}
                         </div>
                         <div style="padding: 12px;">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 12px;">
                                 <div><strong>异常分数:</strong> ${r.anomaly_score ? r.anomaly_score.toFixed(4) : 'N/A'}</div>
-                                <div><strong>状态:</strong> 
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <strong>状态:</strong>
                                     <span style="background: ${statusBg}; color: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
                                         ${statusText}
                                     </span>
                                 </div>
-                                <div><strong>时间:</strong> ${timestamp}</div>
-                                <div><strong>参考音频:</strong> ${r.music_name || (r.segment_info && r.segment_info.music_name) || '未匹配'}</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 12px; flex-wrap: wrap;">
+                                <span><strong>序号:</strong> #${offlineResultsData.length - i}</span>
+                                <span><strong>参考音频:</strong> ${r.music_name || (r.segment_info && r.segment_info.music_name) || '未匹配'}</span>
                             </div>
                             ${hasHeatmap ? `
                                 <div style="margin-top: 8px;">
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                                         <div style="font-size: 11px; color: #666;">🔥 异常热力图:</div>
                                         <div style="display: flex; gap: 4px;">
-                                            <button id="btn-offline-original-${uniqueId}" 
+                                            <button id="btn-offline-original-${uniqueId}"
                                                     onclick="toggleOfflineHeatmapMode('${uniqueId}', 'original')"
                                                     style="padding: 2px 8px; font-size: 10px; border: 1px solid #d9d9d9; background: white; color: #666; border-radius: 4px; cursor: pointer;">原图</button>
                                             <button id="btn-offline-overlay-${uniqueId}" 
@@ -2148,20 +2187,37 @@
 
                     resultsHtml += `
                         <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
-                            <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa;">
-                                <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.filename}">
+                            <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa; display: flex; align-items: center; gap: 8px;">
+                                <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;" title="${r.filename}">
                                     🎵 ${r.filename}
                                 </div>
+                                ${r.audio_slice_path ? `
+                                    <button onclick="toggleAudioPlay('${r.audio_slice_path}', this)"
+                                            title="点击试听"
+                                            style="width: 22px; height: 22px; border: none; background: #6366f1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: all 0.2s; outline: none; flex-shrink: 0;"
+                                            onmouseover="this.style.background='#4f46e5'"
+                                            onmouseout="this.style.background='#6366f1'"
+                                            onfocus="this.style.boxShadow='0 0 0 2px rgba(99, 102, 241, 0.5)'"
+                                            onblur="this.style.boxShadow='none'">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                                            <polygon points="5,3 19,12 5,21"/>
+                                        </svg>
+                                    </button>
+                                ` : ''}
                             </div>
                             <div style="padding: 12px;">
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 12px;">
                                     <div><strong>异常分数:</strong> ${r.anomaly_score.toFixed(4)}</div>
-                                    <div><strong>状态:</strong> 
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <strong>状态:</strong>
                                         <span style="background: ${statusBg}; color: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
                                             ${isAnomaly ? '🔴 异常' : '🟢 正常'}
                                         </span>
                                     </div>
-                                    <div><strong>序号:</strong> #${index + 1}</div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 12px; flex-wrap: wrap;">
+                                    <span><strong>序号:</strong> #${index + 1}</span>
+                                    <span><strong>参考音频:</strong> ${r.music_name || '未匹配'}</span>
                                 </div>
                                 ${hasHeatmap ? `
                                     <div style="margin-top: 8px;">
@@ -2786,15 +2842,29 @@
 
                 resultsHtml += `
                     <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
-                        <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa;">
-                            <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.filename}">
+                        <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa; display: flex; align-items: center; gap: 8px;">
+                            <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;" title="${r.filename}">
                                 🎵 ${r.filename}
                             </div>
+                            ${r.audio_slice_path ? `
+                                <button onclick="toggleAudioPlay('${r.audio_slice_path}', this)"
+                                        title="点击试听"
+                                        style="width: 22px; height: 22px; border: none; background: #6366f1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: all 0.2s; outline: none; flex-shrink: 0;"
+                                        onmouseover="this.style.background='#4f46e5'"
+                                        onmouseout="this.style.background='#6366f1'"
+                                        onfocus="this.style.boxShadow='0 0 0 2px rgba(99, 102, 241, 0.5)'"
+                                        onblur="this.style.boxShadow='none'">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                                        <polygon points="5,3 19,12 5,21"/>
+                                    </svg>
+                                </button>
+                            ` : ''}
                         </div>
                         <div style="padding: 12px;">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 12px;">
                                 <div><strong>异常分数:</strong> ${r.anomaly_score ? r.anomaly_score.toFixed(4) : 'N/A'}</div>
-                                <div><strong>状态:</strong> 
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <strong>状态:</strong>
                                     <span style="background: ${statusBg}; color: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
                                         ${statusText}
                                     </span>
@@ -4733,6 +4803,80 @@
             currentFewShotTaskId = null;
         }
 
+        // ==================== 音频播放器管理器 ====================
+        let currentAudio = null;
+        let currentPlayingButton = null;
+
+        // SVG 图标
+        const playIconSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg>`;
+        const pauseIconSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="white"><rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/></svg>`;
+
+        function toggleAudioPlay(audioPath, buttonElement) {
+            // 如果点击的是当前正在播放的按钮
+            if (currentPlayingButton === buttonElement && currentAudio) {
+                if (currentAudio.paused) {
+                    currentAudio.play();
+                    buttonElement.innerHTML = pauseIconSvg;
+                    buttonElement.style.background = '#4f46e5';
+                    buttonElement.title = '点击暂停';
+                } else {
+                    currentAudio.pause();
+                    buttonElement.innerHTML = playIconSvg;
+                    buttonElement.style.background = '#6366f1';
+                    buttonElement.title = '点击试听';
+                }
+                return;
+            }
+
+            // 停止之前播放的音频
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
+            if (currentPlayingButton) {
+                currentPlayingButton.innerHTML = playIconSvg;
+                currentPlayingButton.style.background = '#6366f1';
+                currentPlayingButton.title = '点击试听';
+            }
+
+            // 创建新的音频对象
+            currentAudio = new Audio(`${API_BASE}/api/detection/audio/${audioPath}`);
+            currentPlayingButton = buttonElement;
+
+            // 更新按钮状态
+            buttonElement.innerHTML = pauseIconSvg;
+            buttonElement.style.background = '#4f46e5';
+            buttonElement.title = '点击暂停';
+
+            // 播放音频
+            currentAudio.play().catch(err => {
+                console.error('播放失败:', err);
+                buttonElement.innerHTML = playIconSvg;
+                buttonElement.style.background = '#6366f1';
+                buttonElement.title = '点击试听';
+                alert('音频播放失败，请检查文件是否存在');
+            });
+
+            // 音频结束时的处理
+            currentAudio.onended = function() {
+                buttonElement.innerHTML = playIconSvg;
+                buttonElement.style.background = '#6366f1';
+                buttonElement.title = '点击试听';
+                currentAudio = null;
+                currentPlayingButton = null;
+            };
+
+            // 音频错误处理
+            currentAudio.onerror = function() {
+                console.error('音频加载失败:', audioPath);
+                buttonElement.innerHTML = playIconSvg;
+                buttonElement.style.background = '#6366f1';
+                buttonElement.title = '点击试听';
+                currentAudio = null;
+                currentPlayingButton = null;
+            };
+        }
+
         // 页面加载时初始化
         document.addEventListener('DOMContentLoaded', function() {
             console.log('[Init] DOM加载完成，开始初始化...');
@@ -5061,22 +5205,39 @@
 
                 resultsHtml += `
                     <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
-                        <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa;">
-                            <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.filename}">
+                        <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa; display: flex; align-items: center; gap: 8px;">
+                            <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;" title="${r.filename}">
                                 🎵 ${r.filename}
                             </div>
-                            ${r.client_name ? `<div style="font-size: 11px; color: #666; margin-top: 2px;">客户端: ${r.client_name}</div>` : ''}
+                            ${r.audio_slice_path ? `
+                                <button onclick="toggleAudioPlay('${r.audio_slice_path}', this)"
+                                        title="点击试听"
+                                        style="width: 22px; height: 22px; border: none; background: #6366f1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: all 0.2s; outline: none; flex-shrink: 0;"
+                                        onmouseover="this.style.background='#4f46e5'"
+                                        onmouseout="this.style.background='#6366f1'"
+                                        onfocus="this.style.boxShadow='0 0 0 2px rgba(99, 102, 241, 0.5)'"
+                                        onblur="this.style.boxShadow='none'">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                                        <polygon points="5,3 19,12 5,21"/>
+                                    </svg>
+                                </button>
+                            ` : ''}
                         </div>
+                        ${r.client_name ? `<div style="padding: 8px 12px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; font-size: 11px; color: #666;">客户端: ${r.client_name}</div>` : ''}
                         <div style="padding: 12px;">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 12px;">
                                 <div><strong>异常分数:</strong> ${r.anomaly_score ? r.anomaly_score.toFixed(4) : 'N/A'}</div>
-                                <div><strong>状态:</strong> 
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <strong>状态:</strong>
                                     <span style="background: ${statusBg}; color: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px;">
                                         ${statusText}
                                     </span>
                                 </div>
                                 <div><strong>时间:</strong> ${timestamp}</div>
-                                <div><strong>参考音频:</strong> ${r.segment_info && r.segment_info.music_name ? r.segment_info.music_name : '未匹配'}</div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <strong>参考音频:</strong> ${r.segment_info && r.segment_info.music_name ? r.segment_info.music_name : '未匹配'}
+                                </div>
+                                <div><strong>序号:</strong> #${clientResults.length - i}</div>
                             </div>
                             ${hasHeatmap ? `
                                 <div style="margin-top: 8px;">
@@ -5271,9 +5432,9 @@
                 const connectedAt = new Date(client.connected_at);
                 const connectionDuration = getDurationText(connectedAt);
 
-                // 计算异常率
+                // 计算异常率（上限100%）
                 const anomalyRate = client.total_uploaded > 0
-                    ? ((client.anomaly_detected / client.total_uploaded) * 100).toFixed(1)
+                    ? Math.min((client.anomaly_detected / client.total_uploaded) * 100, 100).toFixed(1)
                     : '0.0';
 
                 return `

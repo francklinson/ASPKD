@@ -427,15 +427,20 @@ class TaskManager:
                 images = []
                 # 检查是否标记为失败（未找到片段）
                 is_failed = isinstance(file_result, dict) and file_result.get("failed")
-                
+
+                # 获取参考音频名称
+                music_name = None
                 if isinstance(file_result, dict):
+                    music_name = file_result.get("music_name")
+                    print(f"[TaskManager Debug] 获取参考音频: file={os.path.basename(audio_file)}, music_name={music_name}")
                     if file_result.get("dk"):
                         images.append(file_result["dk"])
                     if file_result.get("qzgy"):
                         images.append(file_result["qzgy"])
-                
+
                 if images and not is_failed:
-                    file_image_map[audio_file] = images
+                    file_image_map[audio_file] = {"images": images, "music_name": music_name}
+                    print(f"[TaskManager Debug] 保存到file_image_map: music_name={music_name}")
                     all_images.extend(images)
                     processed_count += 1
                 else:
@@ -549,7 +554,9 @@ class TaskManager:
             current_idx = 0
             anomaly_count = 0
 
-            for audio_file, images in file_image_map.items():
+            for audio_file, file_data in file_image_map.items():
+                images = file_data["images"]
+                music_name = file_data.get("music_name")
                 file_results = detection_results[current_idx:current_idx + len(images)]
                 current_idx += len(images)
 
@@ -594,6 +601,31 @@ class TaskManager:
                 if is_anomaly:
                     anomaly_count += 1
 
+                # 构建音频切片路径（与图片同名，但扩展名为.wav）
+                audio_slice_path = None
+                print(f"[TaskManager Debug] 准备构建音频路径: overlay_path={overlay_path}, filename={os.path.basename(audio_file)}")
+                if overlay_path:
+                    # 从 overlay_path 推断音频路径
+                    # 注意：overlay_path 文件名包含 _overlay 后缀，但音频文件没有
+                    # overlay_path 格式: slice/picture/xxx_overlay.png
+                    # audio_path 格式: slice/audio/xxx.wav
+                    base_name = os.path.splitext(os.path.basename(overlay_path))[0]
+                    # 去除 _overlay 后缀
+                    if base_name.endswith('_overlay'):
+                        base_name = base_name[:-8]
+                    audio_slice_path = f"slice/audio/{base_name}.wav"
+                    # 检查文件是否存在
+                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                    full_audio_path = os.path.join(project_root, audio_slice_path)
+                    print(f"[TaskManager Debug] 构建音频路径: overlay={overlay_path}, base={base_name}, audio={audio_slice_path}")
+                    print(f"[TaskManager Debug] 完整音频路径: {full_audio_path}, 存在={os.path.exists(full_audio_path)}")
+                    if not os.path.exists(full_audio_path):
+                        audio_slice_path = None
+                        print(f"[TaskManager Debug] 音频文件不存在，设为null")
+                else:
+                    print(f"[TaskManager Debug] overlay_path为空，无法构建音频路径")
+
+                print(f"[TaskManager Debug] 保存结果: file={os.path.basename(audio_file)}, music_name={music_name}")
                 task.results.append({
                     "filename": os.path.basename(audio_file),
                     "filepath": audio_file,
@@ -602,7 +634,9 @@ class TaskManager:
                     "status": "异常" if is_anomaly else "正常",
                     "original_path": original_path,
                     "overlay_path": overlay_path,
-                    "heatmap_path": heatmap_path
+                    "heatmap_path": heatmap_path,
+                    "audio_slice_path": audio_slice_path,  # 添加音频切片路径
+                    "music_name": music_name  # 添加参考音频名称
                 })
 
                 task.progress = 55 + (current_idx / len(all_images)) * 40  # 检测占55%-95%

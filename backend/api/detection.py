@@ -386,6 +386,40 @@ async def get_available_devices():
     return result
 
 
+@router.get("/audio/{audio_path:path}")
+async def get_audio_file(audio_path: str):
+    """
+    获取音频切片文件（用于试听）
+    
+    - **audio_path**: 音频文件的相对路径（如: slice/audio/xxx.wav）
+    """
+    import os
+    from fastapi.responses import FileResponse
+    
+    # 安全检查：确保路径不包含 .. 等危险字符
+    if ".." in audio_path or audio_path.startswith("/"):
+        raise HTTPException(status_code=400, detail="无效的路径")
+    
+    # 构建完整路径
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    full_path = os.path.join(project_root, audio_path)
+    
+    # 检查文件是否存在
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail=f"音频文件不存在: {audio_path}")
+    
+    # 检查是否是文件
+    if not os.path.isfile(full_path):
+        raise HTTPException(status_code=400, detail="无效的文件路径")
+    
+    # 返回文件
+    return FileResponse(
+        path=full_path,
+        media_type='audio/wav',
+        filename=os.path.basename(full_path)
+    )
+
+
 @router.get("/export/{task_id}")
 async def export_task_results(task_id: str):
     """

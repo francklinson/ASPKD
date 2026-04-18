@@ -126,6 +126,21 @@ def create_offline_tab_components(model_manager):
             wrap=True
         )
 
+        # 音频试听区域
+        with gr.Row():
+            with gr.Column(scale=1):
+                audio_preview = gr.Audio(
+                    label="🎵 音频试听（点击表格行选择）",
+                    interactive=False,
+                    autoplay=False
+                )
+            with gr.Column(scale=1):
+                audio_preview_info = gr.Textbox(
+                    label="当前音频信息",
+                    value="请在左侧表格中点击某行来选择要试听的音频",
+                    interactive=False
+                )
+
         heatmap_gallery = gr.Gallery(
             label="全部异常热力图",
             show_label=True,
@@ -146,7 +161,9 @@ def create_offline_tab_components(model_manager):
         'download_output': download_output,
         'results_section': results_section,
         'results_table': results_table,
-        'heatmap_gallery': heatmap_gallery
+        'heatmap_gallery': heatmap_gallery,
+        'audio_preview': audio_preview,
+        'audio_preview_info': audio_preview_info
     }
 
 
@@ -227,6 +244,21 @@ def create_online_tab_components(model_manager):
                 wrap=True
             )
 
+            # 音频试听区域
+            with gr.Row():
+                with gr.Column(scale=1):
+                    monitor_audio_preview = gr.Audio(
+                        label="🎵 音频试听（点击表格行选择）",
+                        interactive=False,
+                        autoplay=False
+                    )
+                with gr.Column(scale=1):
+                    monitor_audio_preview_info = gr.Textbox(
+                        label="当前音频信息",
+                        value="请在上方表格中点击某行来选择要试听的音频",
+                        interactive=False
+                    )
+
     # 确认对话框
     confirm_dialog = gr.Row(visible=False)
     with confirm_dialog:
@@ -268,5 +300,7 @@ def create_online_tab_components(model_manager):
         'confirm_count': confirm_count,
         'detect_existing_btn': detect_existing_btn,
         'skip_existing_btn': skip_existing_btn,
-        'recent_anomaly_gallery': recent_anomaly_gallery
+        'recent_anomaly_gallery': recent_anomaly_gallery,
+        'monitor_audio_preview': monitor_audio_preview,
+        'monitor_audio_preview_info': monitor_audio_preview_info
     }

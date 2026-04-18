@@ -691,6 +691,21 @@ class MonitorService:
                 if heatmap_path and heatmap_path.startswith(project_root):
                     heatmap_path = heatmap_path[len(project_root)+1:].replace('\\', '/')
             
+            # 构建音频切片路径（与图片同名，但扩展名为.wav）
+                audio_slice_path = None
+                if overlay_path:
+                    # 从 overlay_path 推断音频路径
+                    # 注意：overlay_path 文件名包含 _overlay 后缀，但音频文件没有
+                    base_name = os.path.splitext(os.path.basename(overlay_path))[0]
+                    # 去除 _overlay 后缀
+                    if base_name.endswith('_overlay'):
+                        base_name = base_name[:-8]
+                    audio_slice_path = f"slice/monitor/{base_name}.wav"
+                    # 检查文件是否存在
+                    full_audio_path = os.path.join(project_root, audio_slice_path)
+                    if not os.path.exists(full_audio_path):
+                        audio_slice_path = None
+
             # 创建检测结果
             detection_result = {
                 "timestamp": datetime.now().isoformat(),
@@ -702,6 +717,7 @@ class MonitorService:
                 "original_path": original_path,
                 "overlay_path": overlay_path,
                 "heatmap_path": heatmap_path,
+                "audio_slice_path": audio_slice_path,  # 添加音频切片路径
                 "segment_info": {
                     "music_name": segment.music_name,
                     "start_time": segment.start_time,
