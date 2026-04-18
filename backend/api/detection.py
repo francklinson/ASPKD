@@ -222,9 +222,9 @@ async def get_available_reference_audios():
         config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "config.yaml")
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
-        default_ref = config.get('preprocessing', {}).get('ref_file', 'ref/渡口片段10s.wav')
+        default_ref = config.get('preprocessing', {}).get('ref_file', '')
     except Exception:
-        default_ref = 'ref/渡口片段10s.wav'
+        default_ref = ''
     
     try:
         from core.shazam import AudioFingerprinter

@@ -143,10 +143,10 @@ def run_offline_detection(audio_files, algorithm_choice: str, device_choice: str
         picture_file_list = []
         for k, v in picture_file_dict.items():
             if isinstance(v, dict):
-                if v.get("dk"):
-                    picture_file_list.append(v["dk"])
-                if v.get("qzgy"):
-                    picture_file_list.append(v["qzgy"])
+                # 根据参考音频名称动态获取图片路径
+                music_name = v.get("music_name")
+                if music_name and music_name in v:
+                    picture_file_list.append(v[music_name])
 
         print(f"[离线模式] ✓ 找到 {len(picture_file_list)} 个目标图像")
 

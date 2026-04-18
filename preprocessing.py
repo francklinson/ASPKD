@@ -565,7 +565,7 @@ class Preprocessor:
             save_dir: 保存目录
             original_names: 原始文件名映射 {临时路径: 原始文件名}，用于Gradio上传的文件
         Returns:
-            dict: 处理结果字典，格式为 {原始音频路径: {"dk": 图片路径, "qzgy": 图片路径}}
+            dict: 处理结果字典，格式为 {原始音频路径: {参考音频名称: 图片路径, "music_name": 参考音频名称}}
         """
         # 检查输入数据类型正确，分别为文件夹和音频文件
         if not isinstance(file_list, list) or len(file_list) == 0:
@@ -658,26 +658,17 @@ class Preprocessor:
                         self.src_audio_gen_pic_map[_file] = '{}.png'.format(new_file_name)
 
                         # 记录到结果字典
-                        # 根据参考音频类型判断是dk还是qzgy
-                        # auto_match模式下根据匹配到的参考音频名称判断
-                        matched_name = ''
+                        # 根据匹配到的参考音频名称动态分类
                         if self.shazam_auto_match:
                             # 从Shazam定位器获取最后一次匹配的参考音频名称
                             matched_name = getattr(self._shazam_finder, '_last_matched_name', '')
-                            if "qzgy" in matched_name.lower() or "青藏高原" in matched_name:
-                                result_dict[_file] = {"dk": None, "qzgy": pic_output_path, "music_name": matched_name}
-                                print(f"[Shazam] 自动匹配到 '{matched_name}'，分类为 qzgy")
-                            elif "dk" in matched_name.lower() or "渡口" in matched_name:
-                                result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": matched_name}
-                                print(f"[Shazam] 自动匹配到 '{matched_name}'，分类为 dk")
-                            else:
-                                # 无法确定分类，默认保存到dk
-                                result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": matched_name}
-                                print(f"[Shazam] 自动匹配到 '{matched_name}'，无法确定分类，默认保存到 dk")
-                        elif "qzgy" in self.ref_file.lower() or "青藏高原" in self.ref_file:
-                            result_dict[_file] = {"dk": None, "qzgy": pic_output_path, "music_name": os.path.basename(self.ref_file)}
+                            # 动态生成结果字典，使用匹配到的参考音频名称作为key
+                            result_dict[_file] = {matched_name: pic_output_path, "music_name": matched_name}
+                            print(f"[Shazam] 自动匹配到 '{matched_name}'")
                         else:
-                            result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": os.path.basename(self.ref_file)}
+                            # 使用用户指定的参考音频名称
+                            ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
+                            result_dict[_file] = {ref_name: pic_output_path, "music_name": ref_name}
 
                     except Exception as e:
                         print(f"Data transform failed! Error: {e} \nPlease check file:{_file}")
@@ -697,7 +688,7 @@ class Preprocessor:
                 else:
                     # 未找到片段，记录到结果字典中（标记为失败）
                     print("未找到指定片段")
-                    result_dict[_file] = {"dk": None, "qzgy": None, "failed": True}
+                    result_dict[_file] = {"failed": True}
             else:
                 print("---跳过非音频文件: {}".format(_file))
 
@@ -790,7 +781,7 @@ class Preprocessor:
             if not result.success or not result.result or not result.result.matched:
                 print(f"[跳过] {result.file_path}: {result.error or '匹配失败'}")
                 # 将匹配失败的文件添加到结果字典中（标记为失败）
-                result_dict[result.file_path] = {"dk": None, "qzgy": None, "failed": True}
+                result_dict[result.file_path] = {"failed": True}
                 continue
 
             _file = result.file_path
@@ -811,8 +802,6 @@ class Preprocessor:
                 print(f"[跳过] {_file}: 参考音频不匹配，跳过处理")
                 # 将不匹配的文件添加到结果字典中（标记为失败，并记录原因）
                 result_dict[_file] = {
-                    "dk": None, 
-                    "qzgy": None, 
                     "failed": True,
                     "error": f"参考音频不匹配: 选择'{selected_ref_name}'，识别出'{matched_name}'"
                 }
@@ -855,19 +844,17 @@ class Preprocessor:
                 plot_spectrogram(_file, pic_output_path, offset=found_position, duration=slice_duration)
                 self.src_audio_gen_pic_map[_file] = f'{new_file_name}.png'
 
+                # 根据匹配到的参考音频名称动态分类
                 if _file not in result_dict:
-                    result_dict[_file] = {"dk": None, "qzgy": None, "music_name": ref_name}
+                    result_dict[_file] = {"music_name": ref_name}
 
-                # 分类
+                # 使用参考音频名称作为key存储结果
                 if self.shazam_auto_match:
-                    if "qzgy" in ref_name_clean.lower() or "青藏高原" in ref_name_clean:
-                        result_dict[_file]["qzgy"] = pic_output_path
-                    else:
-                        result_dict[_file]["dk"] = pic_output_path
-                elif "qzgy" in self.ref_file.lower() or "青藏高原" in self.ref_file:
-                    result_dict[_file]["qzgy"] = pic_output_path
+                    # 使用匹配到的参考音频名称
+                    result_dict[_file][ref_name_clean] = pic_output_path
                 else:
-                    result_dict[_file]["dk"] = pic_output_path
+                    # 使用用户指定的参考音频名称
+                    result_dict[_file][ref_name_clean] = pic_output_path
 
             except Exception as e:
                 print(f"[错误] 生成图片失败: {e}")
@@ -960,8 +947,6 @@ class Preprocessor:
                             print(f"[跳过] {_file}: 参考音频不匹配，跳过处理")
                             # 将不匹配的文件添加到结果字典中（标记为失败）
                             result_dict[_file] = {
-                                "dk": None, 
-                                "qzgy": None, 
                                 "failed": True,
                                 "error": f"参考音频不匹配: 选择'{selected_ref_name}'，识别出'{matched_name}'"
                             }
@@ -1012,21 +997,16 @@ class Preprocessor:
                         self.src_audio_gen_pic_map[_file] = '{}.png'.format(new_file_name)
 
                         # 记录到结果字典
+                        # 根据匹配到的参考音频名称动态分类
                         if self.shazam_auto_match:
                             matched_name = getattr(self._shazam_finder, '_last_matched_name', '')
-                            if "qzgy" in matched_name.lower() or "青藏高原" in matched_name:
-                                result_dict[_file] = {"dk": None, "qzgy": pic_output_path, "music_name": matched_name}
-                                print(f"[Shazam] 自动匹配到 '{matched_name}'，分类为 qzgy")
-                            elif "dk" in matched_name.lower() or "渡口" in matched_name:
-                                result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": matched_name}
-                                print(f"[Shazam] 自动匹配到 '{matched_name}'，分类为 dk")
-                            else:
-                                result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": matched_name}
-                                print(f"[Shazam] 自动匹配到 '{matched_name}'，无法确定分类，默认保存到 dk")
-                        elif "qzgy" in self.ref_file.lower() or "青藏高原" in self.ref_file:
-                            result_dict[_file] = {"dk": None, "qzgy": pic_output_path, "music_name": os.path.basename(self.ref_file)}
+                            # 动态生成结果字典，使用匹配到的参考音频名称作为key
+                            result_dict[_file] = {matched_name: pic_output_path, "music_name": matched_name}
+                            print(f"[Shazam] 自动匹配到 '{matched_name}'")
                         else:
-                            result_dict[_file] = {"dk": pic_output_path, "qzgy": None, "music_name": os.path.basename(self.ref_file)}
+                            # 使用用户指定的参考音频名称
+                            ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
+                            result_dict[_file] = {ref_name: pic_output_path, "music_name": ref_name}
 
                     except Exception as e:
                         print(f"Data transform failed! Error: {e} \nPlease check file:{_file}")
@@ -1044,7 +1024,7 @@ class Preprocessor:
                 else:
                     # 未找到片段，记录到结果字典中（标记为失败）
                     print("未找到指定片段")
-                    result_dict[_file] = {"dk": None, "qzgy": None, "failed": True}
+                    result_dict[_file] = {"failed": True}
             else:
                 print("---跳过非音频文件: {}".format(_file))
 

@@ -124,10 +124,10 @@ class DirectoryMonitor:
                 picture_file_list = []
                 v = picture_file_dict[audio_file]
                 if isinstance(v, dict):
-                    if v.get("dk"):
-                        picture_file_list.append(v["dk"])
-                    if v.get("qzgy"):
-                        picture_file_list.append(v["qzgy"])
+                    # 根据参考音频名称动态获取图片路径
+                    music_name = v.get("music_name")
+                    if music_name and music_name in v:
+                        picture_file_list.append(v[music_name])
 
                 if picture_file_list:
                     file_images_map[audio_file] = picture_file_list

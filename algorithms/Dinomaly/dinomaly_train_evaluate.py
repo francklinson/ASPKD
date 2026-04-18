@@ -73,7 +73,7 @@ class DataConfig:
     data_path: str = "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/data/spk"
     save_dir: str = "./saved_results"
     save_name: str = "vit_spk"
-    item_list: List[str] = field(default_factory=lambda: ["dk", "qzgy"])
+    item_list: List[str] = field(default_factory=list)  # 动态从数据目录获取
     num_workers: int = 4
 
 
@@ -433,7 +433,15 @@ class DinomalyV2Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
         """训练模型"""
         self.logger.info("Begin DinomalyDinov2 model train!!!")
         setup_seed(1)
-        
+
+        # 如果未指定 item_list，动态从数据目录获取
+        if not data_config.item_list:
+            data_config.item_list = [
+                d for d in os.listdir(data_config.data_path)
+                if os.path.isdir(os.path.join(data_config.data_path, d))
+            ]
+            self.logger.info(f"动态获取类别列表: {data_config.item_list}")
+
         data_transform, gt_transform = get_data_transforms(
             self.config.image_size, self.config.crop_size
         )
@@ -533,6 +541,14 @@ class DinomalyV2Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
 
     def evaluate(self, model_path: str, data_config: DataConfig) -> Tuple:
         """评估预训练模型"""
+        # 如果未指定 item_list，动态从数据目录获取
+        if not data_config.item_list:
+            data_config.item_list = [
+                d for d in os.listdir(data_config.data_path)
+                if os.path.isdir(os.path.join(data_config.data_path, d))
+            ]
+            self.logger.info(f"动态获取类别列表: {data_config.item_list}")
+
         data_transform, gt_transform = get_data_transforms(
             self.config.image_size, self.config.crop_size
         )
@@ -589,7 +605,15 @@ class DinomalyV3Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
         """训练模型"""
         self.logger.info("Begin DinomalyDinov3 model train!!!")
         setup_seed(1)
-        
+
+        # 如果未指定 item_list，动态从数据目录获取
+        if not data_config.item_list:
+            data_config.item_list = [
+                d for d in os.listdir(data_config.data_path)
+                if os.path.isdir(os.path.join(data_config.data_path, d))
+            ]
+            self.logger.info(f"动态获取类别列表: {data_config.item_list}")
+
         data_transform, gt_transform = get_data_transforms(
             self.config.image_size, self.config.crop_size
         )
@@ -691,6 +715,14 @@ class DinomalyV3Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
 
     def evaluate(self, model_path: str, data_config: DataConfig) -> Tuple:
         """评估预训练模型"""
+        # 如果未指定 item_list，动态从数据目录获取
+        if not data_config.item_list:
+            data_config.item_list = [
+                d for d in os.listdir(data_config.data_path)
+                if os.path.isdir(os.path.join(data_config.data_path, d))
+            ]
+            self.logger.info(f"动态获取类别列表: {data_config.item_list}")
+
         data_transform, gt_transform = get_data_transforms(
             self.config.image_size, self.config.crop_size
         )
