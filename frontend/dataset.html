@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据集构建 - 音频异常检测系统</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .page-layout {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .page-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title .icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        select.form-control {
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #52c41a;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #73d13d;
+        }
+
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #ff7875;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-group .btn {
+            flex: 1;
+        }
+
+        .dropzone {
+            border: 2px dashed #d9d9d9;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .dropzone:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .dropzone.dragover {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+
+        .dropzone .icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            color: #999;
+        }
+
+        .dropzone p {
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .dropzone .hint {
+            font-size: 12px;
+            color: #999;
+        }
+
+        /* 音频播放器 */
+        .audio-player-container {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .audio-player {
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .audio-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* 标注控件 */
+        .annotation-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .annotation-label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            border: 2px solid #e8e8e8;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .annotation-label:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .annotation-label.selected-normal {
+            border-color: #52c41a;
+            background: #f6ffed;
+        }
+
+        .annotation-label.selected-anomaly {
+            border-color: #ff4d4f;
+            background: #fff2f0;
+        }
+
+        .annotation-label input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .annotation-label .label-text {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .annotation-label .label-badge {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .label-badge.normal {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .label-badge.anomaly {
+            background: #fff2f0;
+            color: #ff4d4f;
+        }
+
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* 音频片段列表 */
+        .segments-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .segment-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .segment-item:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .segment-item.selected {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+
+        .segment-item .segment-info {
+            flex: 1;
+        }
+
+        .segment-item .segment-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+
+        .segment-item .segment-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .segment-item .segment-status {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .segment-status.unlabeled {
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .segment-status.normal {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .segment-status.anomaly {
+            background: #fff2f0;
+            color: #ff4d4f;
+        }
+
+        .segment-item .segment-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .segment-item .segment-actions button {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* 图表容器 */
+        .chart-container {
+            position: relative;
+            height: 250px;
+            margin-top: 16px;
+        }
+
+        /* 进度条 */
+        .progress {
+            margin-top: 16px;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            margin-top: 8px;
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+        }
+
+        /* 日志 */
+        .status-log {
+            background: #f8f9fa;
+            color: #333;
+            border: 1px solid #e8e8e8;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 16px;
+        }
+
+        .status-log .log-entry {
+            margin-bottom: 4px;
+        }
+
+        .status-log .timestamp {
+            color: #666;
+        }
+
+        .status-log .success {
+            color: #52c41a;
+        }
+
+        .status-log .error {
+            color: #ff4d4f;
+        }
+
+        .status-log .warning {
+            color: #faad14;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state .icon {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* 分类标签 */
+        .category-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .category-tab {
+            padding: 8px 16px;
+            border: 1px solid #d9d9d9;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .category-tab:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .category-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        /* 筛选标签 */
+        .filter-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .filter-tab {
+            padding: 6px 12px;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .filter-tab:hover {
+            background: #e0e0e0;
+        }
+
+        .filter-tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        /* 返回按钮 */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            text-decoration: none;
+            margin-bottom: 16px;
+            opacity: 0.9;
+            transition: opacity 0.3s;
+        }
+
+        .back-link:hover {
+            opacity: 1;
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+
+        /* 隐藏文件输入 */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* 音频可视化区域 */
+        .audio-visualization {
+            margin-top: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .viz-container {
+            margin-bottom: 16px;
+        }
+
+        .viz-container:last-child {
+            margin-bottom: 0;
+        }
+
+        .viz-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #666;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .viz-title::before {
+            content: '';
+            width: 3px;
+            height: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }
+
+        .audio-visualization canvas {
+            width: 100%;
+            height: auto;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e8e8e8;
+        }
+
+        /* 加载动画 */
+        .viz-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100px;
+            color: #999;
+            font-size: 13px;
+        }
+
+        .viz-loading::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e8e8e8;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            margin-left: 8px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/main" class="back-link">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            返回主页面
+        </a>
+        <h1>📊 数据集构建</h1>
+        <p>上传音频、自动切分、标注标签、构建训练数据集</p>
+    </div>
+
+    <div class="container">
+        <div class="page-layout">
+            <!-- 左侧边栏 -->
+            <div class="sidebar">
+                <!-- 上传音频卡片 -->
+                <div class="card">
+                    <h2 class="card-title">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        上传音频
+                    </h2>
+
+                    <div class="dropzone" id="dropzone">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <p>点击或拖拽音频文件到此处</p>
+                        <span class="hint">支持 WAV, MP3, FLAC, AAC, OGG, M4A 格式</span>
+                        <span class="hint" style="color: #667eea; margin-top: 4px;">系统将自动匹配参考音频库中的最佳参考音频</span>
+                        <input type="file" id="audioInput" accept=".wav,.mp3,.flac,.aac,.ogg,.m4a">
+                    </div>
+
+                    <div class="progress" id="uploadProgress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">准备上传...</div>
+                    </div>
+                </div>
+
+                <!-- 统计信息卡片 -->
+                <div class="card">
+                    <h2 class="card-title">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 20V10M12 20V4M6 20v-6"/>
+                        </svg>
+                        数据集统计
+                    </h2>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="statTotal">0</div>
+                            <div class="stat-label">总音频数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statCategories">0</div>
+                            <div class="stat-label">类别数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statTrain">0</div>
+                            <div class="stat-label">训练集</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statTest">0</div>
+                            <div class="stat-label">测试集</div>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="distributionChart"></canvas>
+                    </div>
+
+                    <button class="btn btn-secondary" onclick="refreshStats()" style="margin-top: 16px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                        </svg>
+                        刷新统计
+                    </button>
+                </div>
+            </div>
+
+            <!-- 主内容区 -->
+            <div class="main-content">
+                <!-- 音频播放和标注卡片 -->
+                <div class="card">
+                    <h2 class="card-title">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        </svg>
+                        音频试听与标注
+                    </h2>
+
+                    <div id="playerSection" style="display: none;">
+                        <div class="audio-player-container">
+                            <audio id="audioPlayer" class="audio-player" controls>
+                                <source src="" type="audio/wav">
+                                您的浏览器不支持音频播放
+                            </audio>
+                            <div class="audio-info">
+                                <span id="currentAudioName">未选择音频</span>
+                                <span id="currentAudioDuration">--:--</span>
+                            </div>
+                        </div>
+
+                        <!-- 音频可视化区域 -->
+                        <div class="audio-visualization">
+                            <div class="viz-container">
+                                <div class="viz-title">波形图</div>
+                                <canvas id="waveformCanvas" width="800" height="120"></canvas>
+                            </div>
+                            <div class="viz-container">
+                                <div class="viz-title">时频图 (频谱图)</div>
+                                <div id="spectrogramContainer" style="background: #0a0a0a; border-radius: 6px; overflow: hidden; min-height: 150px; display: flex; align-items: center; justify-content: center;">
+                                    <img id="spectrogramImg" style="max-width: 100%; height: auto; display: none;" alt="时频图">
+                                    <span id="spectrogramPlaceholder" style="color: #666; font-size: 13px;">暂无预生成的时频图</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 20px;">
+                            <label>选择标签</label>
+                            <div class="annotation-controls">
+                                <label class="annotation-label" onclick="selectLabel('normal')">
+                                    <input type="radio" name="label" value="normal" id="labelNormal">
+                                    <span class="label-text">正常 (Normal)</span>
+                                    <span class="label-badge normal">正常</span>
+                                </label>
+                                <label class="annotation-label" onclick="selectLabel('anomaly')">
+                                    <input type="radio" name="label" value="anomaly" id="labelAnomaly">
+                                    <span class="label-text">异常 (Anomaly)</span>
+                                    <span class="label-badge anomaly">异常</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="btn-group" style="margin-top: 20px;">
+                            <button class="btn btn-success" id="btnAnnotate" onclick="submitAnnotation()" disabled>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                确认标注
+                            </button>
+                            <button class="btn btn-secondary" onclick="skipCurrent()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="9 18 15 12 9 6"/>
+                                </svg>
+                                跳过
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="emptyPlayer" class="empty-state">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        </svg>
+                        <p>请从下方列表选择一个音频片段进行标注</p>
+                    </div>
+                </div>
+
+                <!-- 音频片段列表卡片 -->
+                <div class="card">
+                    <h2 class="card-title">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 8v8"/>
+                            <path d="M8 12h8"/>
+                        </svg>
+                        音频片段列表
+                    </h2>
+
+                    <!-- 类别筛选 -->
+                    <div class="category-tabs" id="categoryTabs">
+                        <button class="category-tab active" data-category="all">全部</button>
+                    </div>
+
+                    <!-- 状态筛选 -->
+                    <div class="filter-tabs">
+                        <button class="filter-tab active" data-filter="all">全部</button>
+                        <button class="filter-tab" data-filter="unlabeled">未标注</button>
+                        <button class="filter-tab" data-filter="normal">正常</button>
+                        <button class="filter-tab" data-filter="anomaly">异常</button>
+                    </div>
+
+                    <div class="segments-list" id="segmentsList">
+                        <div class="empty-state">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <p>暂无音频片段</p>
+                            <p style="font-size: 13px; margin-top: 8px;">请先上传音频文件</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作日志 -->
+                <div class="card">
+                    <h2 class="card-title">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                        操作日志
+                    </h2>
+                    <div class="status-log" id="statusLog">
+                        <div class="log-entry">
+                            <span class="timestamp">[系统]</span> 数据集构建页面已加载
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let currentSegments = [];
+        let selectedSegment = null;
+        let currentCategory = 'all';
+        let currentFilter = 'all';
+        let distributionChart = null;
+
+        // API 基础 URL
+        const API_BASE = '/api/dataset';
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadReferences();
+            refreshStats();
+            loadSegments();
+            setupEventListeners();
+        });
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 文件上传
+            const dropzone = document.getElementById('dropzone');
+            const audioInput = document.getElementById('audioInput');
+
+            dropzone.addEventListener('click', () => audioInput.click());
+
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('dragover');
+            });
+
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('dragover');
+            });
+
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFileUpload(files[0]);
+                }
+            });
+
+            audioInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFileUpload(e.target.files[0]);
+                }
+            });
+
+            // 类别筛选
+            document.getElementById('categoryTabs').addEventListener('click', (e) => {
+                if (e.target.classList.contains('category-tab')) {
+                    document.querySelectorAll('.category-tab').forEach(tab => tab.classList.remove('active'));
+                    e.target.classList.add('active');
+                    currentCategory = e.target.dataset.category;
+                    loadSegments();
+                }
+            });
+
+            // 状态筛选
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentFilter = tab.dataset.filter;
+                    loadSegments();
+                });
+            });
+
+            // 标签选择样式
+            document.querySelectorAll('input[name="label"]').forEach(radio => {
+                radio.addEventListener('change', updateLabelSelection);
+            });
+        }
+
+        // 加载参考音频列表
+        async function loadReferences() {
+            try {
+                const response = await fetch(`${API_BASE}/references`);
+                const references = await response.json();
+
+                // 更新类别标签
+                const categoryTabs = document.getElementById('categoryTabs');
+                categoryTabs.innerHTML = '<button class="category-tab active" data-category="all">全部</button>';
+                references.forEach(ref => {
+                    const btn = document.createElement('button');
+                    btn.className = 'category-tab';
+                    btn.dataset.category = ref.name;
+                    btn.textContent = ref.name;
+                    categoryTabs.appendChild(btn);
+                });
+
+                logMessage('参考音频列表已加载', 'success');
+            } catch (error) {
+                logMessage('加载参考音频列表失败: ' + error.message, 'error');
+            }
+        }
+
+        // 处理文件上传
+        async function handleFileUpload(file) {
+            const progressDiv = document.getElementById('uploadProgress');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+
+            progressDiv.style.display = 'block';
+            progressFill.style.width = '30%';
+            progressText.textContent = '正在上传...';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                progressFill.style.width = '50%';
+                progressText.textContent = '正在自动匹配参考音频...';
+
+                const response = await fetch(`${API_BASE}/upload-and-split`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    progressFill.style.width = '100%';
+                    progressText.textContent = '处理完成！';
+                    logMessage(`音频上传成功: ${file.name}，生成 ${result.segments.length} 个片段，匹配参考音频: ${result.reference_audio}`, 'success');
+
+                    // 添加到片段列表
+                    currentSegments = [...currentSegments, ...result.segments];
+                    loadSegments();
+
+                    // 如果这是第一个片段，自动选择
+                    if (result.segments.length > 0 && !selectedSegment) {
+                        selectSegment(result.segments[0]);
+                    }
+
+                    // 刷新统计
+                    refreshStats();
+
+                    // 3秒后隐藏进度条
+                    setTimeout(() => {
+                        progressDiv.style.display = 'none';
+                    }, 3000);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                progressDiv.style.display = 'none';
+                logMessage('上传失败: ' + error.message, 'error');
+                alert('上传失败: ' + error.message);
+            }
+        }
+
+        // 加载音频片段列表
+        async function loadSegments() {
+            const listContainer = document.getElementById('segmentsList');
+
+            // 从服务器获取片段
+            try {
+                let url;
+                if (currentCategory !== 'all') {
+                    url = `${API_BASE}/segments/${encodeURIComponent(currentCategory)}`;
+                } else {
+                    url = `${API_BASE}/segments`;
+                }
+                const response = await fetch(url);
+                currentSegments = await response.json();
+            } catch (error) {
+                logMessage('加载片段列表失败: ' + error.message, 'error');
+            }
+
+            // 过滤片段
+            let filteredSegments = currentSegments;
+
+            // 按类别过滤
+            if (currentCategory !== 'all') {
+                filteredSegments = filteredSegments.filter(s => s.reference_audio === currentCategory);
+            }
+
+            // 按标签过滤
+            if (currentFilter !== 'all') {
+                if (currentFilter === 'unlabeled') {
+                    filteredSegments = filteredSegments.filter(s => !s.label);
+                } else {
+                    filteredSegments = filteredSegments.filter(s => s.label === currentFilter);
+                }
+            }
+
+            if (filteredSegments.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="empty-state">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        <p>暂无音频片段</p>
+                        ${currentFilter !== 'all' ? '<p style="font-size: 13px; margin-top: 8px;">尝试切换其他筛选条件</p>' : '<p style="font-size: 13px; margin-top: 8px;">请先上传音频文件</p>'}
+                    </div>
+                `;
+                return;
+            }
+
+            listContainer.innerHTML = filteredSegments.map(segment => `
+                <div class="segment-item ${selectedSegment && selectedSegment.segment_id === segment.segment_id ? 'selected' : ''}"
+                     onclick="selectSegment(${JSON.stringify(segment).replace(/"/g, '&quot;')})">
+                    <div class="segment-info">
+                        <div class="segment-name">${segment.segment_filename}</div>
+                        <div class="segment-meta">
+                            类别: ${segment.reference_audio} | 时长: ${segment.duration}s
+                            ${segment.start_time > 0 ? `| 位置: ${segment.start_time}s-${segment.end_time}s` : ''}
+                        </div>
+                    </div>
+                    <span class="segment-status ${segment.label || 'unlabeled'}">
+                        ${segment.label === 'normal' ? '正常' : segment.label === 'anomaly' ? '异常' : '未标注'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // 音频上下文（用于可视化）
+        let audioContext = null;
+
+        // 初始化音频上下文
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // 绘制波形图
+        function drawWaveform(audioBuffer, canvas) {
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const data = audioBuffer.getChannelData(0);
+            const step = Math.ceil(data.length / width);
+            const amp = height / 2;
+
+            // 清空画布
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+
+            // 绘制波形
+            ctx.beginPath();
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i < width; i++) {
+                let min = 1.0;
+                let max = -1.0;
+                for (let j = 0; j < step; j++) {
+                    const datum = data[i * step + j];
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
+                ctx.moveTo(i, (1 + min) * amp);
+                ctx.lineTo(i, (1 + max) * amp);
+            }
+            ctx.stroke();
+
+            // 绘制中心线
+            ctx.beginPath();
+            ctx.strokeStyle = '#e8e8e8';
+            ctx.lineWidth = 1;
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+        }
+
+        // 绘制时频图（频谱图）
+        function drawSpectrogram(audioBuffer, canvas) {
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const data = audioBuffer.getChannelData(0);
+            const sampleRate = audioBuffer.sampleRate;
+
+            // 参数设置
+            const fftSize = 2048;
+            const hopSize = 512;
+            const numFrames = Math.floor((data.length - fftSize) / hopSize);
+
+            // 计算显示的频率范围 (0 - 8000 Hz)
+            const maxFreq = 8000;
+            const maxBin = Math.floor(maxFreq * fftSize / sampleRate);
+
+            // 清空画布
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, width, height);
+
+            // 创建离屏 canvas 用于绘制
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = numFrames;
+            tempCanvas.height = maxBin;
+            const tempCtx = tempCanvas.getContext('2d');
+            const imgData = tempCtx.createImageData(numFrames, maxBin);
+            const pixels = imgData.data;
+
+            // 对每个时间帧计算 FFT
+            for (let frame = 0; frame < numFrames; frame++) {
+                const startSample = frame * hopSize;
+
+                // 提取帧数据并加窗（汉宁窗）
+                const frameData = new Float32Array(fftSize);
+                for (let i = 0; i < fftSize; i++) {
+                    const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / (fftSize - 1)));
+                    frameData[i] = (data[startSample + i] || 0) * window;
+                }
+
+                // 计算 FFT 幅值
+                const magnitudes = computeFFT(frameData);
+
+                // 绘制到图像数据
+                for (let bin = 0; bin < maxBin; bin++) {
+                    const magnitude = magnitudes[bin];
+                    // 转换为 dB 并归一化
+                    const db = 20 * Math.log10(magnitude + 1e-10);
+                    const normalized = Math.max(0, Math.min(1, (db + 100) / 100));
+
+                    // 使用热图颜色映射
+                    const color = getHeatmapColor(normalized);
+                    const idx = (bin * numFrames + frame) * 4;
+                    pixels[idx] = color.r;
+                    pixels[idx + 1] = color.g;
+                    pixels[idx + 2] = color.b;
+                    pixels[idx + 3] = 255;
+                }
+            }
+
+            tempCtx.putImageData(imgData, 0, 0);
+
+            // 将离屏 canvas 绘制到主 canvas（自动缩放）
+            ctx.drawImage(tempCanvas, 0, 0, width, height);
+
+            // 绘制频率刻度
+            drawFreqScale(ctx, width, height, maxFreq);
+        }
+
+        // 简化的 FFT 计算
+        function computeFFT(input) {
+            const n = input.length;
+            const output = new Float32Array(n / 2);
+
+            // 使用简化的 DFT 计算（实际应用中建议使用 FFT 库）
+            for (let k = 0; k < n / 2; k++) {
+                let real = 0;
+                let imag = 0;
+                for (let t = 0; t < n; t++) {
+                    const angle = -2 * Math.PI * k * t / n;
+                    real += input[t] * Math.cos(angle);
+                    imag += input[t] * Math.sin(angle);
+                }
+                output[k] = Math.sqrt(real * real + imag * imag) / n;
+            }
+
+            return output;
+        }
+
+        // 热图颜色映射
+        function getHeatmapColor(value) {
+            // value: 0-1，映射到热图颜色（黑->蓝->绿->黄->红->白）
+            let r, g, b;
+
+            if (value < 0.2) {
+                // 黑到蓝
+                const t = value / 0.2;
+                r = 0;
+                g = 0;
+                b = Math.floor(t * 128);
+            } else if (value < 0.4) {
+                // 蓝到青
+                const t = (value - 0.2) / 0.2;
+                r = 0;
+                g = Math.floor(t * 255);
+                b = 128 + Math.floor(t * 127);
+            } else if (value < 0.6) {
+                // 青到绿
+                const t = (value - 0.4) / 0.2;
+                r = 0;
+                g = 255;
+                b = Math.floor((1 - t) * 255);
+            } else if (value < 0.8) {
+                // 绿到黄
+                const t = (value - 0.6) / 0.2;
+                r = Math.floor(t * 255);
+                g = 255;
+                b = 0;
+            } else {
+                // 黄到红
+                const t = (value - 0.8) / 0.2;
+                r = 255;
+                g = Math.floor((1 - t) * 255);
+                b = 0;
+            }
+
+            return { r, g, b };
+        }
+
+        // 绘制频率刻度
+        function drawFreqScale(ctx, width, height, maxFreq) {
+            ctx.fillStyle = '#666';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+
+            const numTicks = 5;
+            for (let i = 0; i <= numTicks; i++) {
+                const freq = Math.round(maxFreq * i / numTicks);
+                const y = height - (height * i / numTicks);
+                ctx.fillText(freq + ' Hz', width - 4, y + 3);
+
+                // 刻度线
+                ctx.strokeStyle = '#333';
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+        }
+
+        // 加载并可视化音频
+        async function loadAudioVisualization(audioUrl, segment) {
+            try {
+                initAudioContext();
+
+                const response = await fetch(audioUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+                // 绘制波形图（实时）
+                const waveformCanvas = document.getElementById('waveformCanvas');
+                if (waveformCanvas) {
+                    drawWaveform(audioBuffer, waveformCanvas);
+                }
+
+                // 加载时频图（预生成）
+                const spectrogramImg = document.getElementById('spectrogramImg');
+                const spectrogramPlaceholder = document.getElementById('spectrogramPlaceholder');
+
+                if (segment.spectrogram_path) {
+                    // 构建时频图URL
+                    let spectrogramUrl;
+                    if (segment.label) {
+                        // 已标注的音频
+                        const splitType = segment.file_path.includes('/train/') ? 'train' : 'test';
+                        let labelType = 'good';
+                        if (segment.file_path.includes('/anomaly/')) {
+                            labelType = 'anomaly';
+                        } else if (segment.file_path.includes('/bad/')) {
+                            labelType = 'bad';
+                        }
+                        spectrogramUrl = `/data/spk/${encodeURIComponent(segment.reference_audio)}/${splitType}/${labelType}/${encodeURIComponent(segment.segment_filename.replace('.wav', '.png'))}`;
+                    } else {
+                        // 未标注的临时音频
+                        spectrogramUrl = `/uploads/dataset_slices/${encodeURIComponent(segment.segment_filename.replace('.wav', '.png'))}`;
+                    }
+
+                    spectrogramImg.src = spectrogramUrl;
+                    spectrogramImg.style.display = 'block';
+                    spectrogramPlaceholder.style.display = 'none';
+
+                    // 图片加载失败时显示占位符
+                    spectrogramImg.onerror = function() {
+                        spectrogramImg.style.display = 'none';
+                        spectrogramPlaceholder.style.display = 'block';
+                        spectrogramPlaceholder.textContent = '时频图加载失败';
+                    };
+                } else {
+                    // 没有预生成的时频图
+                    spectrogramImg.style.display = 'none';
+                    spectrogramPlaceholder.style.display = 'block';
+                    spectrogramPlaceholder.textContent = '暂无预生成的时频图';
+                }
+
+                logMessage('音频可视化加载完成', 'success');
+            } catch (error) {
+                logMessage('音频可视化加载失败: ' + error.message, 'error');
+                console.error('可视化错误:', error);
+            }
+        }
+
+        // 选择音频片段
+        function selectSegment(segment) {
+            selectedSegment = segment;
+
+            // 更新UI
+            document.querySelectorAll('.segment-item').forEach(item => item.classList.remove('selected'));
+            event && event.currentTarget && event.currentTarget.classList.add('selected');
+
+            // 显示播放器
+            document.getElementById('emptyPlayer').style.display = 'none';
+            document.getElementById('playerSection').style.display = 'block';
+
+            // 加载音频
+            const player = document.getElementById('audioPlayer');
+            // 根据音频位置确定正确的路径
+            let audioUrl;
+            if (segment.label) {
+                // 已标注的音频在数据集中
+                const splitType = segment.file_path.includes('/train/') ? 'train' : 'test';
+                // 根据文件路径确定是 good 还是 anomaly/bad
+                let labelType = 'good';
+                if (segment.file_path.includes('/anomaly/')) {
+                    labelType = 'anomaly';
+                } else if (segment.file_path.includes('/bad/')) {
+                    labelType = 'bad';
+                }
+                audioUrl = `/data/spk/${encodeURIComponent(segment.reference_audio)}/${splitType}/${labelType}/${encodeURIComponent(segment.segment_filename)}`;
+            } else {
+                // 未标注的临时音频
+                audioUrl = `/uploads/dataset_slices/${encodeURIComponent(segment.segment_filename)}`;
+            }
+            player.src = audioUrl;
+            document.getElementById('currentAudioName').textContent = segment.segment_filename;
+            document.getElementById('currentAudioDuration').textContent = segment.duration + 's';
+
+            // 加载可视化
+            loadAudioVisualization(audioUrl, segment);
+
+            // 重置标签选择
+            document.querySelectorAll('input[name="label"]').forEach(radio => radio.checked = false);
+            updateLabelSelection();
+
+            // 如果有标签，自动选中
+            if (segment.label) {
+                document.getElementById(segment.label === 'normal' ? 'labelNormal' : 'labelAnomaly').checked = true;
+                updateLabelSelection();
+            }
+
+            // 启用/禁用标注按钮
+            updateAnnotateButton();
+        }
+
+        // 更新标签选择样式
+        function updateLabelSelection() {
+            document.querySelectorAll('.annotation-label').forEach(label => {
+                label.classList.remove('selected-normal', 'selected-anomaly');
+            });
+
+            const normalLabel = document.querySelector('input[value="normal"]').closest('.annotation-label');
+            const anomalyLabel = document.querySelector('input[value="anomaly"]').closest('.annotation-label');
+
+            if (document.getElementById('labelNormal').checked) {
+                normalLabel.classList.add('selected-normal');
+            }
+            if (document.getElementById('labelAnomaly').checked) {
+                anomalyLabel.classList.add('selected-anomaly');
+            }
+
+            updateAnnotateButton();
+        }
+
+        // 选择标签
+        function selectLabel(label) {
+            document.getElementById(label === 'normal' ? 'labelNormal' : 'labelAnomaly').checked = true;
+            updateLabelSelection();
+        }
+
+        // 更新标注按钮状态
+        function updateAnnotateButton() {
+            const hasSelection = document.querySelector('input[name="label"]:checked');
+            document.getElementById('btnAnnotate').disabled = !hasSelection;
+        }
+
+        // 提交标注
+        async function submitAnnotation() {
+            if (!selectedSegment) return;
+
+            const label = document.querySelector('input[name="label"]:checked').value;
+
+            try {
+                const formData = new FormData();
+                formData.append('segment_id', selectedSegment.segment_id);
+                formData.append('label', label);
+                formData.append('category', selectedSegment.reference_audio);
+                formData.append('segment_path', selectedSegment.file_path);
+
+                const response = await fetch(`${API_BASE}/annotate`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    logMessage(`标注成功: ${result.segment.segment_filename} -> ${label}`, 'success');
+
+                    // 更新片段列表
+                    const index = currentSegments.findIndex(s => s.segment_id === selectedSegment.segment_id);
+                    if (index !== -1) {
+                        currentSegments[index] = result.segment;
+                    }
+
+                    loadSegments();
+                    refreshStats();
+
+                    // 自动选择下一个未标注的片段
+                    const nextUnlabeled = currentSegments.find(s => !s.label && s.segment_id !== selectedSegment.segment_id);
+                    if (nextUnlabeled) {
+                        selectSegment(nextUnlabeled);
+                    } else {
+                        selectedSegment = null;
+                        document.getElementById('playerSection').style.display = 'none';
+                        document.getElementById('emptyPlayer').style.display = 'block';
+                    }
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                logMessage('标注失败: ' + error.message, 'error');
+                alert('标注失败: ' + error.message);
+            }
+        }
+
+        // 跳过当前片段
+        function skipCurrent() {
+            const currentIndex = currentSegments.findIndex(s => s.segment_id === selectedSegment.segment_id);
+            const nextSegment = currentSegments[currentIndex + 1];
+
+            if (nextSegment) {
+                selectSegment(nextSegment);
+            } else {
+                // 回到第一个未标注的片段
+                const firstUnlabeled = currentSegments.find(s => !s.label);
+                if (firstUnlabeled) {
+                    selectSegment(firstUnlabeled);
+                }
+            }
+        }
+
+        // 刷新统计信息
+        async function refreshStats() {
+            try {
+                const response = await fetch(`${API_BASE}/stats`);
+                const stats = await response.json();
+
+                // 更新统计数字
+                document.getElementById('statTotal').textContent = stats.total_audio_files;
+                document.getElementById('statCategories').textContent = stats.total_categories;
+                document.getElementById('statTrain').textContent = stats.train_total;
+                document.getElementById('statTest').textContent = stats.test_total;
+
+                // 更新图表
+                updateChart(stats);
+
+                logMessage('统计信息已更新', 'success');
+            } catch (error) {
+                logMessage('刷新统计失败: ' + error.message, 'error');
+            }
+        }
+
+        // 更新图表
+        function updateChart(stats) {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+
+            if (distributionChart) {
+                distributionChart.destroy();
+            }
+
+            distributionChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['训练集(正常)', '测试集(正常)', '测试集(异常)'],
+                    datasets: [{
+                        data: [stats.train_normal, stats.test_normal, stats.test_anomaly],
+                        backgroundColor: ['#52c41a', '#1890ff', '#ff4d4f'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 10,
+                                font: { size: 11 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 添加日志
+        function logMessage(message, type = 'info') {
+            const log = document.getElementById('statusLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+    </script>
+</body>
+</html>

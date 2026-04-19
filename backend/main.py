@@ -79,7 +79,7 @@ if 'torch' in sys.modules:
 else:
     print(f"[Main] torch not yet imported - good")
 
-from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor
+from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor, dataset_builder
 from backend.core.websocket import websocket_manager
 from backend.core.task_manager import task_manager
 
@@ -131,6 +131,7 @@ app.include_router(feature_cluster.router, prefix="/api/cluster", tags=["特征�
 app.include_router(zero_shot.router, prefix="/api/zero-shot", tags=["零样本检测"])
 app.include_router(few_shot.router, prefix="/api/few-shot", tags=["少样本检测"])
 app.include_router(client_monitor.router, prefix="/api/client", tags=["客户端管理"])
+app.include_router(dataset_builder.router, prefix="/api/dataset", tags=["数据集构建"])
 
 # WebSocket 路由 - 使用标准装饰器方式
 @app.websocket("/ws/progress/{task_id}")
@@ -156,6 +157,16 @@ async def favicon():
 visualize_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "visualize")
 if os.path.exists(visualize_path):
     app.mount("/visualize", StaticFiles(directory=visualize_path), name="visualize")
+
+# 数据集临时文件服务
+uploads_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+if os.path.exists(uploads_path):
+    app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
+
+# 数据集静态文件服务
+data_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "spk")
+if os.path.exists(data_path):
+    app.mount("/data/spk", StaticFiles(directory=data_path), name="dataset")
 
 
 @app.get("/")
@@ -187,6 +198,15 @@ async def login_page():
     if os.path.exists(login_path):
         return FileResponse(login_path)
     return {"error": "登录页面未找到"}
+
+
+@app.get("/dataset")
+async def dataset_builder_page():
+    """数据集构建页面入口"""
+    dataset_path = os.path.join(frontend_path, "dataset.html")
+    if os.path.exists(dataset_path):
+        return FileResponse(dataset_path)
+    return {"error": "数据集构建页面未找到"}
 
 
 @app.get("/health")
