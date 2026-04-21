@@ -21,16 +21,91 @@ import soundfile as sf
 router = APIRouter()
 
 # 数据集根目录
-DATASET_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "spk")
+# 项目根目录
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+# 数据集根目录
+DATASET_ROOT = os.path.join(PROJECT_ROOT, "data", "spk")
 os.makedirs(DATASET_ROOT, exist_ok=True)
 
 # 临时上传目录
-UPLOAD_TEMP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "dataset_temp")
+UPLOAD_TEMP_DIR = os.path.join(PROJECT_ROOT, "uploads", "dataset_temp")
 os.makedirs(UPLOAD_TEMP_DIR, exist_ok=True)
 
 # 切分后音频临时存储目录
-SLICE_TEMP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "dataset_slices")
+SLICE_TEMP_DIR = os.path.join(PROJECT_ROOT, "uploads", "dataset_slices")
 os.makedirs(SLICE_TEMP_DIR, exist_ok=True)
+
+
+def get_file_path(url_path: str) -> str:
+    """
+    将 URL 路径转换为文件系统绝对路径
+
+    Args:
+        url_path: URL 路径 (如 /data/spk/... 或 /uploads/...)
+
+    Returns:
+        文件系统绝对路径
+    """
+    if url_path.startswith('/data/spk/'):
+        relative_path = url_path[len('/data/spk/'):]
+        return os.path.join(DATASET_ROOT, relative_path)
+    elif url_path.startswith('/uploads/'):
+        relative_path = url_path[len('/uploads/'):]
+        return os.path.join(PROJECT_ROOT, 'uploads', relative_path)
+    elif url_path.startswith('/'):
+        # 其他以 / 开头的路径，尝试作为项目根目录下的路径
+        return os.path.join(PROJECT_ROOT, url_path.lstrip('/'))
+    else:
+        # 已经是绝对路径或相对路径，直接返回
+        return url_path
+
+
+def get_url_path(file_path: str) -> str:
+    """
+    将文件系统路径转换为 HTTP 可访问的 URL 路径
+    
+    Args:
+        file_path: 文件系统绝对路径
+        
+    Returns:
+        URL 路径 (如 /data/spk/... 或 /uploads/...)
+    """
+    if not file_path:
+        return file_path
+    
+    # 如果已经是 URL 路径格式，直接返回
+    if file_path.startswith("/data/spk/") or file_path.startswith("/uploads/"):
+        return file_path
+    
+    # 规范化路径（统一分隔符，移除多余斜杠）
+    normalized_path = os.path.normpath(file_path).replace("\\", "/")
+    normalized_dataset_root = os.path.normpath(DATASET_ROOT).replace("\\", "/")
+    normalized_project_root = os.path.normpath(PROJECT_ROOT).replace("\\", "/")
+    
+    # 处理 data/spk 目录下的文件
+    if normalized_path.startswith(normalized_dataset_root):
+        relative_path = normalized_path[len(normalized_dataset_root):]
+        # 移除开头的斜杠
+        relative_path = relative_path.lstrip("/")
+        return f"/data/spk/{relative_path}"
+    
+    # 处理 uploads 目录下的文件
+    if normalized_path.startswith(normalized_project_root):
+        # 获取相对于项目根目录的路径
+        relative_path = normalized_path[len(normalized_project_root):]
+        relative_path = relative_path.lstrip("/")
+        return f"/{relative_path}"
+    
+    # 其他情况，尝试通用处理（作为后备方案）
+    if "/data/spk/" in normalized_path:
+        idx = normalized_path.find("/data/spk/")
+        return normalized_path[idx:]
+    if "/uploads/" in normalized_path:
+        idx = normalized_path.find("/uploads/")
+        return normalized_path[idx:]
+    
+    return file_path
 
 # 数据集划分随机种子（确保可复现）
 RANDOM_SEED = 42
@@ -237,8 +312,8 @@ def split_audio_auto_match(
                 "segment_filename": segment_filename,
                 "duration": round(end_time - start_time, 2),
                 "sample_rate": sr,
-                "file_path": segment_path,
-                "spectrogram_path": spectrogram_path,
+                "file_path": get_url_path(segment_path),
+                "spectrogram_path": get_url_path(spectrogram_path),
                 "reference_audio": matched_name,  # 自动匹配到的参考音频名称
                 "start_time": round(start_time, 2),
                 "end_time": round(end_time, 2),
@@ -342,31 +417,50 @@ def log_dataset_split(category: str, operation: str, file_name: str, split_type:
         log_operation("LOG_WRITE_ERROR", str(e), "ERROR")
 
 
-def generate_spectrogram_image(audio_path: str, output_path: str) -> bool:
-    """生成音频的时频图"""
+def generate_spectrogram_image(audio_path: str, output_path: str, offset: float = 0.0, duration: float = None) -> bool:
+    """
+    生成音频的时频图
+    
+    使用与 preprocessing.py plot_spectrogram 相同的算法：
+    - 采样率 22050 Hz
+    - 幅值归一化
+    - STFT 计算
+    - 转换为分贝标度
+    - 6.3x6.3 英寸图像，无白边
+    
+    Args:
+        audio_path: 输入音频文件路径
+        output_path: 输出图像保存路径
+        offset: 开始时间偏移量（秒）
+        duration: 持续时长（秒），None表示整个音频
+    """
     try:
         import matplotlib
         matplotlib.use('Agg')  # 使用非交互式后端
         import matplotlib.pyplot as plt
 
-        # 加载音频
-        y, sr = librosa.load(audio_path, sr=22050)
+        # 加载音频（与 preprocessing.py 一致）
+        y, sr = librosa.load(audio_path, offset=offset, duration=duration, sr=22050)
 
-        # 归一化
+        # 幅值归一化（与 preprocessing.py 一致）
         y = librosa.util.normalize(y)
 
-        # 计算STFT
+        # 计算STFT（与 preprocessing.py 一致）
         D = librosa.stft(y)
         DB = librosa.amplitude_to_db(np.abs(D), ref=np.max)
 
-        # 绘制时频图
+        # 绘制时频图（与 preprocessing.py 一致）
+        # 图形大小 6.3 x 6.3 英寸
         plt.figure(figsize=(6.3, 6.3))
         librosa.display.specshow(DB, sr=sr)
         plt.axis('off')
         plt.tight_layout()
+        
+        # 保存图像，没有白边（与 preprocessing.py 一致）
         plt.savefig(output_path, bbox_inches='tight', pad_inches=0, transparent=False)
         plt.close()
 
+        log_operation("SPECTROGRAM_GENERATED", f"时频图已生成: {os.path.basename(output_path)}")
         return True
     except Exception as e:
         log_operation("SPECTROGRAM_ERROR", f"生成时频图失败: {str(e)}", "ERROR")
@@ -497,8 +591,8 @@ async def get_segments_by_reference(
                         segment_filename=filename,
                         duration=round(librosa.get_duration(path=file_path), 2),
                         sample_rate=22050,
-                        file_path=file_path,
-                        spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                        file_path=get_url_path(file_path),
+                        spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                         reference_audio=reference_audio,
                         start_time=0.0,
                         end_time=0.0,
@@ -521,8 +615,8 @@ async def get_segments_by_reference(
                         segment_filename=filename,
                         duration=round(librosa.get_duration(path=file_path), 2),
                         sample_rate=22050,
-                        file_path=file_path,
-                        spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                        file_path=get_url_path(file_path),
+                        spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                         reference_audio=reference_audio,
                         start_time=0.0,
                         end_time=0.0,
@@ -545,8 +639,8 @@ async def get_segments_by_reference(
                         segment_filename=filename,
                         duration=round(librosa.get_duration(path=file_path), 2),
                         sample_rate=22050,
-                        file_path=file_path,
-                        spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                        file_path=get_url_path(file_path),
+                        spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                         reference_audio=reference_audio,
                         start_time=0.0,
                         end_time=0.0,
@@ -569,8 +663,8 @@ async def get_segments_by_reference(
                         segment_filename=filename,
                         duration=round(librosa.get_duration(path=file_path), 2),
                         sample_rate=22050,
-                        file_path=file_path,
-                        spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                        file_path=get_url_path(file_path),
+                        spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                         reference_audio=reference_audio,
                         start_time=0.0,
                         end_time=0.0,
@@ -587,7 +681,7 @@ async def get_segments_by_reference(
                     continue
                 file_path = os.path.join(SLICE_TEMP_DIR, filename)
                 # 检查是否已经在数据集中
-                already_in_dataset = any(s.file_path == file_path for s in segments)
+                already_in_dataset = any(s.file_path == get_url_path(file_path) for s in segments)
                 if not already_in_dataset:
                     try:
                         duration = round(librosa.get_duration(path=file_path), 2)
@@ -599,8 +693,8 @@ async def get_segments_by_reference(
                             segment_filename=filename,
                             duration=duration,
                             sample_rate=22050,
-                            file_path=file_path,
-                            spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                            file_path=get_url_path(file_path),
+                            spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                             reference_audio=reference_audio,
                             start_time=0.0,
                             end_time=0.0,
@@ -638,8 +732,8 @@ def _get_segments_for_category(category: str, label_filter: Optional[str] = None
                             segment_filename=filename,
                             duration=round(librosa.get_duration(path=file_path), 2),
                             sample_rate=22050,
-                            file_path=file_path,
-                            spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                            file_path=get_url_path(file_path),
+                            spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                             reference_audio=category,
                             start_time=0.0,
                             end_time=0.0,
@@ -664,8 +758,8 @@ def _get_segments_for_category(category: str, label_filter: Optional[str] = None
                             segment_filename=filename,
                             duration=round(librosa.get_duration(path=file_path), 2),
                             sample_rate=22050,
-                            file_path=file_path,
-                            spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                            file_path=get_url_path(file_path),
+                            spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                             reference_audio=category,
                             start_time=0.0,
                             end_time=0.0,
@@ -690,8 +784,8 @@ def _get_segments_for_category(category: str, label_filter: Optional[str] = None
                             segment_filename=filename,
                             duration=round(librosa.get_duration(path=file_path), 2),
                             sample_rate=22050,
-                            file_path=file_path,
-                            spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                            file_path=get_url_path(file_path),
+                            spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                             reference_audio=category,
                             start_time=0.0,
                             end_time=0.0,
@@ -716,8 +810,8 @@ def _get_segments_for_category(category: str, label_filter: Optional[str] = None
                             segment_filename=filename,
                             duration=round(librosa.get_duration(path=file_path), 2),
                             sample_rate=22050,
-                            file_path=file_path,
-                            spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                            file_path=get_url_path(file_path),
+                            spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                             reference_audio=category,
                             start_time=0.0,
                             end_time=0.0,
@@ -780,8 +874,8 @@ async def get_all_segments(
                         segment_filename=filename,
                         duration=duration,
                         sample_rate=22050,
-                        file_path=file_path,
-                        spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                        file_path=get_url_path(file_path),
+                        spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                         reference_audio=reference_audio,
                         start_time=0.0,
                         end_time=0.0,
@@ -817,9 +911,15 @@ async def annotate_segment(
     if label not in ("normal", "anomaly"):
         raise HTTPException(status_code=400, detail="标签必须是 'normal' 或 'anomaly'")
 
+    # 将 URL 路径转换为文件系统路径
+    file_path = get_file_path(segment_path)
+
     # 检查文件是否存在
-    if not os.path.exists(segment_path):
-        raise HTTPException(status_code=404, detail=f"音频片段不存在: {segment_path}")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"音频片段不存在: {file_path} (原始路径: {segment_path})")
+
+    # 使用文件系统路径进行后续操作
+    segment_path = file_path
 
     try:
         # 确保目录结构存在
@@ -879,8 +979,8 @@ async def annotate_segment(
                 segment_filename=new_filename,
                 duration=round(librosa.get_duration(path=target_path), 2),
                 sample_rate=22050,
-                file_path=target_path,
-                spectrogram_path=target_spectrogram,
+                file_path=get_url_path(target_path),
+                spectrogram_path=get_url_path(target_spectrogram),
                 reference_audio=category,
                 start_time=0.0,
                 end_time=0.0,

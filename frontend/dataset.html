@@ -6,6 +6,21 @@
     <title>数据集构建 - 音频异常检测系统</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- wavesurfer.js 音频可视化库 (本地加载) -->
+    <script src="/static/js/wavesurfer.min.js"></script>
+    <script src="/static/js/wavesurfer.spectrogram.min.js"></script>
+    <script src="/static/js/wavesurfer.cursor.min.js"></script>
+    <script src="/static/js/wavesurfer.timeline.min.js"></script>
+    <script>
+        // WaveSurfer v6 插件加载后会挂载到 WaveSurfer 构造函数上 (小写)
+        // 检查插件是否正确加载
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('WaveSurfer:', typeof WaveSurfer);
+            console.log('WaveSurfer.spectrogram:', typeof WaveSurfer.spectrogram);
+            console.log('WaveSurfer.timeline:', typeof WaveSurfer.timeline);
+            console.log('WaveSurfer.cursor:', typeof WaveSurfer.cursor);
+        });
+    </script>
     <style>
         * {
             margin: 0;
@@ -216,26 +231,6 @@
         .dropzone .hint {
             font-size: 12px;
             color: #999;
-        }
-
-        /* 音频播放器 */
-        .audio-player-container {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 16px;
-        }
-
-        .audio-player {
-            width: 100%;
-            margin-bottom: 12px;
-        }
-
-        .audio-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 14px;
-            color: #666;
         }
 
         /* 标注控件 */
@@ -572,42 +567,588 @@
         .audio-visualization {
             margin-top: 20px;
             background: #f8f9fa;
-            border-radius: 8px;
-            padding: 16px;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
         }
 
         .viz-container {
-            margin-bottom: 16px;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
 
         .viz-container:last-child {
             margin-bottom: 0;
         }
 
-        .viz-title {
-            font-size: 13px;
+        /* wavesurfer 容器 */
+        .wavesurfer-wrapper {
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e8e8e8;
+            background: white;
+            position: relative;
+        }
+
+        #waveformContainer {
+            width: 100%;
+            min-height: 140px;
+            position: relative;
+        }
+
+        #waveformContainer wave {
+            min-height: 140px !important;
+        }
+
+        #spectrogramContainer {
+            width: 100%;
+            min-height: 200px;
+            border-top: 1px solid #e8e8e8;
+            position: relative;
+        }
+
+        /* Label Studio 风格选区样式 - 粉色高亮 */
+        .selection-overlay {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            background: rgba(236, 72, 153, 0.35);
+            border-left: 3px solid #ec4899;
+            border-right: 3px solid #ec4899;
+            pointer-events: none;
+            z-index: 10;
+            display: none;
+            box-shadow: 0 0 20px rgba(236, 72, 153, 0.3);
+        }
+
+        .selection-overlay .selection-label {
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ec4899;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .selection-time {
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(236, 72, 153, 0.95);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 12px;
             font-weight: 500;
-            color: #666;
-            margin-bottom: 8px;
+            white-space: nowrap;
+            z-index: 11;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        /* Label Studio 风格播放控制 */
+        .play-control-bar {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 16px;
+            margin-bottom: 16px;
+            padding: 0 8px;
+        }
+
+        .play-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .play-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .play-btn:active {
+            transform: translateY(0);
+        }
+
+        .audio-time-display {
+            font-size: 14px;
+            color: #666;
+            font-family: 'Consolas', monospace;
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+
+        .audio-time-display span:first-child {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        /* 波形图区域 */
+        .waveform-section {
+            background: white;
+            border-radius: 12px;
+            border: 2px solid #e8e8e8;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+
+
+        /* 标注区域 - Label Studio 风格 */
+        .annotation-section {
+            margin-top: 24px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8f9ff 0%, #fff 100%);
+            border: 2px solid #e8e8e8;
+            border-radius: 12px;
+        }
+
+        .annotation-label-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 16px;
+        }
+
+        .label-options {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .label-option-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .label-option-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .label-option-btn.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .label-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .label-dot.normal {
+            background: #52c41a;
+        }
+
+        .label-option-btn.selected .label-dot.normal {
+            background: white;
+            box-shadow: inset 0 0 0 3px #52c41a;
+        }
+
+        .label-dot.anomaly {
+            background: #ff4d4f;
+        }
+
+        .label-option-btn.selected .label-dot.anomaly {
+            background: white;
+            box-shadow: inset 0 0 0 3px #ff4d4f;
+        }
+
+        /* 操作按钮 */
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .action-buttons .btn {
+            flex: 1;
+            padding: 14px 24px;
+            font-size: 15px;
+            border-radius: 10px;
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-submit:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-skip {
+            background: #f5f5f5;
+            color: #666;
+            border: 2px solid #e0e0e0;
+        }
+
+        .btn-skip:hover {
+            background: #e8e8e8;
+            border-color: #ccc;
+        }
+
+        /* 提示文字 */
+        .zoom-hint {
+            margin-top: 12px;
+            padding: 10px;
+            background: #f0f7ff;
+            border: 1px dashed #b3d4fc;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .loop-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: #667eea;
+            margin-left: 8px;
+        }
+
+        .loop-indicator.active {
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .viz-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .viz-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .viz-title::before {
             content: '';
-            width: 3px;
-            height: 14px;
+            width: 4px;
+            height: 16px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 2px;
         }
 
-        .audio-visualization canvas {
-            width: 100%;
-            height: auto;
+        .viz-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .zoom-btn {
+            padding: 6px 12px;
+            border: 1px solid #e0e0e0;
             background: white;
             border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #666;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .zoom-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .zoom-level {
+            font-size: 12px;
+            color: #999;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .viz-scroll-container {
+            overflow-x: auto;
+            overflow-y: hidden;
+            border-radius: 8px;
             border: 1px solid #e8e8e8;
+            background: white;
+            cursor: grab;
+            position: relative;
+        }
+
+        .viz-scroll-container:active {
+            cursor: grabbing;
+        }
+
+        .viz-scroll-container::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .viz-scroll-container::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+
+        .viz-scroll-container::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+        }
+
+        .audio-visualization canvas {
+            display: block;
+            background: white;
+        }
+
+        /* WaveSurfer 波形图和时频图容器样式 */
+        #waveformContainer {
+            width: 100% !important;
+            min-height: 140px !important;
+            background: white;
+        }
+
+        #waveformContainer wave {
+            min-height: 140px !important;
+        }
+
+        /* WaveSurfer 播放光标样式 */
+        #waveformContainer .wavesurfer-cursor {
+            position: absolute !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            width: 2px !important;
+            background: #ff4d4f !important;
+            z-index: 100 !important;
+            pointer-events: none !important;
+            box-shadow: 0 0 4px rgba(255, 77, 79, 0.8) !important;
+            transition: left 0.1s linear !important;
+        }
+
+        /* WaveSurfer 光标时间提示 */
+        #waveformContainer .wavesurfer-cursor::after {
+            content: attr(data-time);
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ff4d4f;
+            color: white;
+            padding: 2px 6px;
+            font-size: 11px;
+            border-radius: 3px;
+            white-space: nowrap;
+            z-index: 101;
+        }
+
+        /* 确保光标在波形图上层 */
+        #waveformContainer wave canvas {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* 自定义时频图样式 - Audition 风格 */
+        #spectrogramContainer {
+            width: 100% !important;
+            min-height: 200px !important;
+            background: #0a0a0a;
+            border-top: 1px solid #e8e8e8;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #spectrogramCanvas {
+            display: block;
+            width: 100%;
+            height: 200px;
+            background: #0a0a0a;
+        }
+
+        /* 时频图频率标签 */
+        .spectrogram-labels {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 50px;
+            background: linear-gradient(to right, rgba(0,0,0,0.9), rgba(0,0,0,0.5));
+            color: #ccc;
+            font-size: 10px;
+            font-family: 'Consolas', monospace;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .spectrogram-labels .freq-label {
+            position: absolute;
+            right: 5px;
+            transform: translateY(50%);
+        }
+
+        /* 时频图播放光标 */
+        .spectrogram-cursor {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #ff4d4f;
+            pointer-events: none;
+            z-index: 20;
+            box-shadow: 0 0 4px rgba(255, 77, 79, 0.8);
+        }
+
+        /* 时频图控制栏 */
+        .spectrogram-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e8e8e8;
+            font-size: 13px;
+        }
+
+        .spectrogram-controls label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .spectrogram-controls select {
+            padding: 4px 8px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+        }
+
+        .spectrogram-controls .color-legend {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .spectrogram-controls .color-bar {
+            width: 100px;
+            height: 12px;
+            background: linear-gradient(to right, 
+                #000044 0%, 
+                #0000ff 20%, 
+                #00ffff 40%, 
+                #00ff00 60%, 
+                #ffff00 80%, 
+                #ff0000 100%);
+            border-radius: 2px;
+        }
+
+        /* 时间轴样式 */
+        #timelineContainer {
+            width: 100%;
+            height: 24px;
+            background: #f8f9fa;
+            border-top: 1px solid #e8e8e8;
+        }
+
+        #timelineContainer canvas {
+            width: 100% !important;
+            height: 24px !important;
+        }
+
+        /* wavesurfer 时频图标签样式 */
+        .wavesurfer-spectrogram-labels {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            z-index: 10 !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+        }
+
+        /* 时频图样式 */
+        .spectrogram-wrapper {
+            position: relative;
+            min-height: 300px;
+            background: #0a0a0a;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spectrogram-img {
+            max-width: none;
+            height: auto;
+            display: block;
+            transition: transform 0.1s ease-out;
+        }
+
+        .spectrogram-placeholder {
+            color: #666;
+            font-size: 14px;
+            padding: 40px;
+        }
+
+        /* 缩放提示 */
+        .zoom-hint {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .viz-scroll-container:hover .zoom-hint {
+            opacity: 1;
         }
 
         /* 加载动画 */
@@ -738,57 +1279,89 @@
                     </h2>
 
                     <div id="playerSection" style="display: none;">
-                        <div class="audio-player-container">
-                            <audio id="audioPlayer" class="audio-player" controls>
-                                <source src="" type="audio/wav">
-                                您的浏览器不支持音频播放
-                            </audio>
-                            <div class="audio-info">
-                                <span id="currentAudioName">未选择音频</span>
-                                <span id="currentAudioDuration">--:--</span>
-                            </div>
-                        </div>
-
-                        <!-- 音频可视化区域 -->
+                        <!-- Label Studio 风格音频可视化区域 -->
                         <div class="audio-visualization">
                             <div class="viz-container">
-                                <div class="viz-title">波形图</div>
-                                <canvas id="waveformCanvas" width="800" height="120"></canvas>
-                            </div>
-                            <div class="viz-container">
-                                <div class="viz-title">时频图 (频谱图)</div>
-                                <div id="spectrogramContainer" style="background: #0a0a0a; border-radius: 6px; overflow: hidden; min-height: 150px; display: flex; align-items: center; justify-content: center;">
-                                    <img id="spectrogramImg" style="max-width: 100%; height: auto; display: none;" alt="时频图">
-                                    <span id="spectrogramPlaceholder" style="color: #666; font-size: 13px;">暂无预生成的时频图</span>
+                                <!-- 播放控制按钮 -->
+                                <div class="play-control-bar">
+                                    <button class="play-btn" id="playBtn" onclick="togglePlay()">
+                                        <svg id="playIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M8 5v14l11-7z"/>
+                                        </svg>
+                                        <svg id="pauseIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+                                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                                        </svg>
+                                        <span id="playBtnText">播放</span>
+                                    </button>
+                                    <div class="audio-time-display">
+                                        <span id="currentTime">0.00</span> / <span id="totalTime">0.00</span> s
+                                    </div>
+                                </div>
+
+                                <!-- 波形图区域 -->
+                                <div class="waveform-section">
+                                    <div class="wavesurfer-wrapper" id="wavesurferWrapper">
+                                        <div id="waveformContainer"></div>
+                                        <!-- 选区遮罩 (Label Studio 风格粉色高亮) -->
+                                        <div class="selection-overlay" id="selectionOverlay">
+                                            <div class="selection-label">选区</div>
+                                            <div class="selection-time" id="selectionTime">0.00s - 0.00s</div>
+                                        </div>
+                                    </div>
+                                    <!-- 时间轴 -->
+                                    <div id="timelineContainer"></div>
+                                </div>
+
+                                <!-- 时频图 -->
+                                <div id="spectrogramContainer">
+                                    <div class="spectrogram-controls">
+                                        <span id="freqRangeDisplay" style="color: #666;">频率范围: 自动检测中...</span>
+                                        <div class="color-legend">
+                                            <span style="color:#666">低</span>
+                                            <div class="color-bar"></div>
+                                            <span style="color:#666">高</span>
+                                        </div>
+                                    </div>
+                                    <div style="position: relative;">
+                                        <div class="spectrogram-labels" id="spectrogramLabels"></div>
+                                        <canvas id="spectrogramCanvas"></canvas>
+                                        <div class="spectrogram-cursor" id="spectrogramCursor" style="display: none;"></div>
+                                    </div>
+                                </div>
+
+                                <div class="zoom-hint">
+                                    💡 鼠标拖拽选择片段 · 滚轮缩放 · 双击清除选区
                                 </div>
                             </div>
                         </div>
 
-                        <div class="form-group" style="margin-top: 20px;">
-                            <label>选择标签</label>
-                            <div class="annotation-controls">
-                                <label class="annotation-label" onclick="selectLabel('normal')">
-                                    <input type="radio" name="label" value="normal" id="labelNormal">
-                                    <span class="label-text">正常 (Normal)</span>
-                                    <span class="label-badge normal">正常</span>
-                                </label>
-                                <label class="annotation-label" onclick="selectLabel('anomaly')">
-                                    <input type="radio" name="label" value="anomaly" id="labelAnomaly">
-                                    <span class="label-text">异常 (Anomaly)</span>
-                                    <span class="label-badge anomaly">异常</span>
-                                </label>
+                        <!-- 标注输入区域 (Label Studio 风格) -->
+                        <div class="annotation-section">
+                            <div class="annotation-label-title">📝 标注结果</div>
+                            <div class="annotation-input-group">
+                                <div class="label-options">
+                                    <button class="label-option-btn" id="btnNormal" onclick="selectLabel('normal')">
+                                        <span class="label-dot normal"></span>
+                                        正常
+                                    </button>
+                                    <button class="label-option-btn" id="btnAnomaly" onclick="selectLabel('anomaly')">
+                                        <span class="label-dot anomaly"></span>
+                                        异常
+                                    </button>
+                                </div>
+                                <input type="hidden" name="label" id="labelInput">
                             </div>
                         </div>
 
-                        <div class="btn-group" style="margin-top: 20px;">
-                            <button class="btn btn-success" id="btnAnnotate" onclick="submitAnnotation()" disabled>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <div class="action-buttons">
+                            <button class="btn btn-primary btn-submit" id="btnAnnotate" onclick="submitAnnotation()" disabled>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="20 6 9 17 4 12"/>
                                 </svg>
-                                确认标注
+                                提交标注
                             </button>
-                            <button class="btn btn-secondary" onclick="skipCurrent()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <button class="btn btn-secondary btn-skip" onclick="skipCurrent()">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="9 18 15 12 9 6"/>
                                 </svg>
                                 跳过
@@ -881,6 +1454,7 @@
             refreshStats();
             loadSegments();
             setupEventListeners();
+            setupZoomListeners();
         });
 
         // 设置事件监听器
@@ -939,6 +1513,8 @@
             document.querySelectorAll('input[name="label"]').forEach(radio => {
                 radio.addEventListener('change', updateLabelSelection);
             });
+
+            // FFT 大小固定为 512，无需监听变化
         }
 
         // 加载参考音频列表
@@ -1085,261 +1661,956 @@
             `).join('');
         }
 
-        // 音频上下文（用于可视化）
-        let audioContext = null;
+        // wavesurfer 实例
+        let wavesurfer = null;
+        let currentZoom = 1.0;
+        const MIN_ZOOM = 1;
+        const MAX_ZOOM = 1000;
 
-        // 初始化音频上下文
-        function initAudioContext() {
+        // 自定义时频图相关
+        let audioContext = null;
+        let audioBuffer = null;
+        let spectrogramData = null;
+        let maxFreq = 8000;  // 默认值，会在加载音频时自动设置为采样率的一半
+        const fftSize = 512;  // 固定 FFT 大小为 512，提升计算速度
+        let spectrogramAnimationId = null;
+
+        // 选区状态
+        let selection = {
+            start: 0,
+            end: 0,
+            active: false
+        };
+        let playMode = 'all';  // 'all' 或 'selection'
+        let isLooping = false;
+        let isSelecting = false;
+        let selectionStartX = 0;
+        let isSeeking = false; // 防止递归
+
+        // 生成 256 色的热力图颜色映射 (RGBA) - Audition 风格
+        function generateHeatmapColorMap() {
+            const colorMap = [];
+            for (let i = 0; i < 256; i++) {
+                const t = i / 255;
+                let r, g, b;
+
+                // Audition 风格: 深蓝 -> 蓝 -> 青 -> 绿 -> 黄 -> 红
+                if (t < 0.17) {
+                    // 深蓝到蓝
+                    const k = t / 0.17;
+                    r = 0;
+                    g = 0;
+                    b = 0.27 + k * 0.73;
+                } else if (t < 0.33) {
+                    // 蓝到青
+                    const k = (t - 0.17) / 0.16;
+                    r = 0;
+                    g = k;
+                    b = 1;
+                } else if (t < 0.5) {
+                    // 青到绿
+                    const k = (t - 0.33) / 0.17;
+                    r = 0;
+                    g = 1;
+                    b = 1 - k;
+                } else if (t < 0.67) {
+                    // 绿到黄
+                    const k = (t - 0.5) / 0.17;
+                    r = k;
+                    g = 1;
+                    b = 0;
+                } else if (t < 0.83) {
+                    // 黄到橙
+                    const k = (t - 0.67) / 0.16;
+                    r = 1;
+                    g = 1 - k * 0.5;
+                    b = 0;
+                } else {
+                    // 橙到红
+                    const k = (t - 0.83) / 0.17;
+                    r = 1;
+                    g = 0.5 - k * 0.5;
+                    b = 0;
+                }
+
+                colorMap.push([r, g, b, 1]);
+            }
+            return colorMap;
+        }
+
+        // Audition 风格颜色映射 - 获取特定能量值的颜色
+        function getAuditionColor(intensity) {
+            // intensity: 0-1
+            const t = Math.max(0, Math.min(1, intensity));
+            let r, g, b;
+
+            if (t < 0.17) {
+                const k = t / 0.17;
+                r = Math.floor(0);
+                g = Math.floor(0);
+                b = Math.floor(68 + k * 187);
+            } else if (t < 0.33) {
+                const k = (t - 0.17) / 0.16;
+                r = Math.floor(0);
+                g = Math.floor(k * 255);
+                b = 255;
+            } else if (t < 0.5) {
+                const k = (t - 0.33) / 0.17;
+                r = Math.floor(0);
+                g = 255;
+                b = Math.floor(255 - k * 255);
+            } else if (t < 0.67) {
+                const k = (t - 0.5) / 0.17;
+                r = Math.floor(k * 255);
+                g = 255;
+                b = 0;
+            } else if (t < 0.83) {
+                const k = (t - 0.67) / 0.16;
+                r = 255;
+                g = Math.floor(255 - k * 128);
+                b = 0;
+            } else {
+                const k = (t - 0.83) / 0.17;
+                r = 255;
+                g = Math.floor(128 - k * 128);
+                b = 0;
+            }
+
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        // 使用超轻量级方式计算时频图数据 - 避免卡顿
+        let isComputingSpectrogram = false;
+        
+        async function computeSpectrogram(audioUrl) {
+            if (isComputingSpectrogram) {
+                logMessage('时频图计算中，请稍候...', 'warning');
+                return null;
+            }
+            
+            isComputingSpectrogram = true;
+            
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
-        }
 
-        // 绘制波形图
-        function drawWaveform(audioBuffer, canvas) {
-            const ctx = canvas.getContext('2d');
-            const width = canvas.width;
-            const height = canvas.height;
-            const data = audioBuffer.getChannelData(0);
-            const step = Math.ceil(data.length / width);
-            const amp = height / 2;
+            try {
+                logMessage('正在加载音频数据...', 'info');
+                
+                // 获取音频数据
+                const response = await fetch(audioUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-            // 清空画布
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, width, height);
+                const sampleRate = audioBuffer.sampleRate;
+                const data = audioBuffer.getChannelData(0);
+                const duration = audioBuffer.duration;
 
-            // 绘制波形
-            ctx.beginPath();
-            ctx.strokeStyle = '#667eea';
-            ctx.lineWidth = 1;
-
-            for (let i = 0; i < width; i++) {
-                let min = 1.0;
-                let max = -1.0;
-                for (let j = 0; j < step; j++) {
-                    const datum = data[i * step + j];
-                    if (datum < min) min = datum;
-                    if (datum > max) max = datum;
+                // 频率范围固定为采样率的一半（奈奎斯特频率）
+                maxFreq = Math.floor(sampleRate / 2);
+                
+                // 更新显示
+                const freqDisplay = document.getElementById('freqRangeDisplay');
+                if (freqDisplay) {
+                    const maxFreqKHz = (maxFreq / 1000).toFixed(1);
+                    freqDisplay.textContent = `频率范围: 0-${maxFreqKHz} kHz (采样率: ${(sampleRate/1000).toFixed(1)} kHz)`;
                 }
-                ctx.moveTo(i, (1 + min) * amp);
-                ctx.lineTo(i, (1 + max) * amp);
-            }
-            ctx.stroke();
 
-            // 绘制中心线
-            ctx.beginPath();
-            ctx.strokeStyle = '#e8e8e8';
-            ctx.lineWidth = 1;
-            ctx.moveTo(0, height / 2);
-            ctx.lineTo(width, height / 2);
-            ctx.stroke();
+                // 降采样到原始采样率的 1/4 或目标最大 16kHz（取较小值）
+                const targetSampleRate = Math.min(sampleRate / 4, 16000);
+                const downsampleFactor = Math.max(1, Math.floor(sampleRate / targetSampleRate));
+                const downsampledData = downsampleAudio(data, downsampleFactor);
+                const effectiveSampleRate = sampleRate / downsampleFactor;
+
+                // FFT 大小固定为 512，使用 50% 重叠
+                const hopSize = 256;  // 512 / 2
+                const numFrames = Math.floor((downsampledData.length - fftSize) / hopSize);
+
+                // 增大最大帧数限制，获得更好的时间分辨率
+                const maxFrames = 1200;
+                const frameStep = numFrames > maxFrames ? Math.ceil(numFrames / maxFrames) : 1;
+                const finalNumFrames = Math.min(Math.floor(numFrames / frameStep), maxFrames);
+
+                logMessage(`计算时频图: ${finalNumFrames} 帧...`, 'info');
+
+                const spectrogram = [];
+                
+                // 使用 setTimeout 分块处理，平衡性能和 UI 响应
+                await new Promise((resolve) => {
+                    let frameIndex = 0;
+                    // 根据帧数调整批次大小
+                    const batchSize = finalNumFrames > 500 ? 50 : 30;
+                    let lastProgressUpdate = 0;
+                    
+                    const processBatch = () => {
+                        // 检查是否应中断（页面可能已切换）
+                        if (!isComputingSpectrogram) {
+                            resolve();
+                            return;
+                        }
+                        
+                        const endIndex = Math.min(frameIndex + batchSize, finalNumFrames);
+                        
+                        for (let i = frameIndex; i < endIndex; i++) {
+                            const dataIndex = i * frameStep * hopSize;
+                            const frameData = computeFrameFFT(downsampledData, dataIndex, fftSize, effectiveSampleRate);
+                            spectrogram.push(frameData);
+                        }
+                        
+                        frameIndex = endIndex;
+                        
+                        // 每 25% 更新一次进度，减少日志开销
+                        const progress = Math.floor((frameIndex / finalNumFrames) * 100);
+                        if (progress >= lastProgressUpdate + 25) {
+                            lastProgressUpdate = progress;
+                            logMessage(`时频图计算中: ${progress}%`, 'info');
+                        }
+                        
+                        if (frameIndex < finalNumFrames) {
+                            // 让出主线程，使用 requestAnimationFrame 更平滑
+                            requestAnimationFrame(processBatch);
+                        } else {
+                            // 完成
+                            resolve();
+                        }
+                    };
+                    
+                    processBatch();
+                });
+
+                spectrogramData = {
+                    data: spectrogram,
+                    sampleRate: effectiveSampleRate,
+                    duration: duration,
+                    fftSize: fftSize,
+                    numFrames: spectrogram.length
+                };
+
+                logMessage(`时频图计算完成: ${spectrogram.length} 帧`, 'success');
+                return spectrogramData;
+
+            } catch (error) {
+                logMessage('时频图计算失败: ' + error.message, 'error');
+                console.error('Spectrogram computation error:', error);
+                return null;
+            } finally {
+                isComputingSpectrogram = false;
+            }
         }
 
-        // 绘制时频图（频谱图）
-        function drawSpectrogram(audioBuffer, canvas) {
+        // 降采样音频数据
+        function downsampleAudio(data, factor) {
+            if (factor <= 1) return data;
+            
+            const newLength = Math.floor(data.length / factor);
+            const downsampled = new Float32Array(newLength);
+            
+            for (let i = 0; i < newLength; i++) {
+                // 简单的平均值降采样
+                let sum = 0;
+                for (let j = 0; j < factor; j++) {
+                    sum += data[i * factor + j];
+                }
+                downsampled[i] = sum / factor;
+            }
+            
+            return downsampled;
+        }
+
+        // 预计算的汉宁窗
+        let hanningWindowCache = null;
+        
+        function getHanningWindow(size) {
+            if (hanningWindowCache && hanningWindowCache.length === size) {
+                return hanningWindowCache;
+            }
+            const window = new Float32Array(size);
+            for (let n = 0; n < size; n++) {
+                window[n] = 0.5 * (1 - Math.cos(2 * Math.PI * n / (size - 1)));
+            }
+            hanningWindowCache = window;
+            return window;
+        }
+        
+        // 预计算余弦表以加速 DFT
+        let cosTableCache = null;
+        let sinTableCache = null;
+        
+        function initTrigTables(fftSize) {
+            if (cosTableCache && cosTableCache.length === fftSize * (fftSize / 2)) {
+                return;
+            }
+            const numBins = fftSize / 2;
+            cosTableCache = new Float32Array(fftSize * numBins);
+            sinTableCache = new Float32Array(fftSize * numBins);
+            for (let k = 0; k < numBins; k++) {
+                for (let n = 0; n < fftSize; n++) {
+                    const angle = -2 * Math.PI * n * k / fftSize;
+                    cosTableCache[k * fftSize + n] = Math.cos(angle);
+                    sinTableCache[k * fftSize + n] = Math.sin(angle);
+                }
+            }
+        }
+
+        // 计算单帧 FFT（优化版）
+        function computeFrameFFT(data, startIdx, frameFftSize, sampleRate) {
+            // 创建帧数据
+            const frame = new Float32Array(frameFftSize / 2);
+            
+            // 计算实际的奈奎斯特频率
+            const nyquist = sampleRate / 2;
+            const numBins = frameFftSize / 2;
+            
+            // 计算需要显示的频率 bins 数量
+            const displayMaxFreq = Math.min(maxFreq, nyquist);
+            const maxBin = Math.floor((displayMaxFreq / nyquist) * numBins);
+            
+            // 预计算表
+            const hanning = getHanningWindow(frameFftSize);
+            initTrigTables(frameFftSize);
+            
+            // 简化的频谱计算 - 使用预计算表
+            for (let k = 0; k < maxBin; k++) {
+                let real = 0;
+                let imag = 0;
+                const tableOffset = k * frameFftSize;
+                
+                for (let n = 0; n < frameFftSize; n++) {
+                    const sample = data[startIdx + n] || 0;
+                    const windowed = sample * hanning[n];
+                    real += windowed * cosTableCache[tableOffset + n];
+                    imag += windowed * sinTableCache[tableOffset + n];
+                }
+                
+                // 计算幅度并归一化
+                const magnitude = Math.sqrt(real * real + imag * imag) / frameFftSize;
+                // 转换为 dB 并归一化 (-100dB 到 -30dB 范围)
+                const db = 20 * Math.log10(magnitude + 1e-10);
+                frame[k] = Math.max(0, Math.min(1, (db + 100) / 70));
+            }
+            
+            return frame;
+        }
+
+        // 绘制时频图
+        function drawSpectrogram() {
+            if (!spectrogramData) return;
+
+            const canvas = document.getElementById('spectrogramCanvas');
+            if (!canvas) {
+                console.warn('Canvas not found, skipping spectrogram draw');
+                return;
+            }
+            
             const ctx = canvas.getContext('2d');
-            const width = canvas.width;
-            const height = canvas.height;
-            const data = audioBuffer.getChannelData(0);
-            const sampleRate = audioBuffer.sampleRate;
+            const container = document.getElementById('spectrogramContainer');
 
-            // 参数设置
-            const fftSize = 2048;
-            const hopSize = 512;
-            const numFrames = Math.floor((data.length - fftSize) / hopSize);
-
-            // 计算显示的频率范围 (0 - 8000 Hz)
-            const maxFreq = 8000;
-            const maxBin = Math.floor(maxFreq * fftSize / sampleRate);
-
-            // 清空画布
+            // 设置 canvas 尺寸 - 使用整个容器宽度，与光标对齐方式一致
+            const width = Math.max(100, container.clientWidth);
+            const height = 200;
+            canvas.width = width;
+            canvas.height = height;
+            
+            // 清除 canvas 为黑色背景
             ctx.fillStyle = '#0a0a0a';
             ctx.fillRect(0, 0, width, height);
 
-            // 创建离屏 canvas 用于绘制
+            const { data, sampleRate, duration, fftSize } = spectrogramData;
+            const numFrames = data.length;
+            const nyquist = sampleRate / 2;
+
+            // 计算显示的频率范围
+            const maxBin = Math.floor((maxFreq / nyquist) * (fftSize / 2));
+            const displayBins = Math.min(maxBin, fftSize / 2);
+
+            // 绘制频谱 - 留出左侧 50px 给频率标签
+            const labelWidth = 50;
+            const graphWidth = width - labelWidth;
+            
+            // 使用缩放减少像素计算
+            const scaleFactor = Math.ceil(graphWidth / 800);
+            const drawWidth = Math.floor(graphWidth / scaleFactor);
+            const drawHeight = Math.floor(height / scaleFactor);
+            
+            // 创建临时 canvas 用于绘制频谱
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = numFrames;
-            tempCanvas.height = maxBin;
+            tempCanvas.width = drawWidth;
+            tempCanvas.height = drawHeight;
             const tempCtx = tempCanvas.getContext('2d');
-            const imgData = tempCtx.createImageData(numFrames, maxBin);
-            const pixels = imgData.data;
+            
+            const imageData = tempCtx.createImageData(drawWidth, drawHeight);
+            const pixels = imageData.data;
 
-            // 对每个时间帧计算 FFT
-            for (let frame = 0; frame < numFrames; frame++) {
-                const startSample = frame * hopSize;
+            for (let x = 0; x < drawWidth; x++) {
+                // 映射到时间帧
+                const frameIdx = Math.floor((x / drawWidth) * numFrames);
+                if (frameIdx >= numFrames) continue;
 
-                // 提取帧数据并加窗（汉宁窗）
-                const frameData = new Float32Array(fftSize);
-                for (let i = 0; i < fftSize; i++) {
-                    const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / (fftSize - 1)));
-                    frameData[i] = (data[startSample + i] || 0) * window;
-                }
+                const frame = data[frameIdx];
 
-                // 计算 FFT 幅值
-                const magnitudes = computeFFT(frameData);
+                for (let y = 0; y < drawHeight; y++) {
+                    // 映射到频率 (y=0 是高频，y=drawHeight 是低频，需要翻转)
+                    const binIdx = Math.floor((1 - y / drawHeight) * displayBins);
+                    if (binIdx >= frame.length) continue;
 
-                // 绘制到图像数据
-                for (let bin = 0; bin < maxBin; bin++) {
-                    const magnitude = magnitudes[bin];
-                    // 转换为 dB 并归一化
-                    const db = 20 * Math.log10(magnitude + 1e-10);
-                    const normalized = Math.max(0, Math.min(1, (db + 100) / 100));
+                    const intensity = frame[binIdx];
 
-                    // 使用热图颜色映射
-                    const color = getHeatmapColor(normalized);
-                    const idx = (bin * numFrames + frame) * 4;
-                    pixels[idx] = color.r;
-                    pixels[idx + 1] = color.g;
-                    pixels[idx + 2] = color.b;
-                    pixels[idx + 3] = 255;
+                    // 应用颜色映射
+                    const color = getAuditionColor(intensity);
+                    const rgb = color.match(/\d+/g).map(Number);
+
+                    const pixelIdx = (y * drawWidth + x) * 4;
+                    pixels[pixelIdx] = rgb[0];
+                    pixels[pixelIdx + 1] = rgb[1];
+                    pixels[pixelIdx + 2] = rgb[2];
+                    pixels[pixelIdx + 3] = 255;
                 }
             }
 
-            tempCtx.putImageData(imgData, 0, 0);
+            tempCtx.putImageData(imageData, 0, 0);
+            
+            // 将临时 canvas 绘制到主 canvas（从 labelWidth 位置开始）
+            ctx.drawImage(tempCanvas, 0, 0, drawWidth, drawHeight, labelWidth, 0, graphWidth, height);
 
-            // 将离屏 canvas 绘制到主 canvas（自动缩放）
-            ctx.drawImage(tempCanvas, 0, 0, width, height);
-
-            // 绘制频率刻度
-            drawFreqScale(ctx, width, height, maxFreq);
+            // 绘制频率标签
+            drawFrequencyLabels();
         }
 
-        // 简化的 FFT 计算
-        function computeFFT(input) {
-            const n = input.length;
-            const output = new Float32Array(n / 2);
+        // 绘制频率标签
+        function drawFrequencyLabels() {
+            const container = document.getElementById('spectrogramLabels');
+            container.innerHTML = '';
 
-            // 使用简化的 DFT 计算（实际应用中建议使用 FFT 库）
-            for (let k = 0; k < n / 2; k++) {
-                let real = 0;
-                let imag = 0;
-                for (let t = 0; t < n; t++) {
-                    const angle = -2 * Math.PI * k * t / n;
-                    real += input[t] * Math.cos(angle);
-                    imag += input[t] * Math.sin(angle);
-                }
-                output[k] = Math.sqrt(real * real + imag * imag) / n;
+            const numLabels = 5;
+            for (let i = 0; i < numLabels; i++) {
+                const freq = Math.round((i / (numLabels - 1)) * maxFreq);
+                const label = document.createElement('div');
+                label.className = 'freq-label';
+                label.style.bottom = `${(i / (numLabels - 1)) * 100}%`;
+                label.textContent = freq >= 1000 ? `${(freq / 1000).toFixed(1)}k` : freq;
+                container.appendChild(label);
+            }
+        }
+
+        // 更新时频图播放光标位置
+        function updateSpectrogramCursor(currentTime, duration) {
+            const cursor = document.getElementById('spectrogramCursor');
+            const container = document.querySelector('#spectrogramContainer > div:last-child');
+
+            if (!cursor || !container || duration <= 0) return;
+
+            const progress = Math.max(0, Math.min(1, currentTime / duration));
+            // 使用整个容器宽度计算，与波形图保持一致
+            const containerWidth = container.offsetWidth;
+            const left = progress * containerWidth;
+
+            cursor.style.display = 'block';
+            cursor.style.left = `${left}px`;
+        }
+
+        // 重新计算并绘制时频图
+        async function regenerateSpectrogram() {
+            if (!selectedSegment) {
+                logMessage('没有选中的音频片段', 'warning');
+                return;
             }
 
-            return output;
+            // 获取音频 URL
+            let audioUrl = selectedSegment.file_path;
+            if (audioUrl && audioUrl.includes('/home/')) {
+                if (audioUrl.includes('/data/spk/')) {
+                    const parts = audioUrl.split('/data/spk/');
+                    if (parts.length > 1) {
+                        audioUrl = '/data/spk/' + parts[1];
+                    }
+                } else if (audioUrl.includes('/uploads/')) {
+                    const parts = audioUrl.split('/uploads/');
+                    if (parts.length > 1) {
+                        audioUrl = '/uploads/' + parts[1];
+                    }
+                }
+            }
+
+            logMessage(`重新计算时频图 (FFT: ${fftSize})...`, 'info');
+
+            // 清除旧数据强制重新计算
+            spectrogramData = null;
+            await computeSpectrogram(audioUrl);
+            drawSpectrogram();
+            
+            logMessage('时频图重新计算完成', 'success');
         }
 
-        // 热图颜色映射
-        function getHeatmapColor(value) {
-            // value: 0-1，映射到热图颜色（黑->蓝->绿->黄->红->白）
-            let r, g, b;
+        // 计算并绘制时频图（封装函数）
+        async function computeAndDrawSpectrogram(audioUrl, duration) {
+            try {
+                // 确保 canvas 存在
+                const canvas = document.getElementById('spectrogramCanvas');
+                if (!canvas) {
+                    console.warn('Canvas not ready, delaying spectrogram computation');
+                    // 延迟 500ms 后重试
+                    setTimeout(() => computeAndDrawSpectrogram(audioUrl, duration), 500);
+                    return;
+                }
+                
+                await computeSpectrogram(audioUrl);
+                drawSpectrogram();
+            } catch (error) {
+                logMessage('时频图绘制失败: ' + error.message, 'error');
+            }
+        }
 
-            if (value < 0.2) {
-                // 黑到蓝
-                const t = value / 0.2;
-                r = 0;
-                g = 0;
-                b = Math.floor(t * 128);
-            } else if (value < 0.4) {
-                // 蓝到青
-                const t = (value - 0.2) / 0.2;
-                r = 0;
-                g = Math.floor(t * 255);
-                b = 128 + Math.floor(t * 127);
-            } else if (value < 0.6) {
-                // 青到绿
-                const t = (value - 0.4) / 0.2;
-                r = 0;
-                g = 255;
-                b = Math.floor((1 - t) * 255);
-            } else if (value < 0.8) {
-                // 绿到黄
-                const t = (value - 0.6) / 0.2;
-                r = Math.floor(t * 255);
-                g = 255;
-                b = 0;
+        // 播放/暂停切换
+        function togglePlay() {
+            if (!wavesurfer) return;
+
+            if (wavesurfer.isPlaying()) {
+                wavesurfer.pause();
+                updatePlayButton(false);
             } else {
-                // 黄到红
-                const t = (value - 0.8) / 0.2;
-                r = 255;
-                g = Math.floor((1 - t) * 255);
-                b = 0;
+                // 如果处于选区模式，从选区开始播放
+                if (playMode === 'selection' && selection.active) {
+                    const duration = wavesurfer.getDuration();
+                    if (duration > 0) {
+                        wavesurfer.seekTo(selection.start / duration);
+                        logMessage(`从选区开始播放: ${selection.start.toFixed(2)}s`, 'info');
+                    }
+                }
+                wavesurfer.play();
+                updatePlayButton(true);
             }
-
-            return { r, g, b };
+        }
+        
+        // 更新播放按钮状态
+        function updatePlayButton(isPlaying) {
+            const playIcon = document.getElementById('playIcon');
+            const pauseIcon = document.getElementById('pauseIcon');
+            const playBtnText = document.getElementById('playBtnText');
+            
+            if (isPlaying) {
+                playIcon.style.display = 'none';
+                pauseIcon.style.display = 'block';
+                playBtnText.textContent = '暂停';
+            } else {
+                playIcon.style.display = 'block';
+                pauseIcon.style.display = 'none';
+                playBtnText.textContent = '播放';
+            }
         }
 
-        // 绘制频率刻度
-        function drawFreqScale(ctx, width, height, maxFreq) {
-            ctx.fillStyle = '#666';
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'right';
+        // 设置播放模式
+        function setPlayMode(mode) {
+            playMode = mode;
+            logMessage(`播放模式切换为: ${mode}`, 'info');
 
-            const numTicks = 5;
-            for (let i = 0; i <= numTicks; i++) {
-                const freq = Math.round(maxFreq * i / numTicks);
-                const y = height - (height * i / numTicks);
-                ctx.fillText(freq + ' Hz', width - 4, y + 3);
-
-                // 刻度线
-                ctx.strokeStyle = '#333';
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
-                ctx.stroke();
+            if (mode === 'selection' && selection.active && wavesurfer) {
+                // 跳转到选区开始位置
+                const duration = wavesurfer.getDuration();
+                if (duration > 0) {
+                    wavesurfer.seekTo(selection.start / duration);
+                    logMessage(`已跳转到选区起点: ${selection.start.toFixed(2)}s`, 'info');
+                }
             }
+        }
+
+        // 更新选区显示
+        function updateSelectionDisplay() {
+            const overlay = document.getElementById('selectionOverlay');
+            const timeLabel = document.getElementById('selectionTime');
+
+            if (!selection.active || !wavesurfer) {
+                overlay.style.display = 'none';
+                return;
+            }
+
+            const duration = wavesurfer.getDuration();
+            const wrapper = document.getElementById('wavesurferWrapper');
+            const wrapperWidth = wrapper.offsetWidth;
+
+            // 计算选区位置（像素）
+            const startX = (selection.start / duration) * wrapperWidth;
+            const endX = (selection.end / duration) * wrapperWidth;
+            const width = endX - startX;
+
+            // 更新遮罩位置
+            overlay.style.display = 'block';
+            overlay.style.left = startX + 'px';
+            overlay.style.width = width + 'px';
+
+            // 更新时间标签
+            timeLabel.textContent = `${selection.start.toFixed(2)}s - ${selection.end.toFixed(2)}s`;
+            timeLabel.style.left = '50%';
+            timeLabel.style.transform = 'translateX(-50%)';
+        }
+
+        // 清除选区
+        function clearSelection() {
+            selection = { start: 0, end: 0, active: false };
+            updateSelectionDisplay();
+
+            // 如果当前是选区播放模式，切换回全部播放
+            if (playMode === 'selection') {
+                setPlayMode('all');
+            }
+
+            logMessage('选区已清除', 'info');
+        }
+
+        // 设置选区
+        function setSelection(start, end) {
+            if (!wavesurfer) return;
+
+            const duration = wavesurfer.getDuration();
+
+            // 确保在有效范围内
+            start = Math.max(0, Math.min(start, duration));
+            end = Math.max(0, Math.min(end, duration));
+
+            // 确保 start < end
+            if (start > end) {
+                [start, end] = [end, start];
+            }
+
+            // 最小选区 0.1 秒
+            if (end - start < 0.1) {
+                return;
+            }
+
+            selection = { start, end, active: true };
+            updateSelectionDisplay();
+
+            logMessage(`选区: ${start.toFixed(2)}s - ${end.toFixed(2)}s`, 'info');
+        }
+
+        // 检查播放位置是否在选区内
+        function checkSelectionLoop() {
+            if (!wavesurfer || !selection.active || playMode !== 'selection' || isSeeking) {
+                return;
+            }
+
+            const currentTime = wavesurfer.getCurrentTime();
+            const duration = wavesurfer.getDuration();
+
+            if (duration <= 0) return;
+
+            // 提前一点检测，防止跳过
+            const buffer = 0.05; // 50ms 缓冲区
+            if (currentTime >= selection.end - buffer || currentTime < selection.start) {
+                // 到达选区结束或之前，循环回开始
+                isSeeking = true;
+                wavesurfer.seekTo(selection.start / duration);
+                logMessage(`循环播放: ${currentTime.toFixed(2)}s → ${selection.start.toFixed(2)}s`, 'info');
+                setTimeout(() => { isSeeking = false; }, 100);
+            }
+        }
+
+        // 初始化 wavesurfer
+        function initWavesurfer(audioUrl) {
+            // 取消正在进行的时频图计算
+            isComputingSpectrogram = false;
+            
+            // 销毁旧实例
+            if (wavesurfer) {
+                wavesurfer.destroy();
+                wavesurfer = null;
+            }
+
+            // 创建波形图容器
+            const waveformContainer = document.getElementById('waveformContainer');
+            waveformContainer.innerHTML = '';
+
+            // 创建时频图容器 - 只清空内容，保留结构
+            const spectrogramContainer = document.getElementById('spectrogramContainer');
+            const canvas = document.getElementById('spectrogramCanvas');
+            if (canvas) {
+                // 清除 canvas
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#0a0a0a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            spectrogramContainer.style.backgroundColor = '#0a0a0a';
+            spectrogramContainer.style.minHeight = '200px';
+
+            // 确保容器有明确的尺寸
+            waveformContainer.style.height = '140px';
+            waveformContainer.style.width = '100%';
+            spectrogramContainer.style.height = '200px';
+            spectrogramContainer.style.width = '100%';
+
+            // 检查插件类型
+            const SpectrogramPlugin = WaveSurfer.spectrogram;
+            const TimelinePlugin = WaveSurfer.timeline;
+            const CursorPlugin = WaveSurfer.cursor;
+
+            console.log('Plugin types:', {
+                spectrogram: typeof SpectrogramPlugin,
+                timeline: typeof TimelinePlugin,
+                cursor: typeof CursorPlugin
+            });
+
+            // 构建插件配置数组 (只包含不依赖音频数据的插件)
+            const plugins = [];
+
+            // 添加光标插件
+            if (CursorPlugin && typeof CursorPlugin.create === 'function') {
+                try {
+                    plugins.push(CursorPlugin.create({
+                        showTime: true,
+                        opacity: 1,
+                        customShowTimeStyle: {
+                            'background-color': '#ff4d4f',
+                            color: '#fff',
+                            padding: '2px 6px',
+                            'font-size': '11px',
+                            'border-radius': '3px'
+                        }
+                    }));
+                } catch (e) {
+                    console.error('Cursor plugin init error:', e);
+                }
+            }
+
+            // 添加时间轴插件
+            if (TimelinePlugin && typeof TimelinePlugin.create === 'function') {
+                try {
+                    plugins.push(TimelinePlugin.create({
+                        container: '#timelineContainer',
+                        height: 24,
+                        notchPercentHeight: 50,
+                        labelPadding: 8,
+                        primaryColor: '#333',
+                        secondaryColor: '#999',
+                        primaryFontColor: '#333',
+                        secondaryFontColor: '#999',
+                        fontFamily: 'Consolas, monospace',
+                        fontSize: 11
+                    }));
+                } catch (e) {
+                    console.error('Timeline plugin init error:', e);
+                }
+            }
+
+            // 初始化 wavesurfer v6 (只带光标和时间轴插件)
+            wavesurfer = WaveSurfer.create({
+                container: '#waveformContainer',
+                waveColor: '#667eea',
+                progressColor: '#764ba2',
+                cursorColor: '#ff4d4f',
+                cursorWidth: 2,
+                barWidth: 2,
+                barGap: 1,
+                barRadius: 2,
+                height: 140,
+                normalize: true,
+                minPxPerSec: 50,
+                fillParent: true,
+                interact: true,
+                autoScroll: true,
+                plugins: plugins
+            });
+
+            // 加载音频
+            wavesurfer.load(audioUrl);
+
+            // 监听就绪事件 - 音频加载完成后计算并绘制时频图
+            wavesurfer.on('ready', async () => {
+                logMessage('音频加载完成，初始化可视化...', 'info');
+                
+                // 更新时间显示
+                const duration = wavesurfer.getDuration();
+                document.getElementById('totalTime').textContent = duration.toFixed(2);
+                
+                currentZoom = 50;
+                updateZoomDisplay();
+
+                // 设置选区交互
+                setupSelectionInteraction();
+
+                // 计算并绘制自定义时频图
+                await computeAndDrawSpectrogram(audioUrl, duration);
+                
+                logMessage('波形图和时频图加载完成', 'success');
+            });
+            
+            // 监听播放进度，更新时间显示和时频图光标
+            wavesurfer.on('audioprocess', () => {
+                const currentTime = wavesurfer.getCurrentTime();
+                const duration = wavesurfer.getDuration();
+                document.getElementById('currentTime').textContent = currentTime.toFixed(2);
+                
+                // 更新时频图播放光标
+                updateSpectrogramCursor(currentTime, duration);
+            });
+
+            // 监听 seek 事件（点击波形图跳转时）
+            wavesurfer.on('seek', () => {
+                const currentTime = wavesurfer.getCurrentTime();
+                const duration = wavesurfer.getDuration();
+                
+                // 更新时频图播放光标
+                updateSpectrogramCursor(currentTime, duration);
+            });
+
+            // 监听错误
+            wavesurfer.on('error', (err) => {
+                logMessage('波形图加载失败: ' + err, 'error');
+                console.error('WaveSurfer error:', err);
+            });
+
+            // 监听播放状态变化
+            wavesurfer.on('play', () => {
+                updatePlayButton(true);
+            });
+
+            wavesurfer.on('pause', () => {
+                updatePlayButton(false);
+            });
+
+            // 监听播放进度，实现选区循环
+            wavesurfer.on('audioprocess', () => {
+                checkSelectionLoop();
+            });
+
+            // 滚轮缩放
+            let zoomTimeout = null;
+            const handleZoom = (e) => {
+                e.preventDefault();
+                if (zoomTimeout) return;
+                zoomTimeout = setTimeout(() => {
+                    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                    zoomWavesurfer(delta);
+                    zoomTimeout = null;
+                }, 50);
+            };
+            waveformContainer.addEventListener('wheel', handleZoom, { passive: false });
+            spectrogramContainer.addEventListener('wheel', handleZoom, { passive: false });
+        }
+
+        // 设置选区交互 - 类似 Audition 的鼠标选择
+        function setupSelectionInteraction() {
+            const wrapper = document.getElementById('wavesurferWrapper');
+            const waveformDiv = document.getElementById('waveformContainer');
+
+            // 鼠标按下 - 开始选择
+            wrapper.addEventListener('mousedown', (e) => {
+                // 只响应左键
+                if (e.button !== 0) return;
+
+                // 检查是否点击在波形区域
+                const rect = wrapper.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                // 只有在波形区域内才启动选择
+                if (y < 0 || y > rect.height) return;
+
+                isSelecting = true;
+                selectionStartX = x;
+
+                // 计算开始时间
+                const duration = wavesurfer.getDuration();
+                const startTime = (x / rect.width) * duration;
+                selection.start = startTime;
+                selection.end = startTime;
+                selection.active = true;
+
+                // 显示选区
+                updateSelectionDisplay();
+
+                e.preventDefault();
+            });
+
+            // 鼠标移动 - 更新选区
+            document.addEventListener('mousemove', (e) => {
+                if (!isSelecting || !wavesurfer) return;
+
+                const rect = wrapper.getBoundingClientRect();
+                const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+
+                // 计算结束时间
+                const duration = wavesurfer.getDuration();
+                const endTime = (x / rect.width) * duration;
+
+                selection.end = endTime;
+                updateSelectionDisplay();
+            });
+
+            // 鼠标释放 - 结束选择
+            document.addEventListener('mouseup', () => {
+                if (!isSelecting) return;
+
+                isSelecting = false;
+
+                // 确保 start < end
+                if (selection.start > selection.end) {
+                    [selection.start, selection.end] = [selection.end, selection.start];
+                }
+
+                // 如果选区太小，清除
+                if (selection.end - selection.start < 0.1) {
+                    selection.active = false;
+                    logMessage('选区太小已清除', 'warning');
+                }
+
+                updateSelectionDisplay();
+
+                // 如果有有效选区，自动切换到选区播放模式
+                if (selection.active) {
+                    logMessage(`框选完成: ${selection.start.toFixed(2)}s - ${selection.end.toFixed(2)}s`, 'success');
+                    setPlayMode('selection');
+                }
+            });
+
+            // 双击 - 清除选区
+            wrapper.addEventListener('dblclick', (e) => {
+                clearSelection();
+                e.preventDefault();
+            });
+
+            // 窗口大小变化时更新选区显示
+            window.addEventListener('resize', () => {
+                if (selection.active) {
+                    updateSelectionDisplay();
+                }
+            });
+        }
+
+        // 缩放 wavesurfer (v6 使用 zoom 方法，参数是 pxPerSec)
+        function zoomWavesurfer(factor) {
+            if (!wavesurfer) return;
+
+            currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom * factor));
+            // v6 API: zoom 接收像素每秒的参数
+            wavesurfer.zoom(currentZoom);
+            updateZoomDisplay();
+        }
+
+        // 重置缩放
+        function resetWavesurferZoom() {
+            if (!wavesurfer) return;
+
+            currentZoom = 50;
+            wavesurfer.zoom(currentZoom);
+            updateZoomDisplay();
+        }
+
+        // 更新缩放显示
+        function updateZoomDisplay() {
+            // 缩放显示已移除
+        }
+
+        // 设置滚轮事件监听（现在由 wavesurfer 处理）
+        function setupZoomListeners() {
+            // wavesurfer 已经处理了滚轮事件
         }
 
         // 加载并可视化音频
         async function loadAudioVisualization(audioUrl, segment) {
             try {
-                initAudioContext();
+                // 使用 wavesurfer 加载音频（包含波形图和时频图）
+                initWavesurfer(audioUrl);
 
-                const response = await fetch(audioUrl);
-                const arrayBuffer = await response.arrayBuffer();
-                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-                // 绘制波形图（实时）
-                const waveformCanvas = document.getElementById('waveformCanvas');
-                if (waveformCanvas) {
-                    drawWaveform(audioBuffer, waveformCanvas);
-                }
-
-                // 加载时频图（预生成）
-                const spectrogramImg = document.getElementById('spectrogramImg');
-                const spectrogramPlaceholder = document.getElementById('spectrogramPlaceholder');
-
-                if (segment.spectrogram_path) {
-                    // 构建时频图URL
-                    let spectrogramUrl;
-                    if (segment.label) {
-                        // 已标注的音频
-                        const splitType = segment.file_path.includes('/train/') ? 'train' : 'test';
-                        let labelType = 'good';
-                        if (segment.file_path.includes('/anomaly/')) {
-                            labelType = 'anomaly';
-                        } else if (segment.file_path.includes('/bad/')) {
-                            labelType = 'bad';
-                        }
-                        spectrogramUrl = `/data/spk/${encodeURIComponent(segment.reference_audio)}/${splitType}/${labelType}/${encodeURIComponent(segment.segment_filename.replace('.wav', '.png'))}`;
-                    } else {
-                        // 未标注的临时音频
-                        spectrogramUrl = `/uploads/dataset_slices/${encodeURIComponent(segment.segment_filename.replace('.wav', '.png'))}`;
-                    }
-
-                    spectrogramImg.src = spectrogramUrl;
-                    spectrogramImg.style.display = 'block';
-                    spectrogramPlaceholder.style.display = 'none';
-
-                    // 图片加载失败时显示占位符
-                    spectrogramImg.onerror = function() {
-                        spectrogramImg.style.display = 'none';
-                        spectrogramPlaceholder.style.display = 'block';
-                        spectrogramPlaceholder.textContent = '时频图加载失败';
-                    };
-                } else {
-                    // 没有预生成的时频图
-                    spectrogramImg.style.display = 'none';
-                    spectrogramPlaceholder.style.display = 'block';
-                    spectrogramPlaceholder.textContent = '暂无预生成的时频图';
-                }
-
-                logMessage('音频可视化加载完成', 'success');
+                logMessage('音频可视化加载中...', 'info');
             } catch (error) {
                 logMessage('音频可视化加载失败: ' + error.message, 'error');
                 console.error('可视化错误:', error);
@@ -1349,6 +2620,9 @@
         // 选择音频片段
         function selectSegment(segment) {
             selectedSegment = segment;
+            
+            // 取消正在进行的时频图计算
+            isComputingSpectrogram = false;
 
             // 更新UI
             document.querySelectorAll('.segment-item').forEach(item => item.classList.remove('selected'));
@@ -1358,60 +2632,74 @@
             document.getElementById('emptyPlayer').style.display = 'none';
             document.getElementById('playerSection').style.display = 'block';
 
-            // 加载音频
-            const player = document.getElementById('audioPlayer');
-            // 根据音频位置确定正确的路径
-            let audioUrl;
-            if (segment.label) {
-                // 已标注的音频在数据集中
-                const splitType = segment.file_path.includes('/train/') ? 'train' : 'test';
-                // 根据文件路径确定是 good 还是 anomaly/bad
-                let labelType = 'good';
-                if (segment.file_path.includes('/anomaly/')) {
-                    labelType = 'anomaly';
-                } else if (segment.file_path.includes('/bad/')) {
-                    labelType = 'bad';
+            // 后端现在直接返回可访问的 URL 路径
+            let audioUrl = segment.file_path;
+            
+            // 如果仍然是绝对路径，手动转换为 URL 路径
+            if (audioUrl && audioUrl.includes('/home/')) {
+                console.warn('Received absolute path instead of URL path:', audioUrl);
+                // 提取相对路径部分
+                if (audioUrl.includes('/data/spk/')) {
+                    const parts = audioUrl.split('/data/spk/');
+                    if (parts.length > 1) {
+                        audioUrl = '/data/spk/' + parts[1];
+                    }
+                } else if (audioUrl.includes('/uploads/')) {
+                    const parts = audioUrl.split('/uploads/');
+                    if (parts.length > 1) {
+                        audioUrl = '/uploads/' + parts[1];
+                    }
                 }
-                audioUrl = `/data/spk/${encodeURIComponent(segment.reference_audio)}/${splitType}/${labelType}/${encodeURIComponent(segment.segment_filename)}`;
-            } else {
-                // 未标注的临时音频
-                audioUrl = `/uploads/dataset_slices/${encodeURIComponent(segment.segment_filename)}`;
             }
-            player.src = audioUrl;
-            document.getElementById('currentAudioName').textContent = segment.segment_filename;
-            document.getElementById('currentAudioDuration').textContent = segment.duration + 's';
+            
+            if (!audioUrl) {
+                // 回退到旧逻辑
+                if (segment.label) {
+                    const splitType = 'test';
+                    let labelType = 'good';
+                    audioUrl = `/data/spk/${segment.reference_audio}/${splitType}/${labelType}/${segment.segment_filename}`;
+                } else {
+                    audioUrl = `/uploads/dataset_slices/${segment.segment_filename}`;
+                }
+            }
+            
+            console.log('Loading audio from URL:', audioUrl);
+
+            // 清除之前的选区
+            clearSelection();
 
             // 加载可视化
             loadAudioVisualization(audioUrl, segment);
 
             // 重置标签选择
-            document.querySelectorAll('input[name="label"]').forEach(radio => radio.checked = false);
+            document.getElementById('labelInput').value = '';
             updateLabelSelection();
 
             // 如果有标签，自动选中
             if (segment.label) {
-                document.getElementById(segment.label === 'normal' ? 'labelNormal' : 'labelAnomaly').checked = true;
-                updateLabelSelection();
+                selectLabel(segment.label);
             }
 
             // 启用/禁用标注按钮
             updateAnnotateButton();
+            
+            // 重置播放按钮状态
+            updatePlayButton(false);
         }
 
-        // 更新标签选择样式
+        // 更新标签选择样式 - Label Studio 风格
         function updateLabelSelection() {
-            document.querySelectorAll('.annotation-label').forEach(label => {
-                label.classList.remove('selected-normal', 'selected-anomaly');
-            });
+            const btnNormal = document.getElementById('btnNormal');
+            const btnAnomaly = document.getElementById('btnAnomaly');
+            const labelInput = document.getElementById('labelInput');
+            
+            btnNormal.classList.remove('selected');
+            btnAnomaly.classList.remove('selected');
 
-            const normalLabel = document.querySelector('input[value="normal"]').closest('.annotation-label');
-            const anomalyLabel = document.querySelector('input[value="anomaly"]').closest('.annotation-label');
-
-            if (document.getElementById('labelNormal').checked) {
-                normalLabel.classList.add('selected-normal');
-            }
-            if (document.getElementById('labelAnomaly').checked) {
-                anomalyLabel.classList.add('selected-anomaly');
+            if (labelInput.value === 'normal') {
+                btnNormal.classList.add('selected');
+            } else if (labelInput.value === 'anomaly') {
+                btnAnomaly.classList.add('selected');
             }
 
             updateAnnotateButton();
@@ -1419,21 +2707,31 @@
 
         // 选择标签
         function selectLabel(label) {
-            document.getElementById(label === 'normal' ? 'labelNormal' : 'labelAnomaly').checked = true;
+            document.getElementById('labelInput').value = label;
             updateLabelSelection();
         }
 
         // 更新标注按钮状态
         function updateAnnotateButton() {
-            const hasSelection = document.querySelector('input[name="label"]:checked');
-            document.getElementById('btnAnnotate').disabled = !hasSelection;
+            const hasSelection = document.getElementById('labelInput').value !== '';
+            const btn = document.getElementById('btnAnnotate');
+            btn.disabled = !hasSelection;
+            if (hasSelection) {
+                btn.style.opacity = '1';
+            } else {
+                btn.style.opacity = '0.6';
+            }
         }
 
         // 提交标注
         async function submitAnnotation() {
             if (!selectedSegment) return;
 
-            const label = document.querySelector('input[name="label"]:checked').value;
+            const label = document.getElementById('labelInput').value;
+            if (!label) {
+                alert('请先选择标签（正常或异常）');
+                return;
+            }
 
             try {
                 const formData = new FormData();
