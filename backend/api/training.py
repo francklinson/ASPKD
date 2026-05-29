@@ -18,7 +18,7 @@ router = APIRouter()
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 DATASET_ROOT = os.path.join(PROJECT_ROOT, "data", "spk")
-SAVED_RESULTS_DIR = os.path.join(PROJECT_ROOT, "saved_results")
+SAVED_RESULTS_DIR = os.path.join(PROJECT_ROOT, "models", "saved")
 os.makedirs(SAVED_RESULTS_DIR, exist_ok=True)
 
 # 训练任务状态存储
@@ -309,12 +309,12 @@ def _run_training(task_id: str, categories: List[str], model_type: str,
         # 加载配置文件中的环境变量
         env_vars = {**os.environ}
         env_vars["CUDA_VISIBLE_DEVICES"] = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
-        env_vars["DINOMALY_ENCODER_DIR"] = os.path.join(PROJECT_ROOT, "pre_trained")
-        env_vars["PRETRAINED_MODELS_DIR"] = os.path.join(PROJECT_ROOT, "pre_trained")
-        env_vars["TORCH_HOME"] = os.path.join(PROJECT_ROOT, "pre_trained")
+        env_vars["DINOMALY_ENCODER_DIR"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
+        env_vars["PRETRAINED_MODELS_DIR"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
+        env_vars["TORCH_HOME"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
 
         # 尝试从 config.yaml 加载完整环境变量
-        config_path = os.path.join(PROJECT_ROOT, "config", "config.yaml")
+        config_path = os.path.join(PROJECT_ROOT, "backend/config", "config.yaml")
         if os.path.exists(config_path):
             try:
                 import yaml

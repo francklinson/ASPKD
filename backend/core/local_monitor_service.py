@@ -14,7 +14,7 @@ from collections import deque
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
 # 从配置文件读取虚拟环境路径
-config_path = os.path.join(project_root, "config", "config.yaml")
+config_path = os.path.join(project_root, "backend/config", "config.yaml")
 venv_site_packages = None
 if os.path.exists(config_path):
     try:
@@ -551,11 +551,11 @@ class MonitorService:
         """批量生成所有片段的频谱图"""
         import librosa
         import soundfile as sf
-        from preprocessing import plot_spectrogram
-        from core.shazam.api import AudioFingerprinter
+        from tools.preprocessing import plot_spectrogram
+        from backend.core.shazam.api import AudioFingerprinter
         
-        temp_dir = os.path.join("slice", "monitor")
-        pic_dir = os.path.join("slice", "monitor", "picture")
+        temp_dir = os.path.join("output", "slices", "monitor")
+        pic_dir = os.path.join("output", "slices", "monitor", "picture")
         os.makedirs(temp_dir, exist_ok=True)
         os.makedirs(pic_dir, exist_ok=True)
         
@@ -836,7 +836,7 @@ class MonitorService:
         failed = []
         
         try:
-            from core.shazam.database.connector import MySQLConnector
+            from backend.core.shazam.database.connector import MySQLConnector
             db_connector = MySQLConnector()
             
             # 移除不再需要的参考音频
@@ -941,7 +941,7 @@ class MonitorService:
     
     async def cleanup_temp_files(self, max_age_hours: int = 24) -> int:
         """清理临时文件"""
-        slice_dir = "slice"
+        slice_dir = "output/slices"
         if not os.path.exists(slice_dir):
             return 0
         
@@ -970,9 +970,9 @@ class MonitorService:
     async def _init_analyzer(self):
         """初始化长音频分析器 - 使用 PreciseSegmentLocator（优化版）"""
         try:
-            from core.precise_segment_locator.adapter import PreciseSegmentLocatorAdapter
-            from core.long_audio_analyzer import AnalyzerConfig  # 保持配置兼容
-            from core.shazam.database.connector import MySQLConnector
+            from backend.core.precise_segment_locator.adapter import PreciseSegmentLocatorAdapter
+            from backend.core.long_audio_analyzer import AnalyzerConfig  # 保持配置兼容
+            from backend.core.shazam.database.connector import MySQLConnector
             
             # 创建配置（使用固定默认值）
             config = AnalyzerConfig(

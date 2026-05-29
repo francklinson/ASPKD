@@ -199,7 +199,7 @@ class DatasetSplitLog(BaseModel):
 def get_reference_audios() -> List[Dict[str, Any]]:
     """获取所有可用的参考音频列表"""
     try:
-        from core.shazam import AudioFingerprinter
+        from backend.core.shazam import AudioFingerprinter
         with AudioFingerprinter() as fp:
             references = fp.get_all_references()
             return references
@@ -229,9 +229,9 @@ def split_audio_auto_match(
 
     try:
         # 导入长音频分析器
-        from core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
-        from core.shazam.database.connector import MySQLConnector
-        from core.shazam.utils.hparam import hp
+        from backend.core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
+        from backend.core.shazam.database.connector import MySQLConnector
+        from backend.core.shazam.utils.hparam import hp
 
         # 创建数据库连接（MySQLConnector 从全局 hp 配置读取数据库信息）
         db_connector = MySQLConnector()
@@ -657,8 +657,8 @@ async def split_manual_audio(
     _, user_slice_dir = get_user_temp_dirs(username)
 
     try:
-        from core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
-        from core.shazam.database.connector import MySQLConnector
+        from backend.core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
+        from backend.core.shazam.database.connector import MySQLConnector
 
         db_connector = MySQLConnector()
         config = AnalyzerConfig(

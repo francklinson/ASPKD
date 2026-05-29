@@ -63,7 +63,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_simplenet):
         ]
 
         # ==> modal
-        checkpoint_path = 'pre_trained/wide_resnet50_2-95faca4d.pth'
+        checkpoint_path = 'models/pre_trained/wide_resnet50_2-95faca4d.pth'
         self.model_backbone = Namespace()
         self.model_backbone.name = 'tv_wide_resnet50_2'
         self.model_backbone.kwargs = dict(pretrained=True,

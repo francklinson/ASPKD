@@ -12,7 +12,7 @@ from typing import Optional, List, Dict
 from PIL import Image
 import cv2
 
-from core import BaseDetector, DetectionResult, register_algorithm
+from backend.core import BaseDetector, DetectionResult, register_algorithm
 
 
 class SubspaceADBaseAdapter(BaseDetector):
@@ -89,7 +89,7 @@ class SubspaceADBaseAdapter(BaseDetector):
         
         # 获取项目根目录和缓存目录
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        cache_dir = os.path.join(project_root, 'pre_trained')
+        cache_dir = os.path.join(project_root, 'models', 'pre_trained')
         os.makedirs(cache_dir, exist_ok=True)
         print(f"[SubspaceAD] [2/3] Cache directory ready: {cache_dir}")
         

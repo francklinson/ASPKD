@@ -204,7 +204,7 @@ def generate_ghost_ground_truth(test_dir_list):
                 if not os.path.exists(os.path.join(test_dir, 'ground_truth', 'bad')):
                     os.makedirs(os.path.join(test_dir, 'ground_truth', 'bad'))
                 # 生成幽灵数据，复制'ghost.png' 到ground_truth文件夹
-                shutil.copy('ghost.png',
+                shutil.copy('data/ghost.png',
                             os.path.join(test_dir, 'ground_truth', 'bad', file.split('.')[0] + '_mask.png'))
 
 

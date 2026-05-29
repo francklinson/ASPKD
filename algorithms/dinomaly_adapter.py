@@ -10,7 +10,7 @@ import numpy as np
 from typing import Optional
 from PIL import Image
 
-from core import BaseDetector, DetectionResult, register_algorithm
+from backend.core import BaseDetector, DetectionResult, register_algorithm
 
 
 class DinomalyBaseAdapter(BaseDetector):

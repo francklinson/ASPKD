@@ -13,7 +13,7 @@ _algorithms_dir = os.path.dirname(os.path.abspath(__file__))
 if _algorithms_dir not in sys.path:
     sys.path.insert(0, _algorithms_dir)
 
-from core import BaseDetector, DetectionResult, register_algorithm
+from backend.core import BaseDetector, DetectionResult, register_algorithm
 
 
 class BaseASDAdapter(BaseDetector):

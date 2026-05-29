@@ -244,7 +244,7 @@ def run_zero_shot_analysis(
         log_operation("MODEL_LOAD", f"任务ID={task_id}, 模型加载完成")
 
         # 创建结果目录（使用绝对路径）
-        result_dir = os.path.abspath(os.path.join("visualize", "zero_shot", task_id))
+        result_dir = os.path.abspath(os.path.join("output", "vis", "zero_shot", task_id))
         os.makedirs(result_dir, exist_ok=True)
         log_operation("HEATMAP_DEBUG", f"任务ID={task_id}, 结果目录: {result_dir}")
         
@@ -450,7 +450,7 @@ def run_zero_shot_analysis(
             "progress": 0,
             "error": str(e)
         }
-        result_dir = os.path.join("visualize", "zero_shot", task_id)
+        result_dir = os.path.join("output", "vis", "zero_shot", task_id)
         os.makedirs(result_dir, exist_ok=True)
         result_file = os.path.join(result_dir, "result.json")
         with open(result_file, "w", encoding="utf-8") as f:
@@ -485,7 +485,7 @@ def generate_report(file_paths, results, backbone, threshold):
 @router.get("/result/{task_id}")
 async def get_zero_shot_result(task_id: str):
     """获取零样本分析结果"""
-    result_dir = os.path.join("visualize", "zero_shot", task_id)
+    result_dir = os.path.join("output", "vis", "zero_shot", task_id)
     result_file = os.path.join(result_dir, "result.json")
 
     if not os.path.exists(result_file):

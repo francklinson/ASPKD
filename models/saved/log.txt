@@ -1,0 +1,65 @@
+Using device: cuda:0
+Begin DinomalyDinov3 model train!!!
+动态获取类别列表: ['低频1--船歌 鼓声.mp3', '低频2--加州旅馆 鼓声.mp3', '动态1--Rolling In The Deep.mp3', '中频2--但愿人长久 女声.mp3', '三频3--We Are Never Ever Getting Back Together.mp3', '高频1--When You Believe.mp3', '中频4--渡口 女声.mp3', '渡口', '低频4--环太平洋 配乐.mp3', '高频3--夜曲-神秘园 交响乐.mp3', '青藏高原']
+Using device: cuda:0
+Begin DinomalyDinov3 model train!!!
+Using device: cuda:0
+Begin DinomalyDinov3 model train!!!
+iter [3/3], loss:0.9463
+Model saved to /home/zhouchenghao/PycharmProjects/ASD_for_SPK/saved_results/dinomaly_dinov3_small_渡口_epoch_3_Fri May 29 20:50:29 2026.pth!
+Using device: cuda:0
+Begin DinomalyDinov3 model train!!!
+iter [46/1000], loss:0.2133
+iter [92/1000], loss:0.0521
+iter [138/1000], loss:0.0361
+iter [184/1000], loss:0.0296
+iter [230/1000], loss:0.0273
+iter [276/1000], loss:0.0235
+iter [322/1000], loss:0.0221
+iter [368/1000], loss:0.0208
+iter [414/1000], loss:0.0194
+iter [460/1000], loss:0.0184
+iter [506/1000], loss:0.0174
+iter [552/1000], loss:0.0169
+iter [598/1000], loss:0.0165
+iter [644/1000], loss:0.0159
+iter [690/1000], loss:0.0155
+iter [736/1000], loss:0.0153
+iter [782/1000], loss:0.0150
+iter [828/1000], loss:0.0148
+iter [874/1000], loss:0.0147
+iter [920/1000], loss:0.0146
+iter [966/1000], loss:0.0145
+Begin model eval!!!
+渡口: I-Auroc:1.0000, I-AP:1.0000, I-F1:1.0000
+青藏高原: I-Auroc:0.9861, I-AP:0.9237, I-F1:0.8889
+Mean: I-Auroc:0.9931, I-AP:0.9619, I-F1:0.9444
+Visualization done!
+iter [1000/1000], loss:0.0145
+Model saved to /home/zhouchenghao/PycharmProjects/ASD_for_SPK/saved_results/dinomaly_dinov3_small_渡口_青藏高原_epoch_1000_Fri May 29 20:55:28 2026.pth!
+Using device: cuda:0
+Begin DinomalyDinov3 model train!!!
+iter [22/500], loss:0.3680
+iter [44/500], loss:0.1031
+iter [66/500], loss:0.0661
+iter [88/500], loss:0.0493
+iter [110/500], loss:0.0466
+iter [132/500], loss:0.0476
+iter [154/500], loss:0.0415
+iter [176/500], loss:0.0351
+iter [198/500], loss:0.0353
+iter [220/500], loss:0.0297
+iter [242/500], loss:0.0267
+iter [264/500], loss:0.0252
+iter [286/500], loss:0.0237
+iter [308/500], loss:0.0226
+iter [330/500], loss:0.0215
+iter [352/500], loss:0.0210
+iter [374/500], loss:0.0205
+iter [396/500], loss:0.0200
+iter [418/500], loss:0.0197
+iter [440/500], loss:0.0192
+iter [462/500], loss:0.0193
+iter [484/500], loss:0.0192
+iter [500/500], loss:0.0190
+Model saved to /home/zhouchenghao/PycharmProjects/ASD_for_SPK/saved_results/dinomaly_dinov3_large_渡口_epoch_500_Fri May 29 21:10:22 2026.pth!

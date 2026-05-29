@@ -563,7 +563,7 @@ async def export_client_results():
         raise HTTPException(status_code=404, detail="暂无检测结果可导出")
     
     export_id = datetime.now().strftime('%Y%m%d_%H%M%S')
-    export_dir = os.path.join("exports", f"client_{export_id}")
+    export_dir = os.path.join("output", "exports", f"client_{export_id}")
     os.makedirs(export_dir, exist_ok=True)
     
     try:
@@ -616,7 +616,7 @@ async def export_client_results():
         
         # 3. 打包为 zip
         zip_filename = f"client_results_{export_id}.zip"
-        zip_path = os.path.join("exports", zip_filename)
+        zip_path = os.path.join("output", "exports", zip_filename)
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for root, dirs, files in os.walk(export_dir):

@@ -9,7 +9,7 @@
     >>> result = detector.predict("path/to/image.png")
 """
 
-from core import BaseDetector, DetectionResult, AlgorithmRegistry
+from backend.core import BaseDetector, DetectionResult, AlgorithmRegistry
 
 __all__ = [
     'BaseDetector',

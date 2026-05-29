@@ -56,7 +56,7 @@ class TaskManager:
             sys.path.insert(0, project_root)
 
             # 从配置文件读取虚拟环境路径
-            config_path = os.path.join(project_root, "config", "config.yaml")
+            config_path = os.path.join(project_root, "backend/config", "config.yaml")
             venv_site_packages = None
             if os.path.exists(config_path):
                 try:
@@ -86,15 +86,15 @@ class TaskManager:
                 sys.path.insert(0, venv_site_packages)
             
             from algorithms import create_detector
-            from core import ConfigManager
-            from preprocessing import Preprocessor
+            from backend.core import ConfigManager
+            from tools.preprocessing import Preprocessor
             
             self.create_detector = create_detector
             self.ConfigManager = ConfigManager
             self.Preprocessor = Preprocessor
             
             # 加载配置
-            config_path = os.path.join(project_root, "config", "config.yaml")
+            config_path = os.path.join(project_root, "backend/config", "config.yaml")
             self.config = ConfigManager(config_path)
 
             # 获取预处理配置（强制使用 shazam 模式，非 shazam 模式已屏蔽）
@@ -413,7 +413,7 @@ class TaskManager:
                 print(f"[TaskManager] 开始预处理，使用指定参考音频: {ref_file}")
             else:
                 print(f"[TaskManager] 开始预处理，使用 Shazam 自动匹配模式")
-            result = task_preprocessor.process_audio(task.files, save_dir="slice", original_names=original_names)
+            result = task_preprocessor.process_audio(task.files, save_dir="output/slices", original_names=original_names)
             print(f"[TaskManager] 预处理完成，结果数量: {len(result)}")
             
             # 处理结果

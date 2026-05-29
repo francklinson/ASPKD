@@ -132,12 +132,12 @@ class ADerTaskAssigner:
                     plot_spectrogram(audio_path=os.path.join(root, file),
                                      output_path=os.path.join('data/spk/INF/test/bad', file.replace('wav', 'png')))
                     # 生成ghost数据
-                    if os.path.exists('ghost.png'):
+                    if os.path.exists('data/ghost.png'):
                         # root目录下需要有ghost.png 全0数据图像
-                        shutil.copy('ghost.png',
+                        shutil.copy('data/ghost.png',
                                     os.path.join('data/spk/INF/ground_truth/bad', file.split('.')[0] + '_mask.png'))
                     else:
-                        raise  NotFoundErr('警告: ghost.png文件缺失')
+                        raise  NotFoundErr('警告: data/ghost.png文件缺失')
         self.update_data_meta_json("data/gen_benchmark/spk_inference.py")
         cfg_terminal = parser.parse_args()
         cfg = get_cfg(cfg_terminal)

@@ -63,7 +63,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_pyramidflow):
         ]
 
         # ==> modal
-        checkpoint_path = 'pre_trained/vq_model_pretrained_128_4096.pckl'
+        checkpoint_path = 'models/pre_trained/vq_model_pretrained_128_4096.pckl'
         self.model_backbone = Namespace()
         self.model_backbone.name = 'tv_resnet18'
         self.model_backbone.kwargs = dict(pretrained=True, checkpoint_path=checkpoint_path, strict=False)

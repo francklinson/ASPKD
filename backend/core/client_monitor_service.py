@@ -20,7 +20,7 @@ from collections import deque
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
 # 从配置文件读取虚拟环境路径
-config_path = os.path.join(project_root, "config", "config.yaml")
+config_path = os.path.join(project_root, "backend/config", "config.yaml")
 venv_site_packages = None
 if os.path.exists(config_path):
     try:
@@ -96,9 +96,9 @@ class ClientDetectionService:
     async def _init_analyzer(self):
         """初始化长音频分析器"""
         try:
-            from core.precise_segment_locator.adapter import PreciseSegmentLocatorAdapter
-            from core.long_audio_analyzer import AnalyzerConfig
-            from core.shazam.database.connector import MySQLConnector
+            from backend.core.precise_segment_locator.adapter import PreciseSegmentLocatorAdapter
+            from backend.core.long_audio_analyzer import AnalyzerConfig
+            from backend.core.shazam.database.connector import MySQLConnector
 
             # 创建配置（使用固定默认值）
             # 注意：AnalyzerConfig 参数与 SegmentLocatorConfig 不同
@@ -441,8 +441,8 @@ class ClientDetectionService:
         """批量生成频谱图"""
         import librosa
         import soundfile as sf
-        from preprocessing import plot_spectrogram
-        from core.shazam.api import AudioFingerprinter
+        from tools.preprocessing import plot_spectrogram
+        from backend.core.shazam.api import AudioFingerprinter
         
         temp_dir = os.path.join("uploads", "clients", "segments")
         pic_dir = os.path.join("uploads", "clients", "pictures")

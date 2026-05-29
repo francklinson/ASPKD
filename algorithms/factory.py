@@ -3,8 +3,8 @@
 """
 
 from typing import Optional, Dict, List
-from core import AlgorithmRegistry, ConfigManager
-from core.base_detector import BaseDetector
+from backend.core import AlgorithmRegistry, ConfigManager
+from backend.core.base_detector import BaseDetector
 
 
 # 延迟导入适配器模块的标志
@@ -90,7 +90,7 @@ def create_detector(algorithm_name: str,
         filename = algorithm_name.replace("custom:", "")
         current_file = os.path.abspath(__file__)
         project_root = os.path.dirname(os.path.dirname(current_file))
-        saved_results_dir = os.path.join(project_root, "saved_results")
+        saved_results_dir = os.path.join(project_root, "models", "saved")
         model_path = os.path.join(saved_results_dir, filename)
         if not os.path.exists(model_path):
             raise ValueError(f"自训练模型不存在: {model_path}")
@@ -125,7 +125,7 @@ def create_detector(algorithm_name: str,
         if saved_results_dir is None:
             current_file = os.path.abspath(__file__)
             project_root = os.path.dirname(os.path.dirname(current_file))
-        config_path = os.path.join(project_root, "config", "config.yaml")
+        config_path = os.path.join(project_root, "backend/config", "config.yaml")
         print(f"[DEBUG] create_detector: 使用默认配置路径: {config_path}")
         config_manager = ConfigManager(config_path)
 
@@ -138,7 +138,7 @@ def create_detector(algorithm_name: str,
         if model_path is None:
             print(f"[ERROR] 无法解析算法 '{algorithm_name}' 的模型路径")
             print(f"[ERROR] 配置中的 models: {list(config_manager.config.get('models', {}).keys())}")
-            raise ValueError(f"未找到算法 '{algorithm_name}' 的模型路径配置，请检查 config/config.yaml")
+            raise ValueError(f"未找到算法 '{algorithm_name}' 的模型路径配置，请检查 backend/config/config.yaml")
 
         print(f"[DEBUG] create_detector: 解析到的模型路径: {model_path}")
         

@@ -213,7 +213,7 @@ def run_cluster_analysis(
                                 f"tsne_perplexity={config.tsne_perplexity}, max_iter={config.tsne_max_iter}")
 
         # 设置输出路径
-        result_dir = os.path.join("visualize", "cluster", task_id)
+        result_dir = os.path.join("output", "vis", "cluster", task_id)
         os.makedirs(result_dir, exist_ok=True)
         config.output_image = os.path.join(result_dir, f"cluster_result_{extractor_type}.png")
         log_operation("OUTPUT", f"任务ID={task_id}, 输出路径: {config.output_image}")
@@ -337,7 +337,7 @@ def run_cluster_analysis(
             "progress": 0,
             "error": str(e)
         }
-        result_dir = os.path.join("visualize", "cluster", task_id)
+        result_dir = os.path.join("output", "vis", "cluster", task_id)
         os.makedirs(result_dir, exist_ok=True)
         import json
         result_file = os.path.join(result_dir, "result.json")
@@ -384,7 +384,7 @@ def generate_report(file_labels, labels, is_outlier, outlier_scores, extractor_t
 @router.get("/result/{task_id}")
 async def get_cluster_result(task_id: str):
     """获取聚类分析结果"""
-    result_dir = os.path.join("visualize", "cluster", task_id)
+    result_dir = os.path.join("output", "vis", "cluster", task_id)
     result_file = os.path.join(result_dir, "result.json")
 
     if not os.path.exists(result_file):

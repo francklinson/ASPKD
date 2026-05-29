@@ -10,7 +10,7 @@ import sys
 # ========== 首先设置 CUDA 环境变量（必须在导入 torch 之前）==========
 # 项目根目录
 project_root = os.path.dirname(os.path.abspath(__file__))
-config_path = os.path.join(project_root, "config", "config.yaml")
+config_path = os.path.join(project_root, "backend/config", "config.yaml")
 
 if os.path.exists(config_path):
     try:

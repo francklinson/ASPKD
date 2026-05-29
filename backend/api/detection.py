@@ -211,7 +211,7 @@ async def get_available_algorithms():
     ]
 
     # 添加自训练模型
-    saved_results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "saved_results")
+    saved_results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "models", "saved")
     if os.path.exists(saved_results_dir):
         for filename in os.listdir(saved_results_dir):
             if filename.endswith('.pth'):
@@ -245,7 +245,7 @@ async def get_available_reference_audios():
     # 从配置文件读取默认参考音频
     import yaml
     try:
-        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "config.yaml")
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "backend/config", "config.yaml")
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
         default_ref = config.get('preprocessing', {}).get('ref_file', '')
@@ -253,7 +253,7 @@ async def get_available_reference_audios():
         default_ref = ''
     
     try:
-        from core.shazam import AudioFingerprinter
+        from backend.core.shazam import AudioFingerprinter
 
         with AudioFingerprinter() as fp:
             references = fp.get_all_references()
@@ -466,7 +466,7 @@ async def export_task_results(task_id: str):
         raise HTTPException(status_code=400, detail="没有检测结果可导出")
     
     # 创建导出目录
-    export_dir = os.path.join("exports", task_id)
+    export_dir = os.path.join("output", "exports", task_id)
     os.makedirs(export_dir, exist_ok=True)
     
     try:
@@ -515,7 +515,7 @@ async def export_task_results(task_id: str):
         
         # 3. 打包成 zip
         zip_filename = f"检测结果_{task_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-        zip_path = os.path.join("exports", zip_filename)
+        zip_path = os.path.join("output", "exports", zip_filename)
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for root, dirs, files in os.walk(export_dir):

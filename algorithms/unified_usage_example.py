@@ -21,7 +21,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from algorithms import create_detector, list_available_algorithms, get_algorithm_info
-from core.base_detector import DetectionResult
+from backend.core.base_detector import DetectionResult
 
 
 def example_basic_usage():

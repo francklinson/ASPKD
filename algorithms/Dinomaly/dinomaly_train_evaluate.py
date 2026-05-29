@@ -162,15 +162,15 @@ ENCODER_CONFIGS = {
     "dinov3": {
         "small": {
             "name": "dinov3_vits16",
-            "weight": "pre_trained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
+            "weight": "models/pre_trained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
         },
         "base": {
             "name": "dinov3_vitb16",
-            "weight": "pre_trained/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth",
+            "weight": "models/pre_trained/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth",
         },
         "large": {
             "name": "dinov3_vitl16",
-            "weight": "pre_trained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
+            "weight": "models/pre_trained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
         },
     },
 }
@@ -340,7 +340,7 @@ class EvaluationMixin:
         plt.ylim((0.7, 1))
         plt.grid(True)
         plt.title("ROC Curve")
-        plt.savefig("roc_curve.png")
+        plt.savefig("data/roc_curve.png")
         plt.close()
 
 

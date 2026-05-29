@@ -12,7 +12,7 @@ from typing import Optional, List, Dict, Tuple
 from PIL import Image
 import cv2
 
-from core import BaseDetector, DetectionResult, register_algorithm
+from backend.core import BaseDetector, DetectionResult, register_algorithm
 
 
 class MuScBaseAdapter(BaseDetector):
@@ -87,11 +87,11 @@ class MuScBaseAdapter(BaseDetector):
             device_cfg = '0'
         
         # 从配置中读取MuSc配置
-        from core import ConfigManager
+        from backend.core import ConfigManager
         config_manager = ConfigManager()
         
         # 默认配置
-        pretrained_models_dir = 'pre_trained'
+        pretrained_models_dir = 'models/pre_trained'
         feature_layers = [5, 11, 17, 23]
         pretrained = 'openai' if not self.backbone.startswith('dino') else 'laion400m_e31'
         

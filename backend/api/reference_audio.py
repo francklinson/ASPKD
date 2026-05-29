@@ -9,7 +9,7 @@ from typing import List, Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 
-from core.shazam import AudioFingerprinter
+from backend.core.shazam import AudioFingerprinter
 
 router = APIRouter()
 
@@ -48,7 +48,7 @@ class DeleteReferenceResponse(BaseModel):
 
 
 # 参考音频存储目录
-REF_AUDIO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ref")
+REF_AUDIO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "ref")
 os.makedirs(REF_AUDIO_DIR, exist_ok=True)
 
 

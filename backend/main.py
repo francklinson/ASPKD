@@ -8,7 +8,7 @@ import sys
 # ========== 首先设置 CUDA 环境变量（必须在导入 torch 之前）==========
 # 读取配置文件中的环境变量设置
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-config_path = os.path.join(project_root, "config", "config.yaml")
+config_path = os.path.join(project_root, "backend/config", "config.yaml")
 
 if os.path.exists(config_path):
     try:
@@ -156,7 +156,7 @@ async def favicon():
     raise HTTPException(status_code=404, detail="Favicon not found")
 
 # 热力图静态文件服务
-visualize_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "visualize")
+visualize_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output", "vis")
 if os.path.exists(visualize_path):
     app.mount("/visualize", StaticFiles(directory=visualize_path), name="visualize")
 
