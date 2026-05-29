@@ -670,6 +670,23 @@
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             }
         }
+        /* 嵌入页面的 iframe 面板 */
+        .embedded-panel {
+            width: 100%;
+            min-height: calc(100vh - 140px);
+            border: none;
+            border-radius: 0;
+            background: #f0f2f5;
+        }
+        #dataset-builder.content,
+        #training.content {
+            padding: 0;
+            margin: -20px;
+        }
+        #dataset-builder.content.active,
+        #training.content.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -702,7 +719,8 @@
             <button class="tab" onclick="switchTab('few-shot')">🔬 少样本检测</button>
             <button class="tab" onclick="switchTab('tasks')">📋 任务管理</button>
             <button class="tab" onclick="switchTab('reference')">🎵 参考音频库</button>
-            <button class="tab" onclick="window.location.href='/dataset'">🗂️ 数据集构建</button>
+            <button class="tab" onclick="switchTab('dataset-builder')">🗂️ 数据集构建</button>
+            <button class="tab" onclick="switchTab('training')">🧠 模型训练</button>
         </div>
         
         <!-- 离线检测 -->
@@ -1546,6 +1564,16 @@
         </div>
     </div>
     
+    <!-- 数据集构建面板（嵌入） -->
+    <div id="dataset-builder" class="content">
+        <iframe class="embedded-panel" src="/dataset" id="datasetIframe"></iframe>
+    </div>
+
+    <!-- 模型训练面板（嵌入） -->
+    <div id="training" class="content">
+        <iframe class="embedded-panel" src="/training" id="trainingIframe"></iframe>
+    </div>
+
     <!-- 热力图放大模态框 -->
     <div id="heatmapModal" class="heatmap-modal" onclick="closeHeatmapModal()">
         <div class="heatmap-modal-content" onclick="event.stopPropagation()">
@@ -1585,9 +1613,17 @@
         }
         
         // 退出登录
-        function logout() {
-            sessionStorage.removeItem('isLoggedIn');
-            sessionStorage.removeItem('username');
+        async function logout() {
+            const token = sessionStorage.getItem('token');
+            if (token) {
+                try {
+                    await fetch('/api/auth/logout', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                } catch (e) {}
+            }
+            sessionStorage.clear();
             window.location.href = '/';
         }
         
@@ -1616,8 +1652,19 @@
                 loadReferenceList();
                 loadReferenceStats();
             } else if (tabName === 'cluster') {
-                // 特征聚类页面初始化
                 initClusterPage();
+            } else if (tabName === 'dataset-builder') {
+                // 数据集构建面板：首次加载时刷新 iframe
+                const dsIframe = document.getElementById('datasetIframe');
+                if (dsIframe && !dsIframe.dataset.loaded) {
+                    dsIframe.dataset.loaded = 'true';
+                }
+            } else if (tabName === 'training') {
+                // 模型训练面板：首次加载时刷新 iframe
+                const trIframe = document.getElementById('trainingIframe');
+                if (trIframe && !trIframe.dataset.loaded) {
+                    trIframe.dataset.loaded = 'true';
+                }
             }
         }
         
@@ -4878,26 +4925,82 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('[Init] DOM加载完成，开始初始化...');
             
+            // 加载算法选项（包括自训练模型）
+            loadAlgorithmOptions();
+
             // 初始化离线检测文件上传
             initOfflineUpload();
-            
+
             // 初始化特征聚类文件上传
             initClusterUpload();
-            
+
             // 初始化参考音频库文件上传
             initReferenceUpload();
-            
+
             // 初始化零样本检测
             initZeroShot();
-            
+
             // 初始化少样本检测
             initFewShot();
-            
+
             // 初始化客户端监控
             initClientMonitor();
-            
+
             console.log('[Init] 所有模块初始化完成');
         });
+
+        // 动态加载算法选项（包括自训练模型）
+        async function loadAlgorithmOptions() {
+            try {
+                const response = await fetch(`${API_BASE}/api/detection/algorithms`);
+                const data = await response.json();
+                const algorithms = data.algorithms || [];
+
+                // 所有算法 select 元素 ID
+                const selectIds = ['algorithm', 'monitorAlgorithm', 'clientAlgorithm'];
+
+                selectIds.forEach(selectId => {
+                    const select = document.getElementById(selectId);
+                    if (!select) return;
+
+                    const currentValue = select.value;
+                    select.innerHTML = '';
+
+                    // 分组：内置模型
+                    const builtins = algorithms.filter(a => a.source === 'builtin');
+                    const customs = algorithms.filter(a => a.source === 'custom');
+
+                    if (builtins.length > 0) {
+                        const group = document.createElement('optgroup');
+                        group.label = '预置模型';
+                        builtins.forEach(algo => {
+                            const opt = document.createElement('option');
+                            opt.value = algo.id;
+                            opt.textContent = algo.name;
+                            group.appendChild(opt);
+                        });
+                        select.appendChild(group);
+                    }
+
+                    if (customs.length > 0) {
+                        const group = document.createElement('optgroup');
+                        group.label = '自训练模型';
+                        customs.forEach(algo => {
+                            const opt = document.createElement('option');
+                            opt.value = algo.id;
+                            opt.textContent = algo.name + ` (${algo.size_mb || '?'}MB)`;
+                            group.appendChild(opt);
+                        });
+                        select.appendChild(group);
+                    }
+
+                    // 恢复选中值
+                    if (currentValue) select.value = currentValue;
+                });
+            } catch (err) {
+                console.error('[Init] 加载算法列表失败:', err);
+            }
+        }
         
         // ==================== 客户端监控功能 ====================
         let clientMonitorInterval = null;

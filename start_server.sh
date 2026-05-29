@@ -5,7 +5,7 @@
 set -e
 
 # 配置
-PROJECT_DIR="/home/zhouchenghao/PycharmProjects/ASD_for_SPK"
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_DIR="$PROJECT_DIR/.venv"
 VENV_PYTHON="$VENV_DIR/bin/python"
 PID_FILE="$PROJECT_DIR/.service.pid"

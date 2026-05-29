@@ -28,13 +28,18 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 DATASET_ROOT = os.path.join(PROJECT_ROOT, "data", "spk")
 os.makedirs(DATASET_ROOT, exist_ok=True)
 
-# 临时上传目录
+# 临时上传目录（默认，用于未登录场景）
 UPLOAD_TEMP_DIR = os.path.join(PROJECT_ROOT, "uploads", "dataset_temp")
 os.makedirs(UPLOAD_TEMP_DIR, exist_ok=True)
 
-# 切分后音频临时存储目录
+# 切分后音频临时存储目录（默认，用于未登录场景）
 SLICE_TEMP_DIR = os.path.join(PROJECT_ROOT, "uploads", "dataset_slices")
 os.makedirs(SLICE_TEMP_DIR, exist_ok=True)
+
+
+def get_user_temp_dirs(username: Optional[str] = None) -> tuple:
+    """获取共享临时目录"""
+    return UPLOAD_TEMP_DIR, SLICE_TEMP_DIR
 
 
 def get_file_path(url_path: str) -> str:
@@ -482,17 +487,22 @@ async def get_available_references():
 
 @router.post("/upload-and-split", response_model=UploadAndSplitResponse)
 async def upload_and_split_audio(
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    username: Optional[str] = Form(None)
 ):
     """
     上传音频文件并使用Shazam自动匹配参考音频进行切分
 
     - **file**: 音频文件 (支持 wav, mp3, flac 等格式)
-    
+    - **username**: 可选，用于多用户隔离
+
     系统会自动从参考音频库中匹配最合适的参考音频，并使用Shazam音频指纹算法进行切分。
     """
     start_time = time.time()
-    log_operation("UPLOAD_SPLIT_START", f"文件: {file.filename}, 使用Shazam自动匹配")
+    log_operation("UPLOAD_SPLIT_START", f"文件: {file.filename}, 用户: {username or '匿名'}")
+
+    # 获取用户隔离的临时目录
+    user_upload_dir, user_slice_dir = get_user_temp_dirs(username)
 
     # 验证文件格式
     allowed_extensions = {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a'}
@@ -506,9 +516,9 @@ async def upload_and_split_audio(
     temp_file_path = None
 
     try:
-        # 保存上传的文件到临时目录
+        # 保存上传的文件到用户隔离的临时目录
         temp_filename = f"{int(time.time())}_{file.filename}"
-        temp_file_path = os.path.join(UPLOAD_TEMP_DIR, temp_filename)
+        temp_file_path = os.path.join(user_upload_dir, temp_filename)
 
         with open(temp_file_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
@@ -518,7 +528,7 @@ async def upload_and_split_audio(
         # 使用Shazam自动匹配并切分音频
         segments = split_audio_auto_match(
             audio_path=temp_file_path,
-            output_dir=SLICE_TEMP_DIR
+            output_dir=user_slice_dir
         )
 
         if not segments:
@@ -555,6 +565,179 @@ async def upload_and_split_audio(
                 os.remove(temp_file_path)
             except:
                 pass
+
+
+@router.post("/upload-manual", response_model=UploadAndSplitResponse)
+async def upload_manual_audio(
+    file: UploadFile = File(...),
+    username: Optional[str] = Form(None)
+):
+    """
+    手动上传音频文件（不上自动切分）
+    音频将被保存到用户临时目录，用户可后续手动选择参考音频进行切分
+
+    - **file**: 音频文件 (支持 wav, mp3, flac 等格式)
+    - **username**: 可选，用于多用户隔离
+    """
+    start_time = time.time()
+    log_operation("MANUAL_UPLOAD_START", f"文件: {file.filename}, 用户: {username or '匿名'}")
+
+    allowed_extensions = {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a'}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail=f"不支持的文件格式，仅支持 {allowed_extensions}")
+
+    user_upload_dir, _ = get_user_temp_dirs(username)
+
+    try:
+        temp_filename = f"{int(time.time())}_{file.filename}"
+        temp_file_path = os.path.join(user_upload_dir, temp_filename)
+
+        with open(temp_file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        # 加载音频获取基本信息
+        try:
+            y, sr = librosa.load(temp_file_path, sr=22050)
+            duration = round(librosa.get_duration(y=y, sr=sr), 2)
+        except Exception:
+            duration = 0.0
+
+        segment_info = {
+            "segment_id": f"manual_{hashlib.md5(temp_file_path.encode()).hexdigest()[:12]}",
+            "original_filename": file.filename,
+            "segment_filename": temp_filename,
+            "duration": duration,
+            "sample_rate": 22050,
+            "file_path": get_url_path(temp_file_path),
+            "spectrogram_path": None,
+            "reference_audio": "",
+            "start_time": 0.0,
+            "end_time": duration,
+            "label": None,
+            "annotated_at": None
+        }
+
+        elapsed_time = (time.time() - start_time) * 1000
+        log_operation("MANUAL_UPLOAD_SUCCESS", f"文件: {temp_filename}, 耗时 {elapsed_time:.2f}ms")
+
+        return UploadAndSplitResponse(
+            success=True,
+            message=f"音频上传成功，请在数据集构建页面选择参考音频进行切分",
+            segments=[segment_info],
+            reference_audio=""
+        )
+
+    except Exception as e:
+        log_operation("MANUAL_UPLOAD_ERROR", str(e), "ERROR")
+        raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
+
+
+@router.post("/split-manual")
+async def split_manual_audio(
+    file_path: str = Form(...),
+    reference_audio: str = Form(...),
+    username: Optional[str] = Form(None)
+):
+    """
+    对已手动上传的音频使用指定参考音频进行切分
+
+    - **file_path**: 已上传的音频文件路径
+    - **reference_audio**: 用于匹配的参考音频名称
+    - **username**: 可选，用于多用户隔离
+    """
+    start_time = time.time()
+    log_operation("MANUAL_SPLIT_START", f"文件: {file_path}, 参考音频: {reference_audio}")
+
+    # 将URL路径转换为文件系统路径
+    fs_path = get_file_path(file_path)
+    if not os.path.exists(fs_path):
+        raise HTTPException(status_code=404, detail=f"文件不存在: {fs_path}")
+
+    _, user_slice_dir = get_user_temp_dirs(username)
+
+    try:
+        from core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
+        from core.shazam.database.connector import MySQLConnector
+
+        db_connector = MySQLConnector()
+        config = AnalyzerConfig(
+            window_size=10.0,
+            step_size=5.0,
+            match_threshold=10,
+            min_match_ratio=0.05,
+            time_tolerance=2.0,
+            min_segment_duration=3.0,
+            use_parallel=True,
+            max_workers=4,
+            skip_silence=True
+        )
+        analyzer = LongAudioAnalyzer(config=config, db_connector=db_connector)
+
+        result = analyzer.analyze(fs_path, target_music_name=reference_audio)
+        try:
+            db_connector.cursor.close()
+            db_connector.conn.close()
+        except Exception:
+            pass
+
+        if not result.segment_matches:
+            return UploadAndSplitResponse(
+                success=False,
+                message=f"未找到与参考音频 '{reference_audio}' 匹配的片段",
+                segments=[],
+                reference_audio=reference_audio
+            )
+
+        y, sr = librosa.load(fs_path, sr=22050)
+        total_duration = librosa.get_duration(y=y, sr=sr)
+        segments = []
+
+        for idx, segment_match in enumerate(result.segment_matches):
+            start_t = max(0, segment_match.start_time)
+            end_t = min(total_duration, segment_match.end_time)
+            if end_t - start_t < 3.0:
+                continue
+
+            start_sample = int(start_t * sr)
+            end_sample = int(end_t * sr)
+            segment_audio = y[start_sample:end_sample]
+
+            original_name = os.path.splitext(os.path.basename(fs_path))[0]
+            seg_filename = f"{original_name}_seg{idx:03d}_{reference_audio}_{int(start_t)}s.wav"
+            seg_path = os.path.join(user_slice_dir, seg_filename)
+            sf.write(seg_path, segment_audio, sr)
+
+            spec_path = seg_path.replace('.wav', '.png')
+            generate_spectrogram_image(seg_path, spec_path)
+
+            file_hash = hashlib.md5(f"{fs_path}_{start_t}_{end_t}".encode()).hexdigest()[:12]
+            segments.append({
+                "segment_id": f"seg_{file_hash}",
+                "original_filename": os.path.basename(fs_path),
+                "segment_filename": seg_filename,
+                "duration": round(end_t - start_t, 2),
+                "sample_rate": sr,
+                "file_path": get_url_path(seg_path),
+                "spectrogram_path": get_url_path(spec_path),
+                "reference_audio": reference_audio,
+                "start_time": round(start_t, 2),
+                "end_time": round(end_t, 2),
+                "label": None,
+                "annotated_at": None
+            })
+
+        elapsed_time = (time.time() - start_time) * 1000
+        return UploadAndSplitResponse(
+            success=True,
+            message=f"切分完成，共生成 {len(segments)} 个片段",
+            segments=segments,
+            reference_audio=reference_audio
+        )
+
+    except Exception as e:
+        log_operation("MANUAL_SPLIT_ERROR", str(e), "ERROR")
+        raise HTTPException(status_code=500, detail=f"切分失败: {str(e)}")
 
 
 @router.get("/segments/{reference_audio}", response_model=List[AudioSegmentInfo])

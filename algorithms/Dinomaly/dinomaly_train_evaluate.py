@@ -753,7 +753,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--data_path",
         type=str,
-        default="/home/zhouchenghao/PycharmProjects/ASD_for_SPK/data/spk",
+        default=None,
         help="数据集路径",
     )
     parser.add_argument(
@@ -805,12 +805,23 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="评估时加载的模型路径",
     )
+    parser.add_argument(
+        "--categories",
+        type=str,
+        nargs="+",
+        default=None,
+        help="训练类别列表（空格分隔），不指定则使用数据目录下所有类别",
+    )
     return parser.parse_args()
 
 
 def main():
     """主入口函数"""
     args = parse_arguments()
+
+    if args.data_path is None:
+        script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        args.data_path = os.path.join(script_dir, "data", "spk")
 
     # 创建配置
     model_config = ModelConfig(
@@ -822,6 +833,7 @@ def main():
         data_path=args.data_path,
         save_dir=args.save_dir,
         save_name=args.save_name,
+        item_list=args.categories if args.categories else [],
     )
 
     # 创建日志记录器

@@ -51,18 +51,18 @@
         }
 
         .container {
-            max-width: 1600px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
         }
 
         .page-layout {
             display: grid;
-            grid-template-columns: 350px 1fr;
+            grid-template-columns: 300px 1fr;
             gap: 20px;
         }
 
-        @media (max-width: 1200px) {
+        @media (max-width: 1000px) {
             .page-layout {
                 grid-template-columns: 1fr;
             }
@@ -606,8 +606,10 @@
         #spectrogramContainer {
             width: 100%;
             min-height: 200px;
-            border-top: 1px solid #e8e8e8;
+            border-top: 1px solid #2a2a3e;
             position: relative;
+            border-radius: 0 0 8px 8px;
+            overflow: hidden;
         }
 
         /* Label Studio 风格选区样式 - 粉色高亮 */
@@ -826,7 +828,7 @@
         }
 
         /* 提示文字 */
-        .zoom-hint {
+        .operation-hint {
             margin-top: 12px;
             padding: 10px;
             background: #f0f7ff;
@@ -883,33 +885,6 @@
             display: flex;
             align-items: center;
             gap: 8px;
-        }
-
-        .zoom-btn {
-            padding: 6px 12px;
-            border: 1px solid #e0e0e0;
-            background: white;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            color: #666;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .zoom-btn:hover {
-            border-color: #667eea;
-            color: #667eea;
-            background: #f8f9ff;
-        }
-
-        .zoom-level {
-            font-size: 12px;
-            color: #999;
-            min-width: 50px;
-            text-align: center;
         }
 
         .viz-scroll-container {
@@ -992,20 +967,42 @@
         }
 
         /* 自定义时频图样式 - Audition 风格 */
-        #spectrogramContainer {
-            width: 100% !important;
-            min-height: 200px !important;
-            background: #0a0a0a;
-            border-top: 1px solid #e8e8e8;
-            position: relative;
-            overflow: hidden;
-        }
-
         #spectrogramCanvas {
             display: block;
             width: 100%;
-            height: 200px;
-            background: #0a0a0a;
+            height: 320px;
+        }
+
+        /* 时频图滚动容器 */
+        .spectrogram-scroll-wrapper {
+            overflow-x: auto;
+            overflow-y: hidden;
+            position: relative;
+            width: 100%;
+            background: #080810;
+        }
+
+        .spectrogram-scroll-wrapper::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .spectrogram-scroll-wrapper::-webkit-scrollbar-track {
+            background: #0a0a14;
+        }
+
+        .spectrogram-scroll-wrapper::-webkit-scrollbar-thumb {
+            background: #3a3a5c;
+            border-radius: 3px;
+        }
+
+        .spectrogram-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+            background: #5a5a7c;
+        }
+
+        .spectrogram-content {
+            position: relative;
+            display: inline-block;
+            min-width: 100%;
         }
 
         /* 时频图频率标签 */
@@ -1014,19 +1011,31 @@
             left: 0;
             top: 0;
             bottom: 0;
-            width: 50px;
-            background: linear-gradient(to right, rgba(0,0,0,0.9), rgba(0,0,0,0.5));
-            color: #ccc;
+            width: 60px;
+            background: linear-gradient(to right, rgba(8,8,16,0.95) 0%, rgba(8,8,16,0.85) 70%, transparent 100%);
+            color: #aaa;
             font-size: 10px;
-            font-family: 'Consolas', monospace;
+            font-family: 'Consolas', 'SF Mono', monospace;
             pointer-events: none;
             z-index: 10;
+            border-right: 1px solid rgba(255,255,255,0.06);
         }
 
         .spectrogram-labels .freq-label {
             position: absolute;
-            right: 5px;
+            right: 8px;
             transform: translateY(50%);
+            text-shadow: 0 0 4px rgba(0,0,0,0.9);
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        .spectrogram-labels .freq-label {
+            position: absolute;
+            right: 8px;
+            transform: translateY(50%);
+            text-shadow: 0 0 2px rgba(0,0,0,0.8);
+            font-weight: 500;
         }
 
         /* 时频图播放光标 */
@@ -1038,7 +1047,7 @@
             background: #ff4d4f;
             pointer-events: none;
             z-index: 20;
-            box-shadow: 0 0 4px rgba(255, 77, 79, 0.8);
+            box-shadow: 0 0 8px rgba(255, 77, 79, 0.9), 0 0 2px rgba(255, 255, 255, 0.5);
         }
 
         /* 时频图控制栏 */
@@ -1047,22 +1056,38 @@
             align-items: center;
             gap: 16px;
             padding: 8px 12px;
-            background: #f8f9fa;
-            border-bottom: 1px solid #e8e8e8;
+            background: #1a1a2e;
+            background: linear-gradient(to right, #0f0f1a, #1a1a2e);
+            border-bottom: 1px solid #2a2a3e;
+            border-radius: 8px 8px 0 0;
             font-size: 13px;
+            color: #aaa;
         }
 
         .spectrogram-controls label {
-            color: #666;
+            color: #999;
             font-weight: 500;
         }
 
         .spectrogram-controls select {
             padding: 4px 8px;
-            border: 1px solid #d9d9d9;
+            border: 1px solid #3a3a5c;
             border-radius: 4px;
             font-size: 13px;
-            background: white;
+            background: #12121e;
+            color: #ccc;
+            cursor: pointer;
+        }
+
+        .spectrogram-controls select:focus {
+            outline: none;
+            border-color: #7550e6;
+        }
+
+        .spectrogram-controls .scheme-select {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .spectrogram-controls .color-legend {
@@ -1073,16 +1098,16 @@
         }
 
         .spectrogram-controls .color-bar {
-            width: 100px;
-            height: 12px;
-            background: linear-gradient(to right, 
-                #000044 0%, 
-                #0000ff 20%, 
-                #00ffff 40%, 
-                #00ff00 60%, 
-                #ffff00 80%, 
-                #ff0000 100%);
-            border-radius: 2px;
+            width: 120px;
+            height: 14px;
+            background: linear-gradient(to right,
+                #02001e 0%,
+                #251496 25%,
+                #7550e6 50%,
+                #c8afff 75%,
+                #ffffff 100%);
+            border-radius: 3px;
+            box-shadow: 0 0 8px rgba(117, 80, 230, 0.2);
         }
 
         /* 时间轴样式 */
@@ -1132,24 +1157,6 @@
             padding: 40px;
         }
 
-        /* 缩放提示 */
-        .zoom-hint {
-            position: absolute;
-            bottom: 8px;
-            right: 8px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 11px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
-        }
-
-        .viz-scroll-container:hover .zoom-hint {
-            opacity: 1;
-        }
 
         /* 加载动画 */
         .viz-loading {
@@ -1211,9 +1218,18 @@
                             <line x1="12" y1="3" x2="12" y2="15"/>
                         </svg>
                         <p>点击或拖拽音频文件到此处</p>
+                        <span class="hint" id="uploadModeHint">模式：自动匹配（系统自动匹配参考音频并切分）</span>
                         <span class="hint">支持 WAV, MP3, FLAC, AAC, OGG, M4A 格式</span>
-                        <span class="hint" style="color: #667eea; margin-top: 4px;">系统将自动匹配参考音频库中的最佳参考音频</span>
                         <input type="file" id="audioInput" accept=".wav,.mp3,.flac,.aac,.ogg,.m4a">
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-top: 12px;">
+                        <button class="btn btn-secondary" id="btnAutoMode" onclick="setUploadMode('auto')" style="flex: 1; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                            自动匹配切分
+                        </button>
+                        <button class="btn btn-secondary" id="btnManualMode" onclick="setUploadMode('manual')" style="flex: 1;">
+                            手动上传
+                        </button>
                     </div>
 
                     <div class="progress" id="uploadProgress" style="display: none;">
@@ -1315,22 +1331,39 @@
                                 <!-- 时频图 -->
                                 <div id="spectrogramContainer">
                                     <div class="spectrogram-controls">
-                                        <span id="freqRangeDisplay" style="color: #666;">频率范围: 自动检测中...</span>
+                                        <span id="freqRangeDisplay" style="color: #999;">频率范围: 自动检测中...</span>
+                                        <div class="scheme-select">
+                                            <label>配色</label>
+                                            <select id="colorSchemeSelect" onchange="switchColorScheme(this.value)">
+                                                <option value="bluepurple">蓝紫</option>
+                                                <option value="audition">Audition</option>
+                                                <option value="sox">SoX</option>
+                                                <option value="praat">Praat</option>
+                                                <option value="coolwarm">冷暖</option>
+                                                <option value="rainbow">彩虹</option>
+                                                <option value="copper">铜色</option>
+                                                <option value="bone">骨色</option>
+                                                <option value="thermal">热力</option>
+                                                <option value="grayscale">灰阶</option>
+                                            </select>
+                                        </div>
                                         <div class="color-legend">
-                                            <span style="color:#666">低</span>
+                                            <span style="color:#999">低</span>
                                             <div class="color-bar"></div>
-                                            <span style="color:#666">高</span>
+                                            <span style="color:#999">高</span>
                                         </div>
                                     </div>
-                                    <div style="position: relative;">
-                                        <div class="spectrogram-labels" id="spectrogramLabels"></div>
-                                        <canvas id="spectrogramCanvas"></canvas>
-                                        <div class="spectrogram-cursor" id="spectrogramCursor" style="display: none;"></div>
+                                    <div class="spectrogram-scroll-wrapper">
+                                        <div class="spectrogram-content" id="spectrogramContent">
+                                            <div class="spectrogram-labels" id="spectrogramLabels"></div>
+                                            <canvas id="spectrogramCanvas"></canvas>
+                                            <div class="spectrogram-cursor" id="spectrogramCursor" style="display: none;"></div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div class="zoom-hint">
-                                    💡 鼠标拖拽选择片段 · 滚轮缩放 · 双击清除选区
+                                <div class="operation-hint">
+                                    💡 鼠标拖拽选择片段 · 双击清除选区
                                 </div>
                             </div>
                         </div>
@@ -1443,18 +1476,45 @@
         let selectedSegment = null;
         let currentCategory = 'all';
         let currentFilter = 'all';
+        let uploadMode = 'auto'; // 'auto' or 'manual'
         let distributionChart = null;
 
         // API 基础 URL
         const API_BASE = '/api/dataset';
 
+        // 获取当前用户信息
+        function getUsername() {
+            return sessionStorage.getItem('username') || '';
+        }
+
+        // 获取认证令牌
+        function getToken() {
+            return sessionStorage.getItem('token') || '';
+        }
+
+        // 带认证的 fetch
+        async function apiFetch(url, options = {}) {
+            const token = getToken();
+            const headers = options.headers || {};
+            if (token) {
+                headers['Authorization'] = 'Bearer ' + token;
+            }
+            return fetch(url, { ...options, headers });
+        }
+
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
+            // 在 iframe 中嵌入时隐藏头部导航
+            if (window !== window.parent) {
+                const header = document.querySelector('.header');
+                if (header) header.style.display = 'none';
+                // 调整容器上边距
+                document.querySelector('.container').style.paddingTop = '0';
+            }
             loadReferences();
             refreshStats();
             loadSegments();
             setupEventListeners();
-            setupZoomListeners();
         });
 
         // 设置事件监听器
@@ -1541,6 +1601,28 @@
         }
 
         // 处理文件上传
+        // 设置上传模式
+        function setUploadMode(mode) {
+            uploadMode = mode;
+            const btnAuto = document.getElementById('btnAutoMode');
+            const btnManual = document.getElementById('btnManualMode');
+            const modeHint = document.getElementById('uploadModeHint');
+
+            if (mode === 'auto') {
+                btnAuto.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                btnAuto.style.color = 'white';
+                btnManual.style.background = '#f0f0f0';
+                btnManual.style.color = '#333';
+                modeHint.textContent = '模式：自动匹配（系统自动匹配参考音频并切分）';
+            } else {
+                btnManual.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                btnManual.style.color = 'white';
+                btnAuto.style.background = '#f0f0f0';
+                btnAuto.style.color = '#333';
+                modeHint.textContent = '模式：手动上传（仅上传音频，后续手动选择参考音频进行切分）';
+            }
+        }
+
         async function handleFileUpload(file) {
             const progressDiv = document.getElementById('uploadProgress');
             const progressFill = document.getElementById('progressFill');
@@ -1554,10 +1636,11 @@
             formData.append('file', file);
 
             try {
+                const endpoint = uploadMode === 'manual' ? 'upload-manual' : 'upload-and-split';
                 progressFill.style.width = '50%';
-                progressText.textContent = '正在自动匹配参考音频...';
+                progressText.textContent = uploadMode === 'auto' ? '正在自动匹配参考音频...' : '正在上传音频...';
 
-                const response = await fetch(`${API_BASE}/upload-and-split`, {
+                const response = await apiFetch(`${API_BASE}/${endpoint}`, {
                     method: 'POST',
                     body: formData
                 });
@@ -1567,7 +1650,11 @@
                 if (result.success) {
                     progressFill.style.width = '100%';
                     progressText.textContent = '处理完成！';
-                    logMessage(`音频上传成功: ${file.name}，生成 ${result.segments.length} 个片段，匹配参考音频: ${result.reference_audio}`, 'success');
+                    if (uploadMode === 'auto') {
+                        logMessage(`音频上传并切分成功: ${file.name}，生成 ${result.segments.length} 个片段，匹配参考音频: ${result.reference_audio}`, 'success');
+                    } else {
+                        logMessage(`音频手动上传成功: ${file.name}，请选择参考音频进行切分`, 'success');
+                    }
 
                     // 添加到片段列表
                     currentSegments = [...currentSegments, ...result.segments];
@@ -1663,9 +1750,6 @@
 
         // wavesurfer 实例
         let wavesurfer = null;
-        let currentZoom = 1.0;
-        const MIN_ZOOM = 1;
-        const MAX_ZOOM = 1000;
 
         // 自定义时频图相关
         let audioContext = null;
@@ -1739,44 +1823,126 @@
         }
 
         // Audition 风格颜色映射 - 获取特定能量值的颜色
-        function getAuditionColor(intensity) {
-            // intensity: 0-1
-            const t = Math.max(0, Math.min(1, intensity));
-            let r, g, b;
-
-            if (t < 0.17) {
-                const k = t / 0.17;
-                r = Math.floor(0);
-                g = Math.floor(0);
-                b = Math.floor(68 + k * 187);
-            } else if (t < 0.33) {
-                const k = (t - 0.17) / 0.16;
-                r = Math.floor(0);
-                g = Math.floor(k * 255);
-                b = 255;
-            } else if (t < 0.5) {
-                const k = (t - 0.33) / 0.17;
-                r = Math.floor(0);
-                g = 255;
-                b = Math.floor(255 - k * 255);
-            } else if (t < 0.67) {
-                const k = (t - 0.5) / 0.17;
-                r = Math.floor(k * 255);
-                g = 255;
-                b = 0;
-            } else if (t < 0.83) {
-                const k = (t - 0.67) / 0.16;
-                r = 255;
-                g = Math.floor(255 - k * 128);
-                b = 0;
-            } else {
-                const k = (t - 0.83) / 0.17;
-                r = 255;
-                g = Math.floor(128 - k * 128);
-                b = 0;
+        // 配色方案注册表 — 经典音频时频图配色
+        let currentColorScheme = 'bluepurple';
+        const COLOR_SCHEMES = {
+            'bluepurple': {
+                name: '蓝紫',
+                gradient: '#02001e 0%, #251496 25%, #7550e6 50%, #c8afff 75%, #ffffff 100%',
+                color: function(t) {
+                    if (t < 0.25) { const k = t / 0.25; return [Math.floor(2+k*35), Math.floor(k*20), Math.floor(30+k*120)]; }
+                    else if (t < 0.5) { const k = (t-0.25)/0.25; return [Math.floor(37+k*80), Math.floor(20+k*60), Math.floor(150+k*80)]; }
+                    else if (t < 0.75) { const k = (t-0.5)/0.25; return [Math.floor(117+k*83), Math.floor(80+k*95), Math.floor(230+k*25)]; }
+                    else { const k = (t-0.75)/0.25; return [Math.floor(200+k*55), Math.floor(175+k*80), 255]; }
+                }
+            },
+            'audition': {
+                name: 'Audition',
+                gradient: '#000044 0%, #0000ff 17%, #00ffff 33%, #00ff00 50%, #ffff00 67%, #ff8800 83%, #ff0000 100%',
+                color: function(t) {
+                    if (t < 0.17) { const k = t/0.17; return [0, 0, Math.floor(68+k*187)]; }
+                    else if (t < 0.33) { const k = (t-0.17)/0.16; return [0, Math.floor(k*255), 255]; }
+                    else if (t < 0.5) { const k = (t-0.33)/0.17; return [0, 255, Math.floor(255-k*255)]; }
+                    else if (t < 0.67) { const k = (t-0.5)/0.17; return [Math.floor(k*255), 255, 0]; }
+                    else if (t < 0.83) { const k = (t-0.67)/0.16; return [255, Math.floor(255-k*119), 0]; }
+                    else { const k = (t-0.83)/0.17; return [255, Math.floor(136-k*136), 0]; }
+                }
+            },
+            'sox': {
+                name: 'SoX',
+                gradient: '#000000 0%, #0000aa 20%, #8800cc 40%, #cc0055 60%, #ee8800 80%, #ffff00 100%',
+                color: function(t) {
+                    if (t < 0.2) { const k = t/0.2; return [0, 0, Math.floor(k*170)]; }
+                    else if (t < 0.4) { const k = (t-0.2)/0.2; return [Math.floor(k*136), 0, Math.floor(170+k*34)]; }
+                    else if (t < 0.6) { const k = (t-0.4)/0.2; return [Math.floor(136+k*68), 0, Math.floor(204-k*119)]; }
+                    else if (t < 0.8) { const k = (t-0.6)/0.2; return [Math.floor(204+k*34), Math.floor(k*136), 0]; }
+                    else { const k = (t-0.8)/0.2; return [Math.floor(238+k*17), Math.floor(136+k*119), 0]; }
+                }
+            },
+            'praat': {
+                name: 'Praat',
+                gradient: '#ffffff 0%, #cccccc 10%, #0000ff 30%, #00aa00 50%, #ffaa00 70%, #ff0000 90%, #000000 100%',
+                color: function(t) {
+                    // Praat 风格: 白(低) → 蓝 → 绿 → 黄 → 红 → 黑(高)
+                    if (t < 0.1) { const k = t/0.1; return [Math.floor(255-k*51), Math.floor(255-k*51), 255]; }
+                    else if (t < 0.35) { const k = (t-0.1)/0.25; return [Math.floor(204-k*204), Math.floor(204-k*34), Math.floor(255-k*55)]; }
+                    else if (t < 0.55) { const k = (t-0.35)/0.2; return [0, Math.floor(170-k*170), Math.floor(200-k*200)]; }
+                    else if (t < 0.75) { const k = (t-0.55)/0.2; return [Math.floor(k*255), Math.floor(k*170), 0]; }
+                    else if (t < 0.9) { const k = (t-0.75)/0.15; return [255, Math.floor(170-k*170), 0]; }
+                    else { const k = (t-0.9)/0.1; return [Math.floor(255-k*255), 0, 0]; }
+                }
+            },
+            'coolwarm': {
+                name: '冷暖',
+                gradient: '#000080 0%, #0044cc 20%, #888888 50%, #cc4400 80%, #800000 100%',
+                color: function(t) {
+                    if (t < 0.5) { const k = t/0.5; return [Math.floor(k*136), Math.floor(k*136), Math.floor(128+k*127)]; }
+                    else { const k = (t-0.5)/0.5; return [Math.floor(136+k*119), Math.floor(136-k*136), Math.floor(255-k*127)]; }
+                }
+            },
+            'rainbow': {
+                name: '彩虹',
+                gradient: '#000000 0%, #0000ff 16%, #00ffff 33%, #00ff00 50%, #ffff00 66%, #ff0000 83%, #ffffff 100%',
+                color: function(t) {
+                    if (t < 0.17) { const k = t/0.17; return [0, 0, Math.floor(k*255)]; }
+                    else if (t < 0.33) { const k = (t-0.17)/0.16; return [0, Math.floor(k*255), 255]; }
+                    else if (t < 0.5) { const k = (t-0.33)/0.17; return [0, 255, Math.floor(255-k*255)]; }
+                    else if (t < 0.67) { const k = (t-0.5)/0.17; return [Math.floor(k*255), 255, 0]; }
+                    else if (t < 0.83) { const k = (t-0.67)/0.16; return [255, Math.floor(255-k*255), 0]; }
+                    else { const k = (t-0.83)/0.17; return [255, Math.floor(k*255), Math.floor(k*255)]; }
+                }
+            },
+            'copper': {
+                name: '铜色',
+                gradient: '#000000 0%, #331a00 20%, #994d00 40%, #cc7700 60%, #ffaa44 80%, #ffddbb 100%',
+                color: function(t) {
+                    if (t < 0.2) { const k = t/0.2; return [Math.floor(k*51), Math.floor(k*26), 0]; }
+                    else if (t < 0.4) { const k = (t-0.2)/0.2; return [Math.floor(51+k*102), Math.floor(26+k*51), 0]; }
+                    else if (t < 0.6) { const k = (t-0.4)/0.2; return [Math.floor(153+k*51), Math.floor(77+k*42), 0]; }
+                    else if (t < 0.8) { const k = (t-0.6)/0.2; return [Math.floor(204+k*51), Math.floor(119+k*51), Math.floor(k*68)]; }
+                    else { const k = (t-0.8)/0.2; return [255, Math.floor(170+k*85), Math.floor(68+k*119)]; }
+                }
+            },
+            'bone': {
+                name: '骨色',
+                gradient: '#000000 0%, #222244 25%, #666688 50%, #aaaacc 75%, #eeeeff 100%',
+                color: function(t) {
+                    const v = Math.floor(t * 238);
+                    return [Math.floor(v*0.9), Math.floor(v*0.9), Math.floor(v)];
+                }
+            },
+            'thermal': {
+                name: '热力',
+                gradient: '#000000 0%, #330000 20%, #cc0000 40%, #ff6600 60%, #ffcc00 80%, #ffffff 100%',
+                color: function(t) {
+                    if (t < 0.2) { const k = t/0.2; return [Math.floor(k*51), 0, 0]; }
+                    else if (t < 0.4) { const k = (t-0.2)/0.2; return [Math.floor(51+k*153), 0, 0]; }
+                    else if (t < 0.6) { const k = (t-0.4)/0.2; return [Math.floor(204+k*51), Math.floor(k*102), 0]; }
+                    else if (t < 0.8) { const k = (t-0.6)/0.2; return [255, Math.floor(102+k*102), Math.floor(k*204)]; }
+                    else { const k = (t-0.8)/0.2; return [255, Math.floor(204+k*51), Math.floor(204+k*51)]; }
+                }
+            },
+            'grayscale': {
+                name: '灰阶',
+                gradient: '#000000 0%, #444444 25%, #888888 50%, #cccccc 75%, #ffffff 100%',
+                color: function(t) {
+                    const v = Math.floor(t * 255);
+                    return [v, v, v];
+                }
             }
+        };
 
-            return `rgb(${r}, ${g}, ${b})`;
+        function getSpectrogramColor(intensity) {
+            const t = Math.max(0, Math.min(1, intensity));
+            return COLOR_SCHEMES[currentColorScheme].color(t);
+        }
+
+        function switchColorScheme(scheme) {
+            if (!COLOR_SCHEMES[scheme] || scheme === currentColorScheme) return;
+            currentColorScheme = scheme;
+            const bar = document.querySelector('.spectrogram-controls .color-bar');
+            if (bar) bar.style.background = `linear-gradient(to right, ${COLOR_SCHEMES[scheme].gradient})`;
+            drawSpectrogram();
         }
 
         // 使用超轻量级方式计算时频图数据 - 避免卡顿
@@ -1827,7 +1993,7 @@
                 const numFrames = Math.floor((downsampledData.length - fftSize) / hopSize);
 
                 // 增大最大帧数限制，获得更好的时间分辨率
-                const maxFrames = 1200;
+                const maxFrames = 2000;
                 const frameStep = numFrames > maxFrames ? Math.ceil(numFrames / maxFrames) : 1;
                 const finalNumFrames = Math.min(Math.floor(numFrames / frameStep), maxFrames);
 
@@ -1992,30 +2158,31 @@
             return frame;
         }
 
-        // 绘制时频图
+        // 绘制时频图 - 高分辨率版本
         function drawSpectrogram() {
             if (!spectrogramData) return;
 
             const canvas = document.getElementById('spectrogramCanvas');
-            if (!canvas) {
-                console.warn('Canvas not found, skipping spectrogram draw');
+            const content = document.getElementById('spectrogramContent');
+            if (!canvas || !content) {
+                console.warn('Canvas or content not found, skipping spectrogram draw');
                 return;
             }
             
-            const ctx = canvas.getContext('2d');
-            const container = document.getElementById('spectrogramContainer');
-
-            // 设置 canvas 尺寸 - 使用整个容器宽度，与光标对齐方式一致
-            const width = Math.max(100, container.clientWidth);
-            const height = 200;
-            canvas.width = width;
-            canvas.height = height;
-            
-            // 清除 canvas 为黑色背景
-            ctx.fillStyle = '#0a0a0a';
-            ctx.fillRect(0, 0, width, height);
+            const ctx = canvas.getContext('2d', { alpha: false });
 
             const { data, sampleRate, duration, fftSize } = spectrogramData;
+            const containerWidth = content.parentElement.clientWidth;
+            const width = Math.max(100, containerWidth);
+            const height = 320;
+            canvas.width = width;
+            canvas.height = height;
+            canvas.style.width = width + 'px';
+            
+            // 深色太空背景
+            ctx.fillStyle = '#080810';
+            ctx.fillRect(0, 0, width, height);
+
             const numFrames = data.length;
             const nyquist = sampleRate / 2;
 
@@ -2023,62 +2190,70 @@
             const maxBin = Math.floor((maxFreq / nyquist) * (fftSize / 2));
             const displayBins = Math.min(maxBin, fftSize / 2);
 
-            // 绘制频谱 - 留出左侧 50px 给频率标签
-            const labelWidth = 50;
-            const graphWidth = width - labelWidth;
-            
-            // 使用缩放减少像素计算
-            const scaleFactor = Math.ceil(graphWidth / 800);
-            const drawWidth = Math.floor(graphWidth / scaleFactor);
-            const drawHeight = Math.floor(height / scaleFactor);
-            
-            // 创建临时 canvas 用于绘制频谱
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = drawWidth;
-            tempCanvas.height = drawHeight;
-            const tempCtx = tempCanvas.getContext('2d');
-            
-            const imageData = tempCtx.createImageData(drawWidth, drawHeight);
+            // 直接渲染到主 canvas，无需中间缩放以保证清晰度
+            const imageData = ctx.createImageData(width, height);
             const pixels = imageData.data;
 
-            for (let x = 0; x < drawWidth; x++) {
-                // 映射到时间帧
-                const frameIdx = Math.floor((x / drawWidth) * numFrames);
-                if (frameIdx >= numFrames) continue;
+            // 绘制频谱数据 — 逐列渲染
+            for (let x = 0; x < width; x++) {
+                const frameIdxFloat = (x / width) * numFrames;
+                const frameIdx = Math.min(Math.floor(frameIdxFloat), numFrames - 1);
 
                 const frame = data[frameIdx];
+                if (!frame) continue;
 
-                for (let y = 0; y < drawHeight; y++) {
-                    // 映射到频率 (y=0 是高频，y=drawHeight 是低频，需要翻转)
-                    const binIdx = Math.floor((1 - y / drawHeight) * displayBins);
-                    if (binIdx >= frame.length) continue;
+                for (let y = 0; y < height; y++) {
+                    // y=0 是高频（顶部），y=height 是低频（底部）
+                    const binIdx = Math.floor((1 - y / height) * displayBins);
+                    if (binIdx >= frame.length || binIdx < 0) continue;
 
                     const intensity = frame[binIdx];
+                    const [cr, cg, cb] = getSpectrogramColor(intensity);
 
-                    // 应用颜色映射
-                    const color = getAuditionColor(intensity);
-                    const rgb = color.match(/\d+/g).map(Number);
-
-                    const pixelIdx = (y * drawWidth + x) * 4;
-                    pixels[pixelIdx] = rgb[0];
-                    pixels[pixelIdx + 1] = rgb[1];
-                    pixels[pixelIdx + 2] = rgb[2];
+                    const pixelIdx = (y * width + x) * 4;
+                    pixels[pixelIdx] = cr;
+                    pixels[pixelIdx + 1] = cg;
+                    pixels[pixelIdx + 2] = cb;
                     pixels[pixelIdx + 3] = 255;
                 }
             }
 
-            tempCtx.putImageData(imageData, 0, 0);
-            
-            // 将临时 canvas 绘制到主 canvas（从 labelWidth 位置开始）
-            ctx.drawImage(tempCanvas, 0, 0, drawWidth, drawHeight, labelWidth, 0, graphWidth, height);
+            ctx.putImageData(imageData, 0, 0);
 
             // 绘制频率标签
-            drawFrequencyLabels();
+            drawFrequencyLabels(height);
+
+            // 绘制频率网格线
+            drawFrequencyGrid(ctx, width, height);
+
+            // 绘制时间轴标签
+            drawTimeLabels(ctx, width, height, duration);
+        }
+
+        // 绘制频率网格线
+        function drawFrequencyGrid(ctx, width, height) {
+            const labelWidth = 60;
+            const numLines = 5;
+
+            for (let i = 0; i < numLines; i++) {
+                const y = (i / (numLines - 1)) * height;
+                ctx.strokeStyle = i === 0 || i === numLines - 1
+                    ? 'rgba(255, 255, 255, 0.12)'
+                    : 'rgba(255, 255, 255, 0.05)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash(i === 0 || i === numLines - 1 ? [] : [4, 8]);
+                ctx.beginPath();
+                ctx.moveTo(labelWidth, Math.floor(y) + 0.5);
+                ctx.lineTo(width, Math.floor(y) + 0.5);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
         }
 
         // 绘制频率标签
-        function drawFrequencyLabels() {
+        function drawFrequencyLabels(canvasHeight) {
             const container = document.getElementById('spectrogramLabels');
+            container.style.height = canvasHeight + 'px';
             container.innerHTML = '';
 
             const numLabels = 5;
@@ -2087,25 +2262,63 @@
                 const label = document.createElement('div');
                 label.className = 'freq-label';
                 label.style.bottom = `${(i / (numLabels - 1)) * 100}%`;
-                label.textContent = freq >= 1000 ? `${(freq / 1000).toFixed(1)}k` : freq;
+                label.textContent = freq >= 1000 ? `${(freq / 1000).toFixed(1)}k` : `${freq}Hz`;
                 container.appendChild(label);
+            }
+        }
+
+        // 绘制时间轴标签
+        function drawTimeLabels(ctx, width, height, duration) {
+            const labelWidth = 60;
+            const labelY = height - 2;
+            const numLabels = Math.min(8, Math.floor(width / 80));
+
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.font = '10px "Consolas", monospace';
+            ctx.textAlign = 'center';
+
+            for (let i = 0; i < numLabels; i++) {
+                const x = labelWidth + (i / (numLabels - 1)) * (width - labelWidth);
+                const t = (i / (numLabels - 1)) * duration;
+
+                // 时间刻度小标记
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(Math.floor(x) + 0.5, 0);
+                ctx.lineTo(Math.floor(x) + 0.5, height);
+                ctx.stroke();
+
+                // 时间文字
+                const label = t >= 60
+                    ? `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`
+                    : `${t.toFixed(1)}s`;
+                ctx.fillText(label, Math.floor(x), labelY);
             }
         }
 
         // 更新时频图播放光标位置
         function updateSpectrogramCursor(currentTime, duration) {
             const cursor = document.getElementById('spectrogramCursor');
-            const container = document.querySelector('#spectrogramContainer > div:last-child');
+            const content = document.getElementById('spectrogramContent');
+            const wrapper = document.querySelector('.spectrogram-scroll-wrapper');
 
-            if (!cursor || !container || duration <= 0) return;
+            if (!cursor || !content || !wrapper || duration <= 0) return;
 
             const progress = Math.max(0, Math.min(1, currentTime / duration));
-            // 使用整个容器宽度计算，与波形图保持一致
-            const containerWidth = container.offsetWidth;
-            const left = progress * containerWidth;
+            // 使用内容宽度计算光标位置
+            const contentWidth = content.offsetWidth;
+            const left = progress * contentWidth;
 
             cursor.style.display = 'block';
             cursor.style.left = `${left}px`;
+            
+            // 自动滚动以保持光标可见
+            const wrapperWidth = wrapper.offsetWidth;
+            const scrollLeft = left - wrapperWidth / 2;
+            if (scrollLeft > 0 && Math.abs(wrapper.scrollLeft - scrollLeft) > wrapperWidth / 4) {
+                wrapper.scrollLeft = scrollLeft;
+            }
         }
 
         // 重新计算并绘制时频图
@@ -2325,17 +2538,14 @@
             if (canvas) {
                 // 清除 canvas
                 const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#0a0a0a';
+                ctx.fillStyle = '#080810';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
-            spectrogramContainer.style.backgroundColor = '#0a0a0a';
-            spectrogramContainer.style.minHeight = '200px';
+            spectrogramContainer.style.backgroundColor = '#080810';
 
             // 确保容器有明确的尺寸
             waveformContainer.style.height = '140px';
             waveformContainer.style.width = '100%';
-            spectrogramContainer.style.height = '200px';
-            spectrogramContainer.style.width = '100%';
 
             // 检查插件类型
             const SpectrogramPlugin = WaveSurfer.spectrogram;
@@ -2420,9 +2630,6 @@
                 const duration = wavesurfer.getDuration();
                 document.getElementById('totalTime').textContent = duration.toFixed(2);
                 
-                currentZoom = 50;
-                updateZoomDisplay();
-
                 // 设置选区交互
                 setupSelectionInteraction();
 
@@ -2470,20 +2677,6 @@
             wavesurfer.on('audioprocess', () => {
                 checkSelectionLoop();
             });
-
-            // 滚轮缩放
-            let zoomTimeout = null;
-            const handleZoom = (e) => {
-                e.preventDefault();
-                if (zoomTimeout) return;
-                zoomTimeout = setTimeout(() => {
-                    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-                    zoomWavesurfer(delta);
-                    zoomTimeout = null;
-                }, 50);
-            };
-            waveformContainer.addEventListener('wheel', handleZoom, { passive: false });
-            spectrogramContainer.addEventListener('wheel', handleZoom, { passive: false });
         }
 
         // 设置选区交互 - 类似 Audition 的鼠标选择
@@ -2573,35 +2766,6 @@
                     updateSelectionDisplay();
                 }
             });
-        }
-
-        // 缩放 wavesurfer (v6 使用 zoom 方法，参数是 pxPerSec)
-        function zoomWavesurfer(factor) {
-            if (!wavesurfer) return;
-
-            currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom * factor));
-            // v6 API: zoom 接收像素每秒的参数
-            wavesurfer.zoom(currentZoom);
-            updateZoomDisplay();
-        }
-
-        // 重置缩放
-        function resetWavesurferZoom() {
-            if (!wavesurfer) return;
-
-            currentZoom = 50;
-            wavesurfer.zoom(currentZoom);
-            updateZoomDisplay();
-        }
-
-        // 更新缩放显示
-        function updateZoomDisplay() {
-            // 缩放显示已移除
-        }
-
-        // 设置滚轮事件监听（现在由 wavesurfer 处理）
-        function setupZoomListeners() {
-            // wavesurfer 已经处理了滚轮事件
         }
 
         // 加载并可视化音频
@@ -2740,7 +2904,7 @@
                 formData.append('category', selectedSegment.reference_audio);
                 formData.append('segment_path', selectedSegment.file_path);
 
-                const response = await fetch(`${API_BASE}/annotate`, {
+                const response = await apiFetch(`${API_BASE}/annotate`, {
                     method: 'POST',
                     body: formData
                 });

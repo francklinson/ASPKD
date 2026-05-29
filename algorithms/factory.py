@@ -84,26 +84,62 @@ def create_detector(algorithm_name: str,
     # 延迟导入适配器（确保 CUDA 环境变量已设置）
     _import_adapters()
     
-    # 使用配置管理器获取配置
-    if config_manager is None:
-        # 尝试使用绝对路径加载配置
+    # 检测是否是自训练模型 (custom:filename)
+    saved_results_dir = None
+    if algorithm_name.startswith("custom:"):
+        filename = algorithm_name.replace("custom:", "")
         current_file = os.path.abspath(__file__)
         project_root = os.path.dirname(os.path.dirname(current_file))
+        saved_results_dir = os.path.join(project_root, "saved_results")
+        model_path = os.path.join(saved_results_dir, filename)
+        if not os.path.exists(model_path):
+            raise ValueError(f"自训练模型不存在: {model_path}")
+
+        # 从文件名解析算法类型和模型大小
+        # 文件名格式: dinomaly_{model_type}_{model_size}_{categories}_epoch_...
+        fname_lower = filename.lower()
+        if "dinomaly" in fname_lower:
+            # 解析 model_type: dinov2 / dinov3
+            if "dinov3" in fname_lower:
+                model_type = "dinov3"
+            elif "dinov2" in fname_lower:
+                model_type = "dinov2"
+            else:
+                model_type = "dinov3"  # 默认
+
+            # 解析 model_size: small / base / large
+            if "large" in fname_lower:
+                model_size = "large"
+            elif "base" in fname_lower:
+                model_size = "base"
+            else:
+                model_size = "small"
+
+            algorithm_name = f"dinomaly_{model_type}_{model_size}"
+        else:
+            raise ValueError(f"无法识别自训练模型的算法类型: {filename}")
+        print(f"[DEBUG] create_detector: 自训练模型: {model_path}, 基础算法: {algorithm_name}")
+
+    # 使用配置管理器获取配置
+    if config_manager is None:
+        if saved_results_dir is None:
+            current_file = os.path.abspath(__file__)
+            project_root = os.path.dirname(os.path.dirname(current_file))
         config_path = os.path.join(project_root, "config", "config.yaml")
         print(f"[DEBUG] create_detector: 使用默认配置路径: {config_path}")
         config_manager = ConfigManager(config_path)
-    
+
     # 如果未提供模型路径，从配置中获取
     if model_path is None:
         # 尝试多种方式解析 algorithm_name
         # 方式1: 完整匹配 (如 dinomaly_dinov3_small -> dinomaly + dinov3_small)
         model_path = _resolve_model_path(config_manager, algorithm_name)
-        
+
         if model_path is None:
             print(f"[ERROR] 无法解析算法 '{algorithm_name}' 的模型路径")
             print(f"[ERROR] 配置中的 models: {list(config_manager.config.get('models', {}).keys())}")
             raise ValueError(f"未找到算法 '{algorithm_name}' 的模型路径配置，请检查 config/config.yaml")
-        
+
         print(f"[DEBUG] create_detector: 解析到的模型路径: {model_path}")
         
     # 确保 model_path 不为 None 或空字符串

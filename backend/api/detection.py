@@ -178,33 +178,59 @@ async def cancel_task(task_id: str):
 
 @router.get("/algorithms")
 async def get_available_algorithms():
-    """获取可用算法列表"""
+    """获取可用算法列表，包括预置模型和自训练模型"""
     algorithms = [
         {
             "id": "dinomaly_dinov3_small",
             "name": "Dinomaly DINOv3 Small",
             "description": "基于DINOv3轻量级模型",
-            "type": "feature_based"
+            "type": "feature_based",
+            "source": "builtin"
         },
         {
             "id": "dinomaly_dinov3_large",
             "name": "Dinomaly DINOv3 Large",
             "description": "基于DINOv3大模型",
-            "type": "feature_based"
+            "type": "feature_based",
+            "source": "builtin"
         },
         {
             "id": "dinomaly_dinov2_small",
             "name": "Dinomaly DINOv2 Small",
             "description": "基于DINOv2轻量级模型",
-            "type": "feature_based"
+            "type": "feature_based",
+            "source": "builtin"
         },
         {
             "id": "dinomaly_dinov2_large",
             "name": "Dinomaly DINOv2 Large",
             "description": "基于DINOv2大模型",
-            "type": "feature_based"
+            "type": "feature_based",
+            "source": "builtin"
         },
     ]
+
+    # 添加自训练模型
+    saved_results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "saved_results")
+    if os.path.exists(saved_results_dir):
+        for filename in os.listdir(saved_results_dir):
+            if filename.endswith('.pth'):
+                model_id = f"custom:{filename}"
+                # 从文件名解析信息: dinomaly_dinov3_small_category
+                display_name = filename.replace('.pth', '')
+                model_type = "dinov3" if "dinov3" in filename.lower() else "dinov2"
+                stat = os.stat(os.path.join(saved_results_dir, filename))
+                size_mb = round(stat.st_size / (1024 * 1024), 2)
+                description = f"自训练模型 ({model_type}, {size_mb}MB)"
+                algorithms.append({
+                    "id": model_id,
+                    "name": f"{display_name}",
+                    "description": description,
+                    "type": "feature_based",
+                    "source": "custom",
+                    "file": filename,
+                    "size_mb": size_mb
+                })
 
     return {"algorithms": algorithms}
 

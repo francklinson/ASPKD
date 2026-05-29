@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型训练 - 音频异常检测系统</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 32px; margin-bottom: 10px; }
+        .header p { opacity: 0.9; }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            text-decoration: none;
+            margin-bottom: 16px;
+            opacity: 0.9;
+        }
+        .back-link:hover { opacity: 1; }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 1100px) {
+            .container { grid-template-columns: 1fr; }
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dataset-list { max-height: 400px; overflow-y: auto; }
+        .dataset-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .dataset-item:hover { border-color: #667eea; background: #f8f9ff; }
+        .dataset-item.selected { border-color: #667eea; background: #f0f3ff; }
+        .dataset-item.unavailable { opacity: 0.5; cursor: not-allowed; background: #f5f5f5; }
+        .dataset-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #667eea; }
+        .dataset-info { flex: 1; }
+        .dataset-name { font-weight: 500; margin-bottom: 4px; }
+        .dataset-stats { font-size: 12px; color: #666; display: flex; gap: 16px; }
+        .dataset-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        .dataset-badge.train { background: #e6f7ff; color: #1890ff; }
+        .dataset-badge.test { background: #f6ffed; color: #52c41a; }
+        .dataset-badge.anomaly { background: #fff2f0; color: #ff4d4f; }
+
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        .form-control:focus { outline: none; border-color: #667eea; }
+        select.form-control { cursor: pointer; }
+
+        .model-type-group {
+            display: flex;
+            gap: 8px;
+        }
+        .model-type-btn {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #d9d9d9;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .model-type-btn:hover { border-color: #667eea; }
+        .model-type-btn.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-danger { background: #ff4d4f; color: white; }
+        .btn-danger:hover { background: #ff7875; }
+
+        .progress-section { margin-top: 20px; }
+        .progress-bar {
+            height: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 5px;
+            transition: width 0.3s;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-badge.running { background: #e6f7ff; color: #1890ff; }
+        .status-badge.completed { background: #f6ffed; color: #52c41a; }
+        .status-badge.failed { background: #fff2f0; color: #ff4d4f; }
+        .status-badge.pending { background: #fff7e6; color: #faad14; }
+
+        .log-console {
+            background: #1a1a2e;
+            color: #00ff88;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            height: 300px;
+            overflow-y: auto;
+            margin-top: 16px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .log-console .error { color: #ff6b6b; }
+        .log-console .warning { color: #ffd93d; }
+        .log-console .info { color: #6bcbff; }
+
+        .model-list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .model-list-item:hover { border-color: #667eea; }
+        .model-name { font-weight: 500; font-size: 14px; }
+        .model-meta { font-size: 12px; color: #666; margin-top: 4px; }
+
+        .info-hint {
+            background: #f0f7ff;
+            border: 1px dashed #b3d4fc;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        @media (max-width: 768px) {
+            .charts-row { grid-template-columns: 1fr; }
+        }
+        .chart-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .chart-box canvas { width: 100% !important; max-height: 200px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/main" class="back-link">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            返回主页面
+        </a>
+        <h1>模型训练</h1>
+        <p>选择训练集、配置模型参数，启动 Dinomaly 训练任务</p>
+    </div>
+
+    <div class="container">
+        <!-- 左侧：训练配置 -->
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- 数据集选择 -->
+            <div class="card">
+                <h2 class="card-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    选择训练数据集
+                </h2>
+                <div class="dataset-list" id="datasetList">
+                    <div style="text-align: center; padding: 20px; color: #999;">加载中...</div>
+                </div>
+                <div style="margin-top: 12px; font-size: 13px; color: #666;">
+                    已选择: <strong id="selectedCount">0</strong> 个类别
+                </div>
+                <div class="info-hint">
+                    提示：至少需要选择一个类别，且该类别训练集需有至少 10 张图像。数据集需先通过"数据集构建"页面生成时频图。
+                </div>
+            </div>
+
+            <!-- 模型参数配置 -->
+            <div class="card">
+                <h2 class="card-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 20V10M18 20V4M6 20v-6"/>
+                    </svg>
+                    模型参数配置
+                </h2>
+
+                <div class="form-group">
+                    <label>编码器类型</label>
+                    <div class="model-type-group">
+                        <button class="model-type-btn selected" id="btnDinov3" onclick="selectModelType('dinov3')">
+                            DINOv3
+                        </button>
+                        <button class="model-type-btn" id="btnDinov2" onclick="selectModelType('dinov2')">
+                            DINOv2
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>模型大小</label>
+                    <select class="form-control" id="modelSize">
+                        <option value="small">Small (快速训练，适合小数据集)</option>
+                        <option value="base">Base (中等精度)</option>
+                        <option value="large">Large (高精度，需要更多显存)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>训练迭代次数</label>
+                    <select class="form-control" id="totalIters">
+                        <option value="500">500 (快速测试)</option>
+                        <option value="1000" selected>1000 (标准训练)</option>
+                        <option value="2000">2000 (充分训练)</option>
+                        <option value="5000">5000 (深度训练)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>批次大小</label>
+                    <select class="form-control" id="batchSize">
+                        <option value="4">4 (低显存模式)</option>
+                        <option value="8" selected>8 (标准)</option>
+                        <option value="16">16 (需要较大显存)</option>
+                        <option value="32">32 (需要大显存)</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-primary" id="btnStartTraining" onclick="startTraining()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                    开始训练
+                </button>
+            </div>
+        </div>
+
+        <!-- 右侧：训练状态和已训练模型 -->
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- 训练状态 -->
+            <div class="card">
+                <h2 class="card-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    训练状态监控
+                </h2>
+
+                <div id="trainingPanel">
+                    <div id="noTaskPanel" style="text-align: center; padding: 40px; color: #999;">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 12px; opacity: 0.4;">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <p>暂无训练任务</p>
+                        <p style="font-size: 13px; margin-top: 4px;">选择数据集和参数后点击"开始训练"</p>
+                    </div>
+
+                    <div id="taskPanel" style="display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div>
+                                <span class="status-badge" id="taskStatus">pending</span>
+                                <span style="margin-left: 8px; font-size: 13px; color: #666;" id="taskCategories"></span>
+                            </div>
+                            <button class="btn btn-danger" id="btnStopTraining" onclick="stopTraining()" style="padding: 6px 16px; font-size: 12px;">
+                                停止训练
+                            </button>
+                        </div>
+
+                        <div class="progress-section">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+                            </div>
+                            <div id="progressText" style="font-size: 13px; color: #666;"></div>
+                        </div>
+
+                        <div class="log-console" id="logConsole">
+                            等待任务开始...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据集统计可视化 -->
+            <div class="card">
+                <h2 class="card-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 20V10M12 20V4M6 20v-6"/>
+                    </svg>
+                    训练集状态可视化
+                </h2>
+                <div class="charts-row">
+                    <div class="chart-box">
+                        <canvas id="distChart"></canvas>
+                    </div>
+                    <div class="chart-box">
+                        <canvas id="ratioChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 已训练模型 -->
+            <div class="card">
+                <h2 class="card-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                    </svg>
+                    已训练模型
+                </h2>
+                <div id="modelList" style="max-height: 300px; overflow-y: auto;">
+                    <div style="text-align: center; padding: 20px; color: #999;">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedCategories = new Set();
+        let selectedModelType = 'dinov3';
+        let currentTaskId = null;
+        let pollingInterval = null;
+
+        function getToken() {
+            return sessionStorage.getItem('token') || '';
+        }
+
+        async function apiFetch(url, options = {}) {
+            const token = getToken();
+            const headers = options.headers || {};
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            return fetch(url, { ...options, headers });
+        }
+
+        function selectModelType(type) {
+            selectedModelType = type;
+            document.getElementById('btnDinov3').classList.toggle('selected', type === 'dinov3');
+            document.getElementById('btnDinov2').classList.toggle('selected', type === 'dinov2');
+        }
+
+        async function loadDatasets() {
+            try {
+                const resp = await apiFetch('/api/training/datasets');
+                const datasets = await resp.json();
+                renderDatasetList(datasets);
+                renderCharts(datasets);
+            } catch (e) {
+                document.getElementById('datasetList').innerHTML =
+                    '<div style="text-align: center; padding: 20px; color: #ff4d4f;">加载失败: ' + e.message + '</div>';
+            }
+        }
+
+        function renderDatasetList(datasets) {
+            const list = document.getElementById('datasetList');
+            if (datasets.length === 0) {
+                list.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">暂无数据集，请先在"数据集构建"页面生成时频图数据</div>';
+                return;
+            }
+
+            list.innerHTML = datasets.map(d => `
+                <div class="dataset-item ${d.trainable ? '' : 'unavailable'}"
+                     onclick="${d.trainable ? `toggleDataset('${d.name}')` : ''}"
+                     data-name="${d.name}">
+                    <input type="checkbox" class="dataset-checkbox"
+                           ${selectedCategories.has(d.name) ? 'checked' : ''}
+                           ${d.trainable ? '' : 'disabled'}>
+                    <div class="dataset-info">
+                        <div class="dataset-name">${d.name}</div>
+                        <div class="dataset-stats">
+                            <span class="dataset-badge train">训练集正常: ${d.train_normal_count}</span>
+                            <span class="dataset-badge test">测试集正常: ${d.test_normal_count}</span>
+                            <span class="dataset-badge anomaly">测试集异常: ${d.test_anomaly_count}</span>
+                        </div>
+                    </div>
+                    ${d.trainable
+                        ? `<span style="color: #52c41a; font-size: 12px;">可训练</span>`
+                        : `<span style="color: #ff4d4f; font-size: 12px;">数据不足</span>`}
+                </div>
+            `).join('');
+        }
+
+        function toggleDataset(name) {
+            if (selectedCategories.has(name)) {
+                selectedCategories.delete(name);
+            } else {
+                selectedCategories.add(name);
+            }
+            document.getElementById('selectedCount').textContent = selectedCategories.size;
+            // Refresh list to update checkboxes
+            loadDatasets();
+        }
+
+        function renderCharts(datasets) {
+            const trainable = datasets.filter(d => d.trainable);
+
+            // Distribution chart
+            const distCtx = document.getElementById('distChart').getContext('2d');
+            if (window._distChart) window._distChart.destroy();
+            window._distChart = new Chart(distCtx, {
+                type: 'bar',
+                data: {
+                    labels: trainable.map(d => d.name),
+                    datasets: [
+                        {
+                            label: '训练集正常',
+                            data: trainable.map(d => d.train_normal_count),
+                            backgroundColor: '#1890ff'
+                        },
+                        {
+                            label: '测试集正常',
+                            data: trainable.map(d => d.test_normal_count),
+                            backgroundColor: '#52c41a'
+                        },
+                        {
+                            label: '测试集异常',
+                            data: trainable.map(d => d.test_anomaly_count),
+                            backgroundColor: '#ff4d4f'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top', labels: { font: { size: 10 } } } },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true }
+                    }
+                }
+            });
+
+            // Ratio chart
+            const ratioCtx = document.getElementById('ratioChart').getContext('2d');
+            if (window._ratioChart) window._ratioChart.destroy();
+            window._ratioChart = new Chart(ratioCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: trainable.map(d => d.name),
+                    datasets: [{
+                        data: trainable.map(d => d.train_normal_count + d.test_normal_count + d.test_anomaly_count),
+                        backgroundColor: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe',
+                                          '#43e97b', '#fa709a', '#fee140', '#30cfd0', '#a8c0ff']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right', labels: { font: { size: 10 } } } }
+                }
+            });
+        }
+
+        async function loadModels() {
+            try {
+                const resp = await apiFetch('/api/training/models');
+                const models = await resp.json();
+                const list = document.getElementById('modelList');
+                if (models.length === 0) {
+                    list.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">暂无已训练模型</div>';
+                    return;
+                }
+                list.innerHTML = models.map(m => `
+                    <div class="model-list-item">
+                        <div>
+                            <div class="model-name">${escapeHtml(m.name)}</div>
+                            <div class="model-meta">
+                                ${m.model_type} · ${m.size_mb}MB · ${new Date(m.created_at).toLocaleString('zh-CN')}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('modelList').innerHTML =
+                    '<div style="text-align: center; padding: 20px; color: #ff4d4f;">加载失败: ' + e.message + '</div>';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function startTraining() {
+            if (selectedCategories.size === 0) {
+                alert('请至少选择一个训练类别');
+                return;
+            }
+
+            const modelSize = document.getElementById('modelSize').value;
+            const totalIters = parseInt(document.getElementById('totalIters').value);
+            const batchSize = parseInt(document.getElementById('batchSize').value);
+
+            try {
+                const resp = await apiFetch('/api/training/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        categories: Array.from(selectedCategories),
+                        model_type: selectedModelType,
+                        model_size: modelSize,
+                        total_iters: totalIters,
+                        batch_size: batchSize
+                    })
+                });
+
+                const result = await resp.json();
+                if (result.success) {
+                    currentTaskId = result.task_id;
+                    document.getElementById('noTaskPanel').style.display = 'none';
+                    document.getElementById('taskPanel').style.display = 'block';
+                    document.getElementById('btnStartTraining').disabled = true;
+                    document.getElementById('btnStopTraining').style.display = 'block';
+                    document.getElementById('taskCategories').textContent =
+                        `类别: ${Array.from(selectedCategories).join(', ')} | 模型: ${selectedModelType}/${modelSize}`;
+                    document.getElementById('logConsole').textContent = '';
+                    startPolling();
+                } else {
+                    alert('启动训练失败: ' + result.message);
+                }
+            } catch (e) {
+                alert('启动训练失败: ' + e.message);
+            }
+        }
+
+        async function stopTraining() {
+            if (!currentTaskId) return;
+            try {
+                await apiFetch(`/api/training/stop/${currentTaskId}`, { method: 'POST' });
+                document.getElementById('btnStopTraining').style.display = 'none';
+                document.getElementById('btnStartTraining').disabled = false;
+                stopPolling();
+            } catch (e) {
+                alert('停止训练失败: ' + e.message);
+            }
+        }
+
+        function startPolling() {
+            stopPolling();
+            pollingInterval = setInterval(pollStatus, 2000);
+        }
+
+        function stopPolling() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+        }
+
+        async function pollStatus() {
+            if (!currentTaskId) return;
+
+            try {
+                const resp = await apiFetch(`/api/training/status/${currentTaskId}`);
+                const status = await resp.json();
+
+                const statusBadge = document.getElementById('taskStatus');
+                statusBadge.textContent = status.status;
+                statusBadge.className = 'status-badge ' + status.status;
+
+                document.getElementById('progressText').textContent = status.progress;
+
+                // Update progress bar
+                let percentage = 0;
+                if (status.status === 'completed') percentage = 100;
+                else if (status.status === 'running') percentage = 50;
+                document.getElementById('progressFill').style.width = percentage + '%';
+
+                // Update log
+                if (status.log) {
+                    const logConsole = document.getElementById('logConsole');
+                    logConsole.textContent = status.log;
+                    logConsole.scrollTop = logConsole.scrollHeight;
+                }
+
+                const btnStop = document.getElementById('btnStopTraining');
+                const btnStart = document.getElementById('btnStartTraining');
+
+                if (status.status === 'completed' || status.status === 'failed') {
+                    btnStop.style.display = 'none';
+                    btnStart.disabled = false;
+                    stopPolling();
+
+                    if (status.status === 'completed') {
+                        loadModels(); // Refresh model list
+                    }
+                }
+            } catch (e) {
+                console.error('Poll status error:', e);
+            }
+        }
+
+        // Check for running tasks on page load
+        async function checkRunningTasks() {
+            try {
+                const resp = await apiFetch('/api/training/status');
+                const tasks = await resp.json();
+                const running = tasks.find(t => t.status === 'running' || t.status === 'pending');
+                if (running) {
+                    currentTaskId = running.task_id;
+                    document.getElementById('noTaskPanel').style.display = 'none';
+                    document.getElementById('taskPanel').style.display = 'block';
+                    document.getElementById('btnStartTraining').disabled = true;
+                    document.getElementById('taskCategories').textContent =
+                        `类别: ${running.categories.join(', ')} | 模型: ${running.model_type}/${running.model_size}`;
+                    startPolling();
+                }
+            } catch (e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // 在 iframe 中嵌入时隐藏头部导航
+            if (window !== window.parent) {
+                const header = document.querySelector('.header');
+                if (header) header.style.display = 'none';
+            }
+            loadDatasets();
+            loadModels();
+            checkRunningTasks();
+        });
+
+        // Clean up polling on page unload
+        window.addEventListener('beforeunload', stopPolling);
+    </script>
+</body>
+</html>

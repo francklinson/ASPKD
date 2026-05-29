@@ -79,7 +79,7 @@ if 'torch' in sys.modules:
 else:
     print(f"[Main] torch not yet imported - good")
 
-from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor, dataset_builder
+from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor, dataset_builder, auth, training
 from backend.core.websocket import websocket_manager
 from backend.core.task_manager import task_manager
 
@@ -132,6 +132,8 @@ app.include_router(zero_shot.router, prefix="/api/zero-shot", tags=["零样本�
 app.include_router(few_shot.router, prefix="/api/few-shot", tags=["少样本检测"])
 app.include_router(client_monitor.router, prefix="/api/client", tags=["客户端管理"])
 app.include_router(dataset_builder.router, prefix="/api/dataset", tags=["数据集构建"])
+app.include_router(auth.router, prefix="/api/auth", tags=["用户认证"])
+app.include_router(training.router, prefix="/api/training", tags=["模型训练"])
 
 # WebSocket 路由 - 使用标准装饰器方式
 @app.websocket("/ws/progress/{task_id}")
@@ -207,6 +209,15 @@ async def dataset_builder_page():
     if os.path.exists(dataset_path):
         return FileResponse(dataset_path)
     return {"error": "数据集构建页面未找到"}
+
+
+@app.get("/training")
+async def training_page():
+    """模型训练页面入口"""
+    training_path = os.path.join(frontend_path, "training.html")
+    if os.path.exists(training_path):
+        return FileResponse(training_path)
+    return {"error": "模型训练页面未找到"}
 
 
 @app.get("/health")
