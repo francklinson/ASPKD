@@ -58,18 +58,21 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
     import shutil
     from datetime import datetime
     from backend.core.task_manager import task_manager
-    
+
+    # 动态检测项目根目录
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
     file_stats = {"uploads": 0, "visualize": 0, "exports": 0, "errors": []}
-    
+
     if clear_all:
         removed_count = await task_manager.clear_all_tasks()
     else:
         removed_count = await task_manager.cleanup_old_tasks(keep_days)
-    
+
     # 清理物理文件
     if include_files:
         # 1. 清理 uploads/ 目录（上传的音频文件）
-        uploads_dir = "uploads"
+        uploads_dir = os.path.join(project_root, "uploads")
         if os.path.exists(uploads_dir):
             try:
                 for item in os.listdir(uploads_dir):
@@ -84,9 +87,9 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
                         file_stats["errors"].append(f"uploads/{item}: {str(e)}")
             except Exception as e:
                 file_stats["errors"].append(f"uploads: {str(e)}")
-        
+
         # 2. 清理 output/vis/ 目录（热力图）
-        visualize_dir = "output/vis"
+        visualize_dir = os.path.join(project_root, "output", "vis")
         if os.path.exists(visualize_dir):
             try:
                 for item in os.listdir(visualize_dir):
@@ -103,7 +106,7 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
                 file_stats["errors"].append(f"output/vis: {str(e)}")
 
         # 3. 清理 output/exports/ 目录（导出的Excel/Zip文件）
-        exports_dir = "output/exports"
+        exports_dir = os.path.join(project_root, "output", "exports")
         if os.path.exists(exports_dir):
             try:
                 for item in os.listdir(exports_dir):
@@ -120,7 +123,7 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
                 file_stats["errors"].append(f"output/exports: {str(e)}")
 
         # 4. 清理 output/slices/ 目录（临时切片文件）
-        slice_dir = "output/slices"
+        slice_dir = os.path.join(project_root, "output", "slices")
         if os.path.exists(slice_dir):
             try:
                 for item in os.listdir(slice_dir):

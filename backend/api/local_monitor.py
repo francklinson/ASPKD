@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 from backend.core.local_monitor_service import monitor_service
 from backend.core.websocket import websocket_manager
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 router = APIRouter()
 
 
@@ -280,7 +282,7 @@ async def export_monitor_results():
     
     # 创建导出目录
     export_id = datetime.now().strftime('%Y%m%d_%H%M%S')
-    export_dir = os.path.join("output", "exports", f"monitor_{export_id}")
+    export_dir = os.path.join(PROJECT_ROOT, "output", "exports", f"monitor_{export_id}")
     os.makedirs(export_dir, exist_ok=True)
     
     try:
@@ -331,7 +333,7 @@ async def export_monitor_results():
         
         # 3. 打包成 zip
         zip_filename = f"监控结果_{export_id}.zip"
-        zip_path = os.path.join("output", "exports", zip_filename)
+        zip_path = os.path.join(PROJECT_ROOT, "output", "exports", zip_filename)
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for root, dirs, files in os.walk(export_dir):

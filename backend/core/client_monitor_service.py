@@ -206,7 +206,7 @@ class ClientDetectionService:
             task_id: 任务ID
         """
         # 保存上传的文件到临时目录
-        temp_dir = os.path.join("uploads", "clients", client_id)
+        temp_dir = os.path.join(project_root, "uploads", "clients", client_id)
         os.makedirs(temp_dir, exist_ok=True)
         
         saved_files = []
@@ -444,8 +444,8 @@ class ClientDetectionService:
         from tools.preprocessing import plot_spectrogram
         from backend.core.shazam.api import AudioFingerprinter
         
-        temp_dir = os.path.join("uploads", "clients", "segments")
-        pic_dir = os.path.join("uploads", "clients", "pictures")
+        temp_dir = os.path.join(project_root, "uploads", "clients", "segments")
+        pic_dir = os.path.join(project_root, "uploads", "clients", "pictures")
         os.makedirs(temp_dir, exist_ok=True)
         os.makedirs(pic_dir, exist_ok=True)
         
@@ -600,12 +600,11 @@ class ClientDetectionService:
                     # 去除 _overlay 后缀
                     if base_name.endswith('_overlay'):
                         base_name = base_name[:-8]
-                    audio_slice_path = f"uploads/clients/segments/{base_name}.wav"
+                    audio_slice_path = os.path.join(project_root, "uploads", "clients", "segments", f"{base_name}.wav")
                     # 检查文件是否存在
-                    full_audio_path = os.path.join(project_root, audio_slice_path)
                     print(f"[ClientMonitor Debug] 构建音频路径: overlay={overlay_path}, base={base_name}, audio={audio_slice_path}")
-                    print(f"[ClientMonitor Debug] 完整音频路径: {full_audio_path}, 存在={os.path.exists(full_audio_path)}")
-                    if not os.path.exists(full_audio_path):
+                    print(f"[ClientMonitor Debug] 完整音频路径: {audio_slice_path}, 存在={os.path.exists(audio_slice_path)}")
+                    if not os.path.exists(audio_slice_path):
                         audio_slice_path = None
 
                 # 构建结果 - 与实时检测对齐

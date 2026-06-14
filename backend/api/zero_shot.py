@@ -13,6 +13,8 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Background
 from pydantic import BaseModel
 import uuid
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 router = APIRouter()
 
 # 支持的backbone类型
@@ -142,7 +144,7 @@ async def analyze_zero_shot(
         r_list = [1, 3, 5]
 
     # 创建任务目录
-    task_dir = os.path.join("uploads", "zero_shot", task_id)
+    task_dir = os.path.join(PROJECT_ROOT, "uploads", "zero_shot", task_id)
     os.makedirs(task_dir, exist_ok=True)
 
     # 保存上传的文件
@@ -224,7 +226,7 @@ def run_zero_shot_analysis(
         
         # 使用临时模型路径（MuSc是预训练的，不需要本地模型文件）
         # 创建一个虚拟路径用于初始化
-        temp_model_path = os.path.join("uploads", "zero_shot", task_id, "model_placeholder.pth")
+        temp_model_path = os.path.join(PROJECT_ROOT, "uploads", "zero_shot", task_id, "model_placeholder.pth")
         
         detector = create_detector(
             backbone,
@@ -244,7 +246,7 @@ def run_zero_shot_analysis(
         log_operation("MODEL_LOAD", f"任务ID={task_id}, 模型加载完成")
 
         # 创建结果目录（使用绝对路径）
-        result_dir = os.path.abspath(os.path.join("output", "vis", "zero_shot", task_id))
+        result_dir = os.path.abspath(os.path.join(PROJECT_ROOT, "output", "vis", "zero_shot", task_id))
         os.makedirs(result_dir, exist_ok=True)
         log_operation("HEATMAP_DEBUG", f"任务ID={task_id}, 结果目录: {result_dir}")
         
@@ -450,7 +452,7 @@ def run_zero_shot_analysis(
             "progress": 0,
             "error": str(e)
         }
-        result_dir = os.path.join("output", "vis", "zero_shot", task_id)
+        result_dir = os.path.join(PROJECT_ROOT, "output", "vis", "zero_shot", task_id)
         os.makedirs(result_dir, exist_ok=True)
         result_file = os.path.join(result_dir, "result.json")
         with open(result_file, "w", encoding="utf-8") as f:
@@ -485,12 +487,12 @@ def generate_report(file_paths, results, backbone, threshold):
 @router.get("/result/{task_id}")
 async def get_zero_shot_result(task_id: str):
     """获取零样本分析结果"""
-    result_dir = os.path.join("output", "vis", "zero_shot", task_id)
+    result_dir = os.path.join(PROJECT_ROOT, "output", "vis", "zero_shot", task_id)
     result_file = os.path.join(result_dir, "result.json")
 
     if not os.path.exists(result_file):
         # 检查任务是否还在进行中
-        task_dir = os.path.join("uploads", "zero_shot", task_id)
+        task_dir = os.path.join(PROJECT_ROOT, "uploads", "zero_shot", task_id)
         if os.path.exists(task_dir):
             return {
                 "task_id": task_id,

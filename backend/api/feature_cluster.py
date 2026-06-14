@@ -15,6 +15,8 @@ from pydantic import BaseModel
 # 添加 AudioFeatureCluster 到路径
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "algorithms", "AudioFeatureCluster"))
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 router = APIRouter()
 
 # 支持的特征提取器
@@ -131,7 +133,7 @@ async def analyze_audio_cluster(
         )
 
     # 创建任务目录
-    task_dir = os.path.join("uploads", "cluster", task_id)
+    task_dir = os.path.join(PROJECT_ROOT, "uploads", "cluster", task_id)
     os.makedirs(task_dir, exist_ok=True)
 
     # 保存上传的文件
@@ -212,8 +214,8 @@ def run_cluster_analysis(
                                 f"outlier_threshold={config.outlier_threshold_percentile}, "
                                 f"tsne_perplexity={config.tsne_perplexity}, max_iter={config.tsne_max_iter}")
 
-        # 设置输出路径
-        result_dir = os.path.join("output", "vis", "cluster", task_id)
+        # 设置输出路径（使用项目根目录的绝对路径）
+        result_dir = os.path.join(PROJECT_ROOT, "output", "vis", "cluster", task_id)
         os.makedirs(result_dir, exist_ok=True)
         config.output_image = os.path.join(result_dir, f"cluster_result_{extractor_type}.png")
         log_operation("OUTPUT", f"任务ID={task_id}, 输出路径: {config.output_image}")
@@ -302,11 +304,13 @@ def run_cluster_analysis(
         
         # 添加交互式 HTML 路径
         if interactive_html_path:
-            # 将绝对路径转换为相对路径（相对于项目根目录）
+            # 将文件系统路径转换为 URL 路径（匹配 /visualize 静态文件挂载）
             rel_html_path = interactive_html_path.replace(os.path.sep, '/')
-            # 移除绝对路径前缀，只保留 visualize/... 部分
             if '/visualize/' in rel_html_path:
                 rel_html_path = rel_html_path[rel_html_path.find('visualize/'):]
+            elif 'output/vis/' in rel_html_path:
+                # 提取 output/vis/ 之后的部分，加上 visualize/ 前缀
+                rel_html_path = 'visualize/' + rel_html_path.split('output/vis/', 1)[1]
             elif rel_html_path.startswith('./'):
                 rel_html_path = rel_html_path[2:]
             result_data["interactive_html"] = rel_html_path
@@ -337,7 +341,7 @@ def run_cluster_analysis(
             "progress": 0,
             "error": str(e)
         }
-        result_dir = os.path.join("output", "vis", "cluster", task_id)
+        result_dir = os.path.join(PROJECT_ROOT, "output", "vis", "cluster", task_id)
         os.makedirs(result_dir, exist_ok=True)
         import json
         result_file = os.path.join(result_dir, "result.json")
@@ -384,12 +388,12 @@ def generate_report(file_labels, labels, is_outlier, outlier_scores, extractor_t
 @router.get("/result/{task_id}")
 async def get_cluster_result(task_id: str):
     """获取聚类分析结果"""
-    result_dir = os.path.join("output", "vis", "cluster", task_id)
+    result_dir = os.path.join(PROJECT_ROOT, "output", "vis", "cluster", task_id)
     result_file = os.path.join(result_dir, "result.json")
 
     if not os.path.exists(result_file):
         # 检查任务是否还在进行中
-        task_dir = os.path.join("uploads", "cluster", task_id)
+        task_dir = os.path.join(PROJECT_ROOT, "uploads", "cluster", task_id)
         if os.path.exists(task_dir):
             return {
                 "task_id": task_id,

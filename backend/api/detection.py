@@ -15,6 +15,8 @@ from pydantic import BaseModel
 
 from backend.core.websocket import websocket_manager
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 router = APIRouter()
 
 # 设备列表缓存
@@ -466,7 +468,7 @@ async def export_task_results(task_id: str):
         raise HTTPException(status_code=400, detail="没有检测结果可导出")
     
     # 创建导出目录
-    export_dir = os.path.join("output", "exports", task_id)
+    export_dir = os.path.join(PROJECT_ROOT, "output", "exports", task_id)
     os.makedirs(export_dir, exist_ok=True)
     
     try:
@@ -515,7 +517,7 @@ async def export_task_results(task_id: str):
         
         # 3. 打包成 zip
         zip_filename = f"检测结果_{task_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-        zip_path = os.path.join("output", "exports", zip_filename)
+        zip_path = os.path.join(PROJECT_ROOT, "output", "exports", zip_filename)
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for root, dirs, files in os.walk(export_dir):

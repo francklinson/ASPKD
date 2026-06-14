@@ -53,6 +53,7 @@ class TaskManager:
             import sys
             import yaml
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            self.project_root = project_root
             sys.path.insert(0, project_root)
 
             # 从配置文件读取虚拟环境路径
@@ -159,7 +160,7 @@ class TaskManager:
         task_id = str(uuid.uuid4())
         
         # 保存上传的文件
-        upload_dir = os.path.join("uploads", task_id)
+        upload_dir = os.path.join(self.project_root, "uploads", task_id)
         os.makedirs(upload_dir, exist_ok=True)
         
         file_paths = []
@@ -413,7 +414,7 @@ class TaskManager:
                 print(f"[TaskManager] 开始预处理，使用指定参考音频: {ref_file}")
             else:
                 print(f"[TaskManager] 开始预处理，使用 Shazam 自动匹配模式")
-            result = task_preprocessor.process_audio(task.files, save_dir="output/slices", original_names=original_names)
+            result = task_preprocessor.process_audio(task.files, save_dir=os.path.join(self.project_root, "output", "slices"), original_names=original_names)
             print(f"[TaskManager] 预处理完成，结果数量: {len(result)}")
             
             # 处理结果

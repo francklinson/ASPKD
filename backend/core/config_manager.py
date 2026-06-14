@@ -11,18 +11,25 @@ from pathlib import Path
 class ConfigManager:
     """
     配置管理器
-    
+
     统一管理：
     1. 算法配置
     2. 模型路径配置
     3. 推理参数配置
     """
-    
-    DEFAULT_CONFIG_PATH = "backend/config/config.yaml"
-    
+
+    @staticmethod
+    def _get_default_config_path():
+        """动态检测项目根目录，返回配置文件的绝对路径"""
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return os.path.join(project_root, "backend", "config", "config.yaml")
+
     def __init__(self, config_path: Optional[str] = None):
-        self.config_path = config_path or self.DEFAULT_CONFIG_PATH
-        self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(self.config_path))))
+        if config_path:
+            self.config_path = config_path
+        else:
+            self.config_path = ConfigManager._get_default_config_path()
+        self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.config = self._load_config()
         
     def _load_config(self) -> Dict:

@@ -554,8 +554,8 @@ class MonitorService:
         from tools.preprocessing import plot_spectrogram
         from backend.core.shazam.api import AudioFingerprinter
         
-        temp_dir = os.path.join("output", "slices", "monitor")
-        pic_dir = os.path.join("output", "slices", "monitor", "picture")
+        temp_dir = os.path.join(project_root, "output", "slices", "monitor")
+        pic_dir = os.path.join(project_root, "output", "slices", "monitor", "picture")
         os.makedirs(temp_dir, exist_ok=True)
         os.makedirs(pic_dir, exist_ok=True)
         
@@ -941,7 +941,7 @@ class MonitorService:
     
     async def cleanup_temp_files(self, max_age_hours: int = 24) -> int:
         """清理临时文件"""
-        slice_dir = "output/slices"
+        slice_dir = os.path.join(project_root, "output", "slices")
         if not os.path.exists(slice_dir):
             return 0
         
