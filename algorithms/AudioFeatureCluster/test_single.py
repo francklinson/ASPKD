@@ -23,8 +23,9 @@ def test_single_extractor(extractor_type: str = "mfcc", data_folder: str = None)
         extractor_type: 特征提取器类型
         data_folder: 数据文件夹路径，默认为 audio_database
     """
-    base_dir = Path("/home/zhouchenghao/PycharmProjects/ASD_for_SPK/聚类可视化")
-    
+    # 使用相对路径或环境变量
+    base_dir = Path(os.environ.get("ASD_OUTPUT_DIR", "./output/聚类可视化"))
+
     if data_folder is None:
         data_folder = base_dir / "audio_database"
     else:

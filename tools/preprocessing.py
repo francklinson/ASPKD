@@ -1073,11 +1073,15 @@ if __name__ == '__main__':
 
     # batch
     predict_file_list = list()
-    predict_dir = "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/原始数据/歌曲/TL-SPK3A20PG 1.0"
-    for root, dirs, files in os.walk(predict_dir):
-        for file in files:
-            if file.endswith(".wav"):
-                predict_file_list.append(os.path.join(root, file))
+    # 从环境变量或配置中读取监控目录，默认为当前目录下的 monitor 文件夹
+    predict_dir = os.environ.get("ASD_MONITOR_DIR", "./monitor")
+    if os.path.exists(predict_dir):
+        for root, dirs, files in os.walk(predict_dir):
+            for file in files:
+                if file.endswith(".wav"):
+                    predict_file_list.append(os.path.join(root, file))
+    else:
+        print(f"警告: 监控目录不存在: {predict_dir}")
 
     # 使用上下文管理器确保资源释放
     with p:

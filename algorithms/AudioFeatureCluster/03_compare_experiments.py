@@ -393,8 +393,8 @@ class ExperimentRunner:
 
 def main():
     """主函数"""
-    # 数据目录
-    base_dir = Path("/home/zhouchenghao/PycharmProjects/ASD_for_SPK/聚类可视化")
+    # 数据目录 - 使用相对路径或环境变量
+    base_dir = Path(os.environ.get("ASD_OUTPUT_DIR", "./output/聚类可视化"))
     
     # 可以选择使用全部数据或单个说话人的数据
     # 这里使用全部数据

@@ -1140,8 +1140,8 @@ def main():
         if os.path.exists(raw_folder):
             audio_folder = raw_folder
         else:
-            # 使用默认路径
-            audio_folder = "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/原始数据/标记后/auto_test/8k/good"
+            # 使用默认路径（相对路径或环境变量）
+            audio_folder = os.environ.get("ASD_AUDIO_DIR", "./data/audio")
     
     data_loader = AudioDataLoader(audio_folder)
 

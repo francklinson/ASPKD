@@ -36,9 +36,10 @@ def extract_tar(tar_path: str, extract_to: str) -> bool:
 
 def setup_raw_data():
     """设置原始数据目录结构"""
-    base_dir = Path("/home/zhouchenghao/PycharmProjects/ASD_for_SPK/聚类可视化")
+    # 使用相对路径或环境变量
+    base_dir = Path(os.environ.get("ASD_OUTPUT_DIR", "./output/聚类可视化"))
     raw_dir = base_dir / "raw_audio"
-    raw_dir.mkdir(exist_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
     return raw_dir
 
 
@@ -133,10 +134,13 @@ def main():
     
     success = download_librispeech_samples()
     
+    # 使用相对路径或环境变量
+    output_base = Path(os.environ.get("ASD_OUTPUT_DIR", "./output/聚类可视化"))
+    
     if success:
         print("\n✓ 原始人声素材下载完成！")
         print("\n文件位置:")
-        raw_dir = Path("/home/zhouchenghao/PycharmProjects/ASD_for_SPK/聚类可视化/raw_audio")
+        raw_dir = output_base / "raw_audio"
         for f in sorted(raw_dir.glob("*.wav")):
             print(f"  - {f.name}")
     else:
@@ -152,8 +156,10 @@ def create_fallback_audio():
     import numpy as np
     import soundfile as sf
     
-    raw_dir = Path("/home/zhouchenghao/PycharmProjects/ASD_for_SPK/聚类可视化/raw_audio")
-    raw_dir.mkdir(exist_ok=True)
+    # 使用相对路径或环境变量
+    output_base = Path(os.environ.get("ASD_OUTPUT_DIR", "./output/聚类可视化"))
+    raw_dir = output_base / "raw_audio"
+    raw_dir.mkdir(parents=True, exist_ok=True)
     
     sample_rate = 16000
     duration = 30  # 30秒

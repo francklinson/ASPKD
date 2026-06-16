@@ -70,7 +70,7 @@ class ModelConfig:
 @dataclass
 class DataConfig:
     """数据配置参数"""
-    data_path: str = "/home/zhouchenghao/PycharmProjects/ASD_for_SPK/data/spk"
+    data_path: str = field(default_factory=lambda: os.environ.get("ASD_DATA_PATH", "./data/spk"))
     save_dir: str = "./saved_results"
     save_name: str = "vit_spk"
     item_list: List[str] = field(default_factory=list)  # 动态从数据目录获取

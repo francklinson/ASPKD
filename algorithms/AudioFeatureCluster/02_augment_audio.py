@@ -104,7 +104,8 @@ def create_audio_database():
     - 正常样本 (100个, ~90%): 原始 + 时域偏移 + 轻微变化
     - 异常样本 (10个, ~10%): 明显异常
     """
-    base_dir = Path("/home/zhouchenghao/PycharmProjects/ASD_for_SPK/聚类可视化")
+    # 使用相对路径或环境变量
+    base_dir = Path(os.environ.get("ASD_OUTPUT_DIR", "./output/聚类可视化"))
     raw_dir = base_dir / "raw_audio"
     database_dir = base_dir / "audio_database"
 
@@ -112,7 +113,7 @@ def create_audio_database():
     if database_dir.exists():
         import shutil
         shutil.rmtree(database_dir)
-    database_dir.mkdir(exist_ok=True)
+    database_dir.mkdir(parents=True, exist_ok=True)
 
     # 获取原始音频文件
     raw_files = sorted(raw_dir.glob("speaker_*_original.wav"))

@@ -66,7 +66,8 @@ def main():
     print("✓ 所有步骤执行完成!")
     print("="*70)
     print("\n输出文件:")
-    base_dir = Path("/home/zhouchenghao/PycharmProjects/ASD_for_SPK/聚类可视化")
+    # 使用相对路径或环境变量
+    base_dir = Path(os.environ.get("ASD_OUTPUT_DIR", "./output/聚类可视化"))
     print(f"  - 原始音频: {base_dir}/raw_audio/")
     print(f"  - 音频数据库: {base_dir}/audio_database/")
     print(f"  - 实验结果: {base_dir}/experiment_results/")
