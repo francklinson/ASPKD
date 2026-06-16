@@ -1916,7 +1916,7 @@
         const OFFLINE_RESULTS_KEY = 'offline_detection_results';
         
         // 从 localStorage 加载离线检测历史结果
-        function loadOfflineResultsFromStorage() {
+        async function loadOfflineResultsFromStorage() {
             try {
                 const stored = localStorage.getItem(OFFLINE_RESULTS_KEY);
                 if (stored) {
@@ -1940,6 +1940,9 @@
                         console.log(`[Offline] 为 ${rebuiltCount} 条历史记录重建了音频路径`);
                     }
 
+                    // 验证文件是否存在并清理无效记录
+                    await validateAndCleanHistoryRecords();
+
                     // 恢复显示
                     if (offlineResultsData.length > 0) {
                         restoreOfflineResultsDisplay();
@@ -1950,6 +1953,74 @@
                 console.error('[Offline] 加载历史结果失败:', error);
                 offlineResultsData = [];
             }
+        }
+
+        // 验证历史记录中的文件是否存在，清理无效记录
+        async function validateAndCleanHistoryRecords() {
+            const validRecords = [];
+            const removedRecords = [];
+
+            for (const r of offlineResultsData) {
+                let hasValidFile = false;
+
+                // 检查音频文件是否存在
+                if (r.audio_slice_path) {
+                    try {
+                        const response = await fetch(`${API_BASE}/api/detection/audio/${r.audio_slice_path}`, {
+                            method: 'HEAD'
+                        });
+                        if (response.ok) {
+                            hasValidFile = true;
+                        } else {
+                            console.log(`[Offline] 音频文件不存在: ${r.audio_slice_path}`);
+                            r.audio_slice_path = null;
+                        }
+                    } catch (error) {
+                        console.log(`[Offline] 验证音频文件失败: ${r.audio_slice_path}`, error);
+                        r.audio_slice_path = null;
+                    }
+                }
+
+                // 检查热力图文件是否存在
+                if (r.overlay_path) {
+                    try {
+                        const response = await fetch(`${API_BASE}/${r.overlay_path}`, {
+                            method: 'HEAD'
+                        });
+                        if (response.ok) {
+                            hasValidFile = true;
+                        } else {
+                            console.log(`[Offline] 热力图文件不存在: ${r.overlay_path}`);
+                            r.overlay_path = null;
+                            r.heatmap_path = null;
+                            r.original_path = null;
+                        }
+                    } catch (error) {
+                        console.log(`[Offline] 验证热力图文件失败: ${r.overlay_path}`, error);
+                        r.overlay_path = null;
+                        r.heatmap_path = null;
+                        r.original_path = null;
+                    }
+                }
+
+                // 如果没有任何有效文件，标记为待删除
+                if (hasValidFile) {
+                    validRecords.push(r);
+                } else {
+                    removedRecords.push(r.filename || '未知文件');
+                }
+            }
+
+            // 更新离线结果数据，只保留有效记录
+            offlineResultsData = validRecords;
+
+            // 保存清理后的记录到 localStorage
+            if (removedRecords.length > 0) {
+                saveOfflineResultsToStorage();
+                console.log(`[Offline] 已清理 ${removedRecords.length} 条无效历史记录:`, removedRecords);
+            }
+
+            console.log(`[Offline] 历史记录验证完成，有效记录: ${validRecords.length} 条`);
         }
         
         // 保存离线检测结果到 localStorage
@@ -4922,14 +4993,14 @@
         }
 
         // 页面加载时初始化
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             console.log('[Init] DOM加载完成，开始初始化...');
-            
+
             // 加载算法选项（包括自训练模型）
             loadAlgorithmOptions();
 
             // 初始化离线检测文件上传
-            initOfflineUpload();
+            await initOfflineUpload();
 
             // 初始化特征聚类文件上传
             initClusterUpload();
@@ -5618,9 +5689,9 @@
         setInterval(refreshClientStatus, 10000);
         
         // 离线检测文件上传初始化
-        function initOfflineUpload() {
+        async function initOfflineUpload() {
             // 从 localStorage 加载历史结果
-            loadOfflineResultsFromStorage();
+            await loadOfflineResultsFromStorage();
             
             const dropzone = document.getElementById('dropzone');
             const fileInput = document.getElementById('fileInput');
