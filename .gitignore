@@ -287,3 +287,8 @@ models/**/*.safetensors
 # 保留模型目录的README和必要的空目录标记
 !models/**/README.md
 !models/**/.gitkeep
+
+# 日志文件
+*.log
+logs/
+log/

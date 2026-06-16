@@ -177,11 +177,36 @@ class AnnotationRequest(BaseModel):
     category: str  # 参考音频名称（类别名）
 
 
+class BatchAnnotationRequest(BaseModel):
+    """批量标注请求"""
+    annotations: List[Dict[str, str]]  # 每个元素包含 segment_id, label, category, segment_path
+
+
+class BatchAnnotationResponse(BaseModel):
+    """批量标注响应"""
+    success: bool
+    message: str
+    total: int
+    success_count: int
+    failed_count: int
+    failed_items: List[Dict[str, str]]
+
+
 class AnnotationResponse(BaseModel):
     """标注响应"""
     success: bool
     message: str
     segment: Optional[AudioSegmentInfo] = None
+
+
+class AnnotationStats(BaseModel):
+    """标注统计信息"""
+    total_annotated: int
+    normal_count: int
+    anomaly_count: int
+    unlabeled_count: int
+    by_category: Dict[str, Dict[str, int]]
+    recent_annotations: List[Dict[str, Any]]
 
 
 class DatasetSplitLog(BaseModel):
@@ -206,6 +231,187 @@ def get_reference_audios() -> List[Dict[str, Any]]:
     except Exception as e:
         log_operation("GET_REFERENCES_ERROR", str(e), "ERROR")
         return []
+
+
+def split_audio_auto_match_v2(
+    audio_path: str,
+    output_dir: str,
+    segment_duration: float = 10.0,
+    overlap_ratio: float = 0.5,
+    min_segment_duration: float = 3.0,
+    auto_annotate: bool = False
+) -> List[Dict[str, Any]]:
+    """
+    增强版音频切分函数
+    支持更多参数控制和自动标注
+
+    Args:
+        audio_path: 原始音频文件路径
+        output_dir: 切分后音频输出目录
+        segment_duration: 每个片段的时长（秒）
+        overlap_ratio: 重叠比例（0-1）
+        min_segment_duration: 最小片段时长（秒）
+        auto_annotate: 是否启用自动标注
+
+    Returns:
+        切分后的音频片段信息列表
+    """
+    segments = []
+
+    try:
+        # 导入长音频分析器
+        from backend.core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
+        from backend.core.shazam.database.connector import MySQLConnector
+
+        # 创建数据库连接
+        db_connector = MySQLConnector()
+
+        # 创建分析器配置（使用传入的参数）
+        config = AnalyzerConfig(
+            window_size=segment_duration,
+            step_size=segment_duration * (1 - overlap_ratio),
+            match_threshold=10,
+            min_match_ratio=0.05,
+            time_tolerance=2.0,
+            min_segment_duration=min_segment_duration,
+            use_parallel=True,
+            max_workers=4,
+            skip_silence=True
+        )
+
+        # 创建长音频分析器
+        analyzer = LongAudioAnalyzer(config=config, db_connector=db_connector)
+
+        log_operation("ANALYZE_START", f"开始分析音频: {os.path.basename(audio_path)}")
+
+        # 分析长音频
+        result = analyzer.analyze(audio_path)
+
+        # 关闭数据库连接
+        try:
+            db_connector.cursor.close()
+            db_connector.conn.close()
+        except Exception:
+            pass
+
+        if not result.segment_matches:
+            log_operation("NO_SEGMENTS_FOUND", f"音频 {audio_path} 中未找到匹配片段", "WARNING")
+            return []
+
+        log_operation("ANALYZE_SUCCESS", f"找到 {len(result.segment_matches)} 个匹配片段")
+
+        # 加载原始音频
+        y, sr = librosa.load(audio_path, sr=22050)
+        audio_total_duration = librosa.get_duration(y=y, sr=sr)
+
+        # 根据分析结果切分音频
+        for idx, segment_match in enumerate(result.segment_matches):
+            # 计算切分位置
+            start_time = segment_match.start_time
+            end_time = segment_match.end_time
+
+            # 确保不超出音频边界
+            start_time = max(0, start_time)
+            end_time = min(audio_total_duration, end_time)
+
+            # 如果片段太短，跳过
+            if end_time - start_time < min_segment_duration:
+                continue
+
+            # 转换为采样点
+            start_sample = int(start_time * sr)
+            end_sample = int(end_time * sr)
+
+            # 切分音频
+            segment_audio = y[start_sample:end_sample]
+
+            # 自动标注（基于音频质量）
+            auto_label = None
+            if auto_annotate:
+                auto_label = _auto_detect_audio_quality(segment_audio, sr)
+
+            # 生成文件名
+            original_name = os.path.splitext(os.path.basename(audio_path))[0]
+            matched_name = segment_match.music_name
+            segment_filename = f"{original_name}_seg{idx:03d}_{matched_name}_{int(start_time)}s.wav"
+            segment_path = os.path.join(output_dir, segment_filename)
+
+            # 保存音频片段
+            sf.write(segment_path, segment_audio, sr)
+
+            # 生成时频图
+            spectrogram_path = segment_path.replace('.wav', '.png')
+            generate_spectrogram_image(segment_path, spectrogram_path)
+
+            # 计算唯一ID
+            file_hash = hashlib.md5(f"{audio_path}_{start_time}_{end_time}".encode()).hexdigest()[:12]
+
+            segment_info = {
+                "segment_id": f"seg_{file_hash}",
+                "original_filename": os.path.basename(audio_path),
+                "segment_filename": segment_filename,
+                "duration": round(end_time - start_time, 2),
+                "sample_rate": sr,
+                "file_path": get_url_path(segment_path),
+                "spectrogram_path": get_url_path(spectrogram_path),
+                "reference_audio": matched_name,
+                "start_time": round(start_time, 2),
+                "end_time": round(end_time, 2),
+                "confidence": segment_match.confidence,
+                "match_ratio": segment_match.match_ratio,
+                "is_reliable": segment_match.is_reliable,
+                "label": auto_label,
+                "annotated_at": datetime.now().isoformat() if auto_label else None,
+                "auto_annotated": auto_annotate
+            }
+            segments.append(segment_info)
+
+            log_operation("SEGMENT_SAVED",
+                         f"保存片段: {segment_filename} ({segment_info['duration']}s), "
+                         f"自动标注: {auto_label}")
+
+        if segments:
+            log_operation("SPLIT_SUCCESS",
+                         f"音频 {os.path.basename(audio_path)} 切分为 {len(segments)} 个片段")
+        else:
+            log_operation("NO_SEGMENTS_FOUND",
+                         f"音频 {audio_path} 中未找到有效片段（所有片段都太短）", "WARNING")
+
+    except Exception as e:
+        log_operation("SPLIT_ERROR", f"切分音频失败: {str(e)}", "ERROR")
+        raise HTTPException(status_code=500, detail=f"音频切分失败: {str(e)}")
+
+    return segments
+
+
+def _auto_detect_audio_quality(audio: np.ndarray, sr: int) -> Optional[str]:
+    """
+    自动检测音频质量并给出标注建议
+
+    Returns:
+        "normal" 或 "anomaly" 或 None
+    """
+    try:
+        # 计算音频特征
+        # 1. 信噪比估算
+        rms = librosa.feature.rms(y=audio)[0]
+        signal_power = np.mean(rms ** 2)
+
+        # 2. 计算过零率（检测噪声）
+        zcr = librosa.feature.zero_crossing_rate(audio)[0]
+        zcr_mean = np.mean(zcr)
+
+        # 3. 计算频谱质心
+        spectral_centroids = librosa.feature.spectral_centroid(y=audio, sr=sr)[0]
+        centroid_mean = np.mean(spectral_centroids)
+
+        # 简单的规则判断
+        # 如果过零率过高或频谱质心异常，可能是异常音频
+        if zcr_mean > 0.15 or centroid_mean > 4000:
+            return "anomaly"
+        return "normal"
+    except Exception:
+        return None
 
 
 def split_audio_auto_match(
@@ -485,86 +691,113 @@ async def get_available_references():
     return references
 
 
-@router.post("/upload-and-split", response_model=UploadAndSplitResponse)
+@router.post("/upload-and-split")
 async def upload_and_split_audio(
-    file: UploadFile = File(...),
-    username: Optional[str] = Form(None)
+    files: List[UploadFile] = File(..., description="支持批量上传音频文件"),
+    username: Optional[str] = Form(None),
+    segment_duration: float = Form(10.0, description="切分片段时长(秒)"),
+    overlap_ratio: float = Form(0.5, description="重叠比例(0-1)", ge=0.0, le=0.9),
+    min_segment_duration: float = Form(3.0, description="最小片段时长(秒)"),
+    auto_annotate: bool = Form(False, description="是否启用自动标注(基于音频质量检测)")
 ):
     """
-    上传音频文件并使用Shazam自动匹配参考音频进行切分
+    批量上传音频文件并使用Shazam自动匹配参考音频进行切分
 
-    - **file**: 音频文件 (支持 wav, mp3, flac 等格式)
+    - **files**: 音频文件列表 (支持 wav, mp3, flac 等格式)
     - **username**: 可选，用于多用户隔离
+    - **segment_duration**: 切分片段时长(秒)，默认10秒
+    - **overlap_ratio**: 重叠比例(0-1)，默认0.5
+    - **min_segment_duration**: 最小片段时长(秒)，默认3秒
+    - **auto_annotate**: 是否启用自动标注(基于音频质量检测)
 
     系统会自动从参考音频库中匹配最合适的参考音频，并使用Shazam音频指纹算法进行切分。
     """
     start_time = time.time()
-    log_operation("UPLOAD_SPLIT_START", f"文件: {file.filename}, 用户: {username or '匿名'}")
+    log_operation("UPLOAD_SPLIT_START", f"批量上传 {len(files)} 个文件, 用户: {username or '匿名'}")
 
     # 获取用户隔离的临时目录
     user_upload_dir, user_slice_dir = get_user_temp_dirs(username)
 
     # 验证文件格式
     allowed_extensions = {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a'}
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"不支持的文件格式，仅支持 {allowed_extensions}"
-        )
 
-    temp_file_path = None
+    all_segments = []
+    processed_files = []
+    failed_files = []
+    reference_stats = {}
 
-    try:
-        # 保存上传的文件到用户隔离的临时目录
-        temp_filename = f"{int(time.time())}_{file.filename}"
-        temp_file_path = os.path.join(user_upload_dir, temp_filename)
+    for file in files:
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in allowed_extensions:
+            failed_files.append({"file": file.filename, "reason": f"不支持的格式: {ext}"})
+            continue
 
-        with open(temp_file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+        temp_file_path = None
+        try:
+            # 保存上传的文件到用户隔离的临时目录
+            temp_filename = f"{int(time.time() * 1000)}_{file.filename}"
+            temp_file_path = os.path.join(user_upload_dir, temp_filename)
 
-        log_operation("UPLOAD_SAVED", f"临时文件: {temp_file_path}")
+            with open(temp_file_path, "wb") as f:
+                shutil.copyfileobj(file.file, f)
 
-        # 使用Shazam自动匹配并切分音频
-        segments = split_audio_auto_match(
-            audio_path=temp_file_path,
-            output_dir=user_slice_dir
-        )
+            log_operation("UPLOAD_SAVED", f"临时文件: {temp_file_path}")
 
-        if not segments:
-            return UploadAndSplitResponse(
-                success=False,
-                message="未能在音频中找到匹配的参考片段，请检查音频内容或确认参考音频库中已添加相应的参考音频",
-                segments=[],
-                reference_audio=""
+            # 使用Shazam自动匹配并切分音频（使用新的参数）
+            segments = split_audio_auto_match_v2(
+                audio_path=temp_file_path,
+                output_dir=user_slice_dir,
+                segment_duration=segment_duration,
+                overlap_ratio=overlap_ratio,
+                min_segment_duration=min_segment_duration,
+                auto_annotate=auto_annotate
             )
 
-        # 获取匹配到的参考音频名称（所有片段应该都是同一个参考音频）
-        matched_reference = segments[0]["reference_audio"] if segments else ""
+            if segments:
+                all_segments.extend(segments)
+                matched_ref = segments[0]["reference_audio"] if segments else "unknown"
+                reference_stats[matched_ref] = reference_stats.get(matched_ref, 0) + len(segments)
+                processed_files.append({"file": file.filename, "segments": len(segments)})
+            else:
+                failed_files.append({"file": file.filename, "reason": "未找到匹配的参考片段"})
 
-        elapsed_time = (time.time() - start_time) * 1000
-        log_operation("UPLOAD_SPLIT_SUCCESS", f"生成 {len(segments)} 个片段, 匹配参考音频: {matched_reference}, 耗时 {elapsed_time:.2f}ms")
+        except Exception as e:
+            log_operation("UPLOAD_SPLIT_ERROR", f"处理 {file.filename} 失败: {str(e)}", "ERROR")
+            failed_files.append({"file": file.filename, "reason": str(e)})
 
-        return UploadAndSplitResponse(
-            success=True,
-            message=f"音频上传并切分成功，共生成 {len(segments)} 个片段，自动匹配参考音频: {matched_reference}",
-            segments=segments,
-            reference_audio=matched_reference
-        )
+        finally:
+            # 清理临时上传文件
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.remove(temp_file_path)
+                except:
+                    pass
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        log_operation("UPLOAD_SPLIT_ERROR", str(e), "ERROR")
-        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+    elapsed_time = (time.time() - start_time) * 1000
 
-    finally:
-        # 清理临时上传文件
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.remove(temp_file_path)
-            except:
-                pass
+    # 获取匹配到的主要参考音频
+    main_reference = max(reference_stats.keys(), key=lambda x: reference_stats[x]) if reference_stats else ""
+
+    log_operation("UPLOAD_SPLIT_SUCCESS",
+                  f"处理完成: {len(processed_files)}/{len(files)} 个文件, "
+                  f"生成 {len(all_segments)} 个片段, 主参考音频: {main_reference}, "
+                  f"耗时 {elapsed_time:.2f}ms")
+
+    return {
+        "success": len(all_segments) > 0,
+        "message": f"批量处理完成：成功 {len(processed_files)} 个文件，失败 {len(failed_files)} 个，共生成 {len(all_segments)} 个片段",
+        "segments": all_segments,
+        "reference_audio": main_reference,
+        "stats": {
+            "total_files": len(files),
+            "processed": len(processed_files),
+            "failed": len(failed_files),
+            "total_segments": len(all_segments),
+            "reference_distribution": reference_stats
+        },
+        "processed_files": processed_files,
+        "failed_files": failed_files
+    }
 
 
 @router.post("/upload-manual", response_model=UploadAndSplitResponse)
@@ -1070,6 +1303,226 @@ async def get_all_segments(
 
     log_operation("GET_ALL_SEGMENTS_SUCCESS", f"共 {len(all_segments)} 个片段")
     return all_segments
+
+
+@router.post("/annotate/batch")
+async def batch_annotate_segments(request: BatchAnnotationRequest):
+    """
+    批量标注音频片段
+
+    - **annotations**: 标注列表，每个元素包含:
+        - segment_id: 片段ID
+        - label: 标签 (normal 或 anomaly)
+        - category: 类别名称
+        - segment_path: 音频片段路径
+    """
+    start_time = time.time()
+    log_operation("BATCH_ANNOTATE_START", f"批量标注 {len(request.annotations)} 个片段")
+
+    success_count = 0
+    failed_items = []
+
+    for item in request.annotations:
+        try:
+            segment_id = item.get("segment_id")
+            label = item.get("label")
+            category = item.get("category")
+            segment_path = item.get("segment_path")
+
+            # 调用单条标注逻辑
+            result = await _annotate_single_segment(
+                segment_id=segment_id,
+                label=label,
+                category=category,
+                segment_path=segment_path
+            )
+
+            if result["success"]:
+                success_count += 1
+            else:
+                failed_items.append({"segment_id": segment_id, "reason": result.get("message", "未知错误")})
+
+        except Exception as e:
+            failed_items.append({"segment_id": item.get("segment_id", "unknown"), "reason": str(e)})
+
+    elapsed_time = (time.time() - start_time) * 1000
+    log_operation("BATCH_ANNOTATE_COMPLETE",
+                  f"成功: {success_count}/{len(request.annotations)}, 耗时: {elapsed_time:.2f}ms")
+
+    return BatchAnnotationResponse(
+        success=success_count == len(request.annotations),
+        message=f"批量标注完成：成功 {success_count} 个，失败 {len(failed_items)} 个",
+        total=len(request.annotations),
+        success_count=success_count,
+        failed_count=len(failed_items),
+        failed_items=failed_items
+    )
+
+
+async def _annotate_single_segment(
+    segment_id: str,
+    label: str,
+    category: str,
+    segment_path: str
+) -> Dict[str, Any]:
+    """单条标注的内部实现"""
+    try:
+        # 验证标签
+        if label not in ("normal", "anomaly"):
+            return {"success": False, "message": "标签必须是 'normal' 或 'anomaly'"}
+
+        # 将 URL 路径转换为文件系统路径
+        file_path = get_file_path(segment_path)
+
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            return {"success": False, "message": f"音频片段不存在: {file_path}"}
+
+        # 确保目录结构存在
+        paths = ensure_category_structure(category)
+
+        # 获取当前数据集统计
+        train_normal_count = len([f for f in os.listdir(paths["train_good"]) if f.endswith('.wav')])
+        test_normal_count = len([f for f in os.listdir(paths["test_good"]) if f.endswith('.wav')])
+
+        # 决定放入训练集还是测试集
+        if label == "anomaly":
+            split_type = "test"
+            target_dir = paths["test_anomaly"]
+        else:
+            split_type = split_train_test(train_normal_count, test_normal_count)
+            target_dir = paths["train_good"] if split_type == "train" else paths["test_good"]
+
+        # 生成目标文件名
+        filename = os.path.basename(file_path)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        new_filename = f"{timestamp}_{filename}"
+        target_path = os.path.join(target_dir, new_filename)
+
+        # 复制文件到目标目录
+        shutil.copy2(file_path, target_path)
+
+        # 处理时频图
+        source_spectrogram = file_path.replace('.wav', '.png')
+        target_spectrogram = target_path.replace('.wav', '.png')
+        if os.path.exists(source_spectrogram):
+            shutil.copy2(source_spectrogram, target_spectrogram)
+        else:
+            generate_spectrogram_image(target_path, target_spectrogram)
+
+        # 记录划分日志
+        log_dataset_split(category, "add", new_filename, split_type, label)
+
+        # 删除临时文件
+        if file_path.startswith(SLICE_TEMP_DIR) and os.path.exists(file_path):
+            os.remove(file_path)
+
+        return {
+            "success": True,
+            "message": f"标注成功！已添加到 {split_type} 集的 {label} 类别",
+            "segment": {
+                "segment_id": segment_id,
+                "segment_filename": new_filename,
+                "file_path": get_url_path(target_path),
+                "label": label
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"标注失败: {str(e)}"}
+
+
+@router.get("/annotation-stats", response_model=AnnotationStats)
+async def get_annotation_stats():
+    """获取标注统计信息"""
+    log_operation("GET_ANNOTATION_STATS", "获取标注统计")
+
+    try:
+        total_normal = 0
+        total_anomaly = 0
+        total_unlabeled = 0
+        by_category = {}
+        recent_annotations = []
+
+        # 统计已标注数据
+        if os.path.exists(DATASET_ROOT):
+            for category in os.listdir(DATASET_ROOT):
+                category_path = os.path.join(DATASET_ROOT, category)
+                if not os.path.isdir(category_path) or category == "split_log.jsonl":
+                    continue
+
+                # 初始化类别统计
+                by_category[category] = {"normal": 0, "anomaly": 0, "unlabeled": 0}
+
+                # 统计训练集正常数据
+                train_good_dir = os.path.join(category_path, "train", "good")
+                if os.path.exists(train_good_dir):
+                    count = len([f for f in os.listdir(train_good_dir) if f.endswith('.wav')])
+                    by_category[category]["normal"] += count
+                    total_normal += count
+
+                # 统计测试集正常数据
+                test_good_dir = os.path.join(category_path, "test", "good")
+                if os.path.exists(test_good_dir):
+                    count = len([f for f in os.listdir(test_good_dir) if f.endswith('.wav')])
+                    by_category[category]["normal"] += count
+                    total_normal += count
+
+                # 统计测试集异常数据
+                test_anomaly_dir = os.path.join(category_path, "test", "anomaly")
+                if os.path.exists(test_anomaly_dir):
+                    count = len([f for f in os.listdir(test_anomaly_dir) if f.endswith('.wav')])
+                    by_category[category]["anomaly"] += count
+                    total_anomaly += count
+
+        # 统计未标注数据（临时目录）
+        if os.path.exists(SLICE_TEMP_DIR):
+            for filename in os.listdir(SLICE_TEMP_DIR):
+                if filename.endswith('.wav'):
+                    total_unlabeled += 1
+                    # 尝试从文件名提取类别
+                    parts = filename.rsplit('_', 2)
+                    if len(parts) >= 3:
+                        category = parts[-2]
+                        if category not in by_category:
+                            by_category[category] = {"normal": 0, "anomaly": 0, "unlabeled": 0}
+                        by_category[category]["unlabeled"] += 1
+
+        # 读取最近的标注日志
+        log_file = os.path.join(DATASET_ROOT, "split_log.jsonl")
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                    # 取最近20条
+                    for line in reversed(lines[-20:]):
+                        try:
+                            entry = json.loads(line.strip())
+                            if entry.get("operation") == "add":
+                                recent_annotations.append({
+                                    "timestamp": entry.get("timestamp"),
+                                    "category": entry.get("category"),
+                                    "filename": entry.get("file_name"),
+                                    "split_type": entry.get("split_type"),
+                                    "label": entry.get("label")
+                                })
+                        except:
+                            continue
+            except Exception:
+                pass
+
+        return AnnotationStats(
+            total_annotated=total_normal + total_anomaly,
+            normal_count=total_normal,
+            anomaly_count=total_anomaly,
+            unlabeled_count=total_unlabeled,
+            by_category=by_category,
+            recent_annotations=recent_annotations[:10]  # 最近10条
+        )
+
+    except Exception as e:
+        log_operation("GET_ANNOTATION_STATS_ERROR", str(e), "ERROR")
+        raise HTTPException(status_code=500, detail=f"获取标注统计失败: {str(e)}")
 
 
 @router.post("/annotate", response_model=AnnotationResponse)
