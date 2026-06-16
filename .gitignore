@@ -275,8 +275,14 @@ models/pre_trained/*/
 models/pre_trained/hub/
 models/pre_trained/huggingface/
 models/pre_trained/*.pckl
-!models/pre_trained/*.pth
-!models/pre_trained/*.pt
+
+# 忽略所有模型权重文件（这些文件通常很大，需要单独下载）
+models/**/*.pth
+models/**/*.pt
+models/**/*.pth
+models/**/*.pt
+models/**/*.ckpt
+models/**/*.safetensors
 
 # 保留模型目录的README和必要的空目录标记
 !models/**/README.md
