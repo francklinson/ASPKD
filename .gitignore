@@ -292,3 +292,4 @@ models/**/*.safetensors
 *.log
 logs/
 log/
+.current_log
