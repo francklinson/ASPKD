@@ -269,3 +269,15 @@ pre_trained/*
 # 模型检查点目录
 model_ckpts/*
 !model_ckpts/README.md  # 保留README
+
+# models目录下的子目录（包含下载的模型文件和缓存）
+models/pre_trained/*/
+models/pre_trained/hub/
+models/pre_trained/huggingface/
+models/pre_trained/*.pckl
+!models/pre_trained/*.pth
+!models/pre_trained/*.pt
+
+# 保留模型目录的README和必要的空目录标记
+!models/**/README.md
+!models/**/.gitkeep
