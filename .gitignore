@@ -293,3 +293,4 @@ models/**/*.safetensors
 logs/
 log/
 .current_log
+algorithms/BaseASD/DifferNet/models/dummy_test
