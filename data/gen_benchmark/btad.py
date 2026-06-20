@@ -7,7 +7,7 @@ class MVTecSolver(object):
         '01', '02', '03',
     ]
 
-    def __init__(self, root='data/mvtec'):
+    def __init__(self, root='data/public_dataset/mvtec'):
         self.root = root
         self.meta_path = f'{root}/meta.json'
         self.phases = ['train', 'test']
@@ -43,7 +43,7 @@ class MVTecSolver(object):
 
 
 if __name__ == '__main__':
-    # runner = MVTecSolver(root='data/mvtec', is2D=True)
+    # runner = MVTecSolver(root='data/public_dataset/mvtec', is2D=True)
     # runner.run()
     runner = MVTecSolver(root='/fuxi_team14/users/haoyanghe/codes/data/ft_local/btad/BTech_Dataset_transformed')
     runner.run()

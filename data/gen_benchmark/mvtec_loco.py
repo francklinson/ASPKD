@@ -7,7 +7,7 @@ class MVTecSolver(object):
         'breakfast_box', 'juice_bottle', 'pushpins', 'screw_bag', 'splicing_connectors',
     ]
 
-    def __init__(self, root='data/mvtec', is2D=False):
+    def __init__(self, root='data/public_dataset/mvtec', is2D=False):
         self.root = root
         self.is2D = is2D
         self.meta_path = f'{root}/meta.json'
@@ -51,7 +51,7 @@ class MVTecSolver(object):
 
 
 if __name__ == '__main__':
-    # runner = MVTecSolver(root='data/mvtec', is2D=True)
+    # runner = MVTecSolver(root='data/public_dataset/mvtec', is2D=True)
     # runner.run()
     runner = MVTecSolver(root='/fuxi_team14/users/haoyanghe/codes/data/ft_local/mvtec_loco', is2D=False)
     runner.run()

@@ -587,6 +587,188 @@
             display: none;
         }
 
+        /* ===== 数据来源选择器 ===== */
+        .source-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .source-tab {
+            padding: 8px 16px;
+            border: 1px solid #d9d9d9;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+            flex: 1;
+            text-align: center;
+        }
+        .source-tab:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+        .source-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+        .source-panel {
+            display: none;
+        }
+        .source-panel.active {
+            display: block;
+        }
+
+        /* ===== 源列表（离线任务/在线结果） ===== */
+        .source-list {
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            margin-top: 8px;
+        }
+        .source-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 13px;
+        }
+        .source-item:hover {
+            background: #f8f9ff;
+        }
+        .source-item.selected {
+            background: #f0f3ff;
+            border-left: 3px solid #667eea;
+        }
+        .source-item:last-child {
+            border-bottom: none;
+        }
+        .source-item .item-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .source-item .item-name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .source-item .item-meta {
+            font-size: 11px;
+            color: #888;
+            margin-top: 2px;
+        }
+        .source-item .item-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .badge-normal { background: #f6ffed; color: #52c41a; }
+        .badge-anomaly { background: #fff2f0; color: #ff4d4f; }
+        .badge-default { background: #f0f0f0; color: #666; }
+
+        /* ===== 构建会话面板 ===== */
+        .session-card {
+            margin-bottom: 16px;
+        }
+        .session-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .session-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .session-item:hover {
+            border-color: #667eea;
+        }
+        .session-item .session-info {
+            flex: 1;
+        }
+        .session-item .session-name {
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .session-item .session-meta {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+        .session-item .session-status-badge {
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .session-status-badge.completed { background: #f6ffed; color: #52c41a; }
+        .session-status-badge.processing { background: #fff7e6; color: #fa8c16; }
+        .session-status-badge.pending { background: #f0f0f0; color: #666; }
+        .session-actions {
+            display: flex;
+            gap: 6px;
+        }
+        .session-actions button {
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            border: 1px solid #d9d9d9;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .session-actions button:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        /* ===== V2 标注流程按钮 ===== */
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-outline-primary {
+            background: white;
+            border: 1px solid #667eea;
+            color: #667eea;
+        }
+        .btn-outline-primary:hover {
+            background: #667eea;
+            color: white;
+        }
+        .badge-v2 { background: #e6f7ff; color: #1890ff; }
+        .badge-v1 { background: #f0f0f0; color: #666; }
+
+        /* 导入按钮 */
+        .import-bar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+            padding: 8px 0;
+        }
+        .import-bar .btn {
+            width: auto;
+            padding: 8px 20px;
+        }
+
         /* 音频可视化区域 */
         .audio-visualization {
             margin-top: 12px;
@@ -1223,6 +1405,15 @@
                     上传音频
                 </h2>
 
+                <!-- 数据来源选择 -->
+                <div class="source-tabs">
+                    <button class="source-tab active" data-source="manual" onclick="switchDataSource('manual')">📤 手动上传</button>
+                    <button class="source-tab" data-source="offline" onclick="switchDataSource('offline')">📋 离线检测</button>
+                    <button class="source-tab" data-source="online" onclick="switchDataSource('online')">🌐 在线检测</button>
+                </div>
+
+                <!-- 手动上传面板 -->
+                <div class="source-panel active" id="sourcePanelManual">
                 <div class="dropzone" id="dropzone">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -1249,6 +1440,40 @@
                         <div class="progress-fill" id="progressFill" style="width: 0%"></div>
                     </div>
                     <div class="progress-text" id="progressText">准备上传...</div>
+                </div>
+            </div>
+
+            <!-- 离线检测面板 -->
+            <div class="source-panel" id="sourcePanelOffline">
+                <div style="margin-bottom: 8px; font-size: 13px; color: #666;">
+                    选择一个已完成的离线检测任务，系统将自动提取检测结果中的音频片段
+                </div>
+                <div id="offlineTaskList" class="source-list">
+                    <div class="empty-state" style="padding: 20px;">
+                        <p>正在加载已完成的任务列表...</p>
+                    </div>
+                </div>
+                <div class="import-bar" id="offlineImportBar" style="display:none;">
+                    <span style="font-size:13px;color:#666;">已选择: <span id="offlineSelectedInfo">无</span></span>
+                    <button class="btn btn-primary" onclick="importSelectedTask()" style="flex:0 0 auto;">📥 导入到数据集构建</button>
+                </div>
+            </div>
+
+            <!-- 在线检测面板 -->
+            <div class="source-panel" id="sourcePanelOnline">
+                <div style="margin-bottom: 8px; font-size: 13px; color: #666;">
+                    选择客户端（在线）检测结果，系统将提取音频片段并保留模型预测分数作为预标注
+                </div>
+                <div id="onlineResultList" class="source-list">
+                    <div class="empty-state" style="padding: 20px;">
+                        <p>正在加载在线检测结果列表...</p>
+                    </div>
+                </div>
+                <div class="import-bar" id="onlineImportBar" style="display:none;">
+                    <span style="font-size:13px;color:#666;">
+                        <span id="onlineSelectedCount">0</span> 条结果已选择
+                    </span>
+                    <button class="btn btn-primary" onclick="importSelectedClientResults()" style="flex:0 0 auto;">📥 导入到数据集构建</button>
                 </div>
             </div>
 
@@ -1288,6 +1513,34 @@
 
                 <div class="chart-container">
                     <canvas id="distributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据集构建会话管理 -->
+        <div class="card session-card">
+            <h2 class="card-title" style="cursor:pointer;" onclick="toggleSessionPanel()">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="21" x2="9" y2="9"/>
+                </svg>
+                数据集构建会话
+                <span style="font-size:12px;font-weight:400;color:#888;margin-left:8px;">（V2 会话式构建，支持手动/离线/在线三种来源）</span>
+                <span id="sessionToggleIcon" style="margin-left:auto;font-size:16px;">▼</span>
+            </h2>
+            <div id="sessionPanelBody">
+                <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
+                    <button class="btn btn-secondary" onclick="loadV2Sessions()" style="width:auto;padding:6px 14px;font-size:13px;">
+                        🔄 刷新会话列表
+                    </button>
+                    <span style="font-size:13px;color:#888;" id="sessionCountLabel">共 0 个会话</span>
+                </div>
+                <div class="session-list" id="sessionListContainer">
+                    <div class="empty-state" style="padding:20px;">
+                        <p>暂无数据集构建会话</p>
+                        <p style="font-size:13px;margin-top:8px;">请通过"手动上传"、"离线检测"或"在线检测"导入数据</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1405,6 +1658,12 @@
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="9 18 15 12 9 6"/>
                             </svg>
+                        </button>
+                        <button class="btn btn-success" id="btnConfirmDataset" onclick="confirmV2SessionToDataset()" style="display:none;flex:0.8;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            ✅ 确认导入正式数据集
                         </button>
                     </div>
                 </div>
@@ -3041,6 +3300,526 @@
             log.appendChild(entry);
             log.scrollTop = log.scrollHeight;
         }
+
+        // ============================================================
+        // 数据来源选择
+        // ============================================================
+
+        let currentDataSource = 'manual';
+        let selectedOfflineTaskId = null;
+        let selectedOnlineResultIds = new Set();
+        let offlineTasksCache = [];
+        let onlineResultsCache = [];
+        let v2SessionCache = [];
+
+        function switchDataSource(source) {
+            currentDataSource = source;
+            document.querySelectorAll('.source-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.source === source);
+            });
+            document.querySelectorAll('.source-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.getElementById('sourcePanel' + source.charAt(0).toUpperCase() + source.slice(1)).classList.add('active');
+
+            if (source === 'offline') {
+                loadOfflineTasks();
+            } else if (source === 'online') {
+                loadOnlineResults();
+            }
+        }
+
+        function toggleSessionPanel() {
+            const body = document.getElementById('sessionPanelBody');
+            const icon = document.getElementById('sessionToggleIcon');
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                icon.textContent = '▼';
+            } else {
+                body.style.display = 'none';
+                icon.textContent = '▶';
+            }
+        }
+
+        // ============================================================
+        // 离线检测任务列表
+        // ============================================================
+
+        async function loadOfflineTasks() {
+            const container = document.getElementById('offlineTaskList');
+            container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>正在加载已完成的任务列表...</p></div>';
+            document.getElementById('offlineImportBar').style.display = 'none';
+
+            try {
+                const resp = await fetch('/api/dataset/available-tasks?limit=100');
+                const data = await resp.json();
+                offlineTasksCache = data.tasks || [];
+
+                if (offlineTasksCache.length === 0) {
+                    container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>暂无已完成的离线检测任务</p></div>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                offlineTasksCache.forEach(task => {
+                    const div = document.createElement('div');
+                    div.className = 'source-item';
+                    div.dataset.taskId = task.task_id;
+                    div.innerHTML = `
+                        <div class="item-info">
+                            <div class="item-name">${task.task_id.slice(0,8)}... | ${task.algorithm}</div>
+                            <div class="item-meta">${task.file_count || 0} 个文件 · ${task.result_count || 0} 条结果 · ${task.completed_at ? new Date(task.completed_at).toLocaleString() : ''}</div>
+                        </div>
+                        <span class="item-badge badge-default">${task.result_count || 0} 片段</span>
+                    `;
+                    div.onclick = () => selectOfflineTask(task.task_id, div);
+                    container.appendChild(div);
+                });
+                logMessage(`已加载 ${offlineTasksCache.length} 个已完成的任务`, 'success');
+            } catch (err) {
+                container.innerHTML = '<div class="empty-state" style="padding:20px;color:red;"><p>加载失败: ' + err.message + '</p></div>';
+                logMessage('加载离线任务列表失败: ' + err.message, 'error');
+            }
+        }
+
+        function selectOfflineTask(taskId, element) {
+            document.querySelectorAll('#offlineTaskList .source-item').forEach(el => el.classList.remove('selected'));
+            if (element) element.classList.add('selected');
+            selectedOfflineTaskId = taskId;
+            document.getElementById('offlineSelectedInfo').textContent = taskId.slice(0,8) + '...';
+            document.getElementById('offlineImportBar').style.display = 'flex';
+        }
+
+        async function importSelectedTask() {
+            if (!selectedOfflineTaskId) {
+                alert('请先选择一个离线检测任务');
+                return;
+            }
+
+            const btn = document.querySelector('#offlineImportBar .btn');
+            btn.disabled = true;
+            btn.textContent = '导入中...';
+
+            try {
+                const resp = await fetch('/api/dataset/from-detection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        detection_task_id: selectedOfflineTaskId,
+                        auto_annotate_threshold: 0.8,
+                        include_normal: true,
+                        include_anomaly: true
+                    })
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    logMessage(`✅ 成功导入离线检测任务到数据集构建: ${result.stats?.total || 0} 个片段, 会话ID: ${result.session_id}`, 'success');
+                    alert(`导入成功！生成 ${result.stats?.total || 0} 个片段。\n请在下方"数据集构建会话"面板中预览和标注。`);
+                    loadV2Sessions();
+                    // 预览此会话
+                    if (result.session_id) {
+                        previewV2Session(result.session_id);
+                    }
+                } else {
+                    alert('导入失败: ' + result.message);
+                    logMessage('导入失败: ' + result.message, 'error');
+                }
+            } catch (err) {
+                alert('导入请求失败: ' + err.message);
+                logMessage('导入请求失败: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📥 导入到数据集构建';
+            }
+        }
+
+        // ============================================================
+        // 在线检测结果列表
+        // ============================================================
+
+        async function loadOnlineResults() {
+            const container = document.getElementById('onlineResultList');
+            container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>正在加载在线检测结果列表...</p></div>';
+            document.getElementById('onlineImportBar').style.display = 'none';
+
+            try {
+                const resp = await fetch('/api/dataset/available-client-results?limit=100');
+                const data = await resp.json();
+                onlineResultsCache = data.results || [];
+
+                if (onlineResultsCache.length === 0) {
+                    container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>暂无在线检测结果</p></div>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                onlineResultsCache.forEach(r => {
+                    const div = document.createElement('div');
+                    div.className = 'source-item';
+                    div.dataset.resultId = r.result_id;
+                    const badgeClass = r.is_anomaly ? 'badge-anomaly' : 'badge-normal';
+                    const badgeText = r.is_anomaly ? '异常' : '正常';
+                    div.innerHTML = `
+                        <input type="checkbox" style="width:16px;height:16px;cursor:pointer;" onchange="toggleOnlineResult(${r.result_id}, this.checked)">
+                        <div class="item-info">
+                            <div class="item-name">${r.filename || '未知文件'}</div>
+                            <div class="item-meta">${r.client_name || '未知客户端'} · 分数: ${(r.anomaly_score || 0).toFixed(4)} · ${r.timestamp ? new Date(r.timestamp).toLocaleString() : ''}</div>
+                        </div>
+                        <span class="item-badge ${badgeClass}">${badgeText}</span>
+                        <span style="font-size:11px;color:#888;">${r.music_name || ''}</span>
+                    `;
+                    container.appendChild(div);
+                });
+                logMessage(`已加载 ${onlineResultsCache.length} 条在线检测结果`, 'success');
+            } catch (err) {
+                container.innerHTML = '<div class="empty-state" style="padding:20px;color:red;"><p>加载失败: ' + err.message + '</p></div>';
+                logMessage('加载在线检测结果失败: ' + err.message, 'error');
+            }
+        }
+
+        function toggleOnlineResult(resultId, checked) {
+            if (checked) {
+                selectedOnlineResultIds.add(resultId);
+            } else {
+                selectedOnlineResultIds.delete(resultId);
+            }
+            const count = selectedOnlineResultIds.size;
+            document.getElementById('onlineSelectedCount').textContent = count;
+            document.getElementById('onlineImportBar').style.display = count > 0 ? 'flex' : 'none';
+        }
+
+        async function importSelectedClientResults() {
+            const ids = Array.from(selectedOnlineResultIds);
+            if (ids.length === 0) {
+                alert('请选择至少一条在线检测结果');
+                return;
+            }
+
+            const btn = document.querySelector('#onlineImportBar .btn');
+            btn.disabled = true;
+            btn.textContent = '导入中...';
+
+            try {
+                const resp = await fetch('/api/dataset/from-client-detection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        result_ids: ids,
+                        auto_annotate_threshold: 0.8
+                    })
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    logMessage(`✅ 成功导入在线检测结果到数据集构建: ${result.stats?.total || 0} 个片段, 会话ID: ${result.session_id}`, 'success');
+                    alert(`导入成功！生成 ${result.stats?.total || 0} 个片段。\n请在下方"数据集构建会话"面板中预览和标注。`);
+                    // 清除选择
+                    selectedOnlineResultIds.clear();
+                    document.getElementById('onlineSelectedCount').textContent = '0';
+                    document.getElementById('onlineImportBar').style.display = 'none';
+                    loadV2Sessions();
+                    if (result.session_id) {
+                        previewV2Session(result.session_id);
+                    }
+                } else {
+                    alert('导入失败: ' + result.message);
+                    logMessage('导入失败: ' + result.message, 'error');
+                }
+            } catch (err) {
+                alert('导入请求失败: ' + err.message);
+                logMessage('导入请求失败: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📥 导入到数据集构建';
+            }
+        }
+
+        // ============================================================
+        // V2 会话管理
+        // ============================================================
+
+        async function loadV2Sessions() {
+            try {
+                const resp = await fetch('/api/dataset/sessions');
+                const sessions = await resp.json();
+                v2SessionCache = sessions;
+
+                const container = document.getElementById('sessionListContainer');
+                const label = document.getElementById('sessionCountLabel');
+
+                if (!sessions || sessions.length === 0) {
+                    container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>暂无数据集构建会话</p><p style="font-size:13px;margin-top:8px;">请通过"手动上传"、"离线检测"或"在线检测"导入数据</p></div>';
+                    label.textContent = '共 0 个会话';
+                    return;
+                }
+
+                label.textContent = `共 ${sessions.length} 个会话`;
+                container.innerHTML = '';
+                sessions.forEach(s => {
+                    const item = renderV2SessionItem(s);
+                    container.appendChild(item);
+                });
+            } catch (err) {
+                logMessage('加载会话列表失败: ' + err.message, 'error');
+            }
+        }
+
+        function renderV2SessionItem(session) {
+            const div = document.createElement('div');
+            div.className = 'session-item';
+            div.dataset.sessionId = session.session_id;
+
+            const sourceLabel = session.source_type === 'detection' ? '检测' : '手动';
+            const statusMap = { 'completed': '已完成', 'processing': '处理中', 'pending': '待处理', 'failed': '失败' };
+            const statusText = statusMap[session.status] || session.status;
+
+            div.innerHTML = `
+                <div class="session-info">
+                    <div class="session-name">
+                        ${sourceLabel} · ${session.total_segments || 0} 个片段
+                        <span style="font-size:11px;color:#888;margin-left:8px;">
+                            正常:${session.normal_count || 0} 异常:${session.anomaly_count || 0}
+                        </span>
+                    </div>
+                    <div class="session-meta">
+                        ID: ${session.session_id} · ${session.created_at ? new Date(session.created_at).toLocaleString() : ''}
+                    </div>
+                </div>
+                <span class="session-status-badge ${session.status}">${statusText}</span>
+                <div class="session-actions">
+                    <button onclick="event.stopPropagation();previewV2Session('${session.session_id}')">预览</button>
+                    <button onclick="event.stopPropagation();deleteV2Session('${session.session_id}')" style="color:#ff4d4f;">删除</button>
+                </div>
+            `;
+            div.onclick = () => previewV2Session(session.session_id);
+            return div;
+        }
+
+        let currentV2SessionId = null;
+
+        async function previewV2Session(sessionId) {
+            if (!sessionId) return;
+            currentV2SessionId = sessionId;
+
+            // 显示"确认导入正式数据集"按钮
+            const confirmBtn = document.getElementById('btnConfirmDataset');
+            if (confirmBtn) confirmBtn.style.display = 'inline-flex';
+
+            try {
+                const resp = await fetch(`/api/dataset/preview/${sessionId}`);
+                const data = await resp.json();
+
+                // 将会话中的片段加载到右侧片段列表
+                if (data.segments && data.segments.length > 0) {
+                    // 转换为与 V1 兼容的格式
+                    const v1Segments = data.segments.map(s => {
+                        // 转换 file_path 为前端可访问的 URL
+                        let filePath = s.file_path || '';
+                        if (filePath && filePath.includes('/data/dataset_builder/')) {
+                            const parts = filePath.split('/data/dataset_builder/');
+                            filePath = '/data/dataset-builder/' + parts[1];
+                        }
+                        let specPath = s.spectrogram_path || '';
+                        if (specPath && specPath.includes('/data/dataset_builder/')) {
+                            const parts = specPath.split('/data/dataset_builder/');
+                            specPath = '/data/dataset-builder/' + parts[1];
+                        }
+                        return ({
+                        segment_id: s.segment_id,
+                        original_filename: s.original_filename,
+                        segment_filename: s.segment_filename,
+                        duration: s.duration,
+                        sample_rate: s.sample_rate || 22050,
+                        file_path: filePath,
+                        spectrogram_path: specPath,
+                        reference_audio: s.reference_audio,
+                        start_time: s.start_time || 0,
+                        end_time: s.end_time || 0,
+                        label: s.manual_label || s.predicted_label,
+                        annotated_at: s.annotated_at,
+                        source_type: s.source_type,
+                        predicted_score: s.predicted_score,
+                        _v2session: sessionId,
+                        _v2segment_id: s.segment_id
+                    });});
+                        segment_id: s.segment_id,
+                        original_filename: s.original_filename,
+                        segment_filename: s.segment_filename,
+                        duration: s.duration,
+                        sample_rate: s.sample_rate || 22050,
+                        file_path: s.file_path,
+                        spectrogram_path: s.spectrogram_path,
+                        reference_audio: s.reference_audio,
+                        start_time: s.start_time || 0,
+                        end_time: s.end_time || 0,
+                        label: s.manual_label || s.predicted_label,
+                        annotated_at: s.annotated_at,
+                        source_type: s.source_type,
+                        predicted_score: s.predicted_score,
+                        _v2session: sessionId,
+                        _v2segment_id: s.segment_id
+                    }));
+
+                    currentSegments = v1Segments;
+                    renderV2SegmentsList(v1Segments);
+
+                    // 自动选择第一个片段
+                    if (v1Segments.length > 0) {
+                        selectSegment(v1Segments[0]);
+                    }
+
+                    logMessage(`📋 加载会话 ${sessionId.slice(-8)} 的 ${v1Segments.length} 个片段`, 'success');
+                } else {
+                    logMessage(`会话 ${sessionId.slice(-8)} 中没有片段`, 'warning');
+                }
+            } catch (err) {
+                logMessage('预览会话失败: ' + err.message, 'error');
+            }
+        }
+
+        function renderV2SegmentsList(segments) {
+            const container = document.getElementById('segmentsList');
+            if (!segments || segments.length === 0) {
+                container.innerHTML = '<div class="empty-state"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/><circle cx="12" cy="12" r="3"/><path d="M12 8v8"/><path d="M8 12h8"/></svg><p>暂无音频片段</p></div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            segments.forEach(seg => {
+                const div = document.createElement('div');
+                div.className = 'segment-item';
+                div.dataset.segmentId = seg.segment_id;
+                const label = seg.label;
+                let statusHtml = '<span class="segment-status unlabeled">未标注</span>';
+                if (label === 'normal') statusHtml = '<span class="segment-status normal">正常</span>';
+                else if (label === 'anomaly') statusHtml = '<span class="segment-status anomaly">异常</span>';
+
+                // 如果来自 V2 会话，显示预标注信息
+                let predictedHtml = '';
+                if (seg._v2session && seg.predicted_score !== undefined) {
+                    predictedHtml = `<span style="font-size:11px;color:#888;margin-left:6px;">预测:${(seg.predicted_score).toFixed(3)}</span>`;
+                }
+
+                div.innerHTML = `
+                    <div class="segment-info">
+                        <div class="segment-name">${seg.segment_filename || seg.original_filename || '未知'}</div>
+                        <div class="segment-meta">${seg.duration ? seg.duration.toFixed(1) + 's' : ''} · ${seg.reference_audio || ''} ${predictedHtml}</div>
+                    </div>
+                    ${statusHtml}
+                `;
+                div.onclick = () => {
+                    document.querySelectorAll('.segment-item').forEach(el => el.classList.remove('selected'));
+                    div.classList.add('selected');
+                    selectSegment(seg);
+                };
+                container.appendChild(div);
+            });
+        }
+
+        // 重写 submitAnnotation 以支持 V2 会话
+        const originalSubmitAnnotation = submitAnnotation;
+        submitAnnotation = function() {
+            if (!selectedSegment) {
+                alert('请先选择一个音频片段');
+                return;
+            }
+            const labelInput = document.getElementById('labelInput');
+            const label = labelInput.value;
+            if (!label) {
+                alert('请先选择标签（正常/异常）');
+                return;
+            }
+
+            // 判断是否为 V2 会话中的片段
+            if (selectedSegment._v2session && selectedSegment._v2segment_id) {
+                // 使用 V2 标注端点
+                const formData = new FormData();
+                formData.append('segment_id', selectedSegment._v2segment_id);
+                formData.append('label', label);
+                formData.append('annotator', getUsername() || 'web_user');
+
+                fetch(`/api/dataset/annotate/${currentV2SessionId}`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success) {
+                        logMessage(`✅ V2 标注成功: ${selectedSegment.segment_filename} -> ${label === 'normal' ? '正常' : '异常'}`, 'success');
+                        // 更新本地状态
+                        selectedSegment.label = label;
+                        renderV2SegmentsList(currentSegments);
+                        // 自动选择下一个
+                        goToNext();
+                    } else {
+                        alert('标注失败: ' + (result.message || ''));
+                        logMessage('标注失败: ' + (result.message || ''), 'error');
+                    }
+                })
+                .catch(err => {
+                    alert('标注请求失败: ' + err.message);
+                    logMessage('标注请求失败: ' + err.message, 'error');
+                });
+            } else {
+                // 使用原有的 V1 标注流程
+                if (typeof originalSubmitAnnotation === 'function') {
+                    originalSubmitAnnotation();
+                }
+            }
+        };
+
+        async function deleteV2Session(sessionId) {
+            if (!confirm('确定要删除此构建会话吗？相关数据将被清理。')) return;
+
+            try {
+                const resp = await fetch(`/api/dataset/session/${sessionId}`, { method: 'DELETE' });
+                const result = await resp.json();
+                if (result.success) {
+                    logMessage(`已删除会话: ${sessionId.slice(-8)}`, 'warning');
+                    loadV2Sessions();
+                } else {
+                    alert('删除失败: ' + (result.message || ''));
+                }
+            } catch (err) {
+                alert('删除请求失败: ' + err.message);
+            }
+        }
+
+        // 确认导入到正式数据集
+        function confirmV2SessionToDataset() {
+            if (!currentV2SessionId) {
+                alert('请先预览一个数据集构建会话');
+                return;
+            }
+            if (!confirm('确定要将当前会话中的数据导入正式数据集（data/spk/）吗？')) return;
+
+            fetch('/api/dataset/confirm-to-dataset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: currentV2SessionId })
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    logMessage(`✅ 已确认导入正式数据集: ${result.stats?.imported || 0} 个`, 'success');
+                    alert(`导入成功！${result.stats?.imported || 0} 个片段已加入数据集。`);
+                    refreshStats();
+                    loadV2Sessions();
+                } else {
+                    alert('导入失败: ' + (result.message || ''));
+                }
+            })
+            .catch(err => {
+                alert('导入请求失败: ' + err.message);
+            });
+        }
+
+        // 页面加载时初始化 V2 会话
+        document.addEventListener('DOMContentLoaded', function() {
+            // 延迟加载 V2 会话
+            setTimeout(loadV2Sessions, 500);
+        });
     </script>
 </body>
 </html>

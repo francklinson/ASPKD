@@ -13,7 +13,7 @@ class MVTecSolver(object):
         'foam', 'peach', 'potato', 'rope', 'tire',
     ]
 
-    def __init__(self, root='data/mvtec', is2D=False):
+    def __init__(self, root='data/public_dataset/mvtec', is2D=False):
         self.root = root
         self.is2D = is2D
         self.meta_path = f'{root}/meta.json'
@@ -59,7 +59,7 @@ class MVTecSolver(object):
 
 
 if __name__ == '__main__':
-    runner = MVTecSolver(root='data/mvtec', is2D=True)
+    runner = MVTecSolver(root='data/public_dataset/mvtec', is2D=True)
     runner.run()
     # runner = MVTecSolver(root='data/mvtec3d', is2D=False)
     # runner.run()

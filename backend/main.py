@@ -79,7 +79,7 @@ if 'torch' in sys.modules:
 else:
     print(f"[Main] torch not yet imported - good")
 
-from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor, dataset_builder, auth, training
+from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor, dataset_builder, dataset_builder_v2, auth, training
 from backend.core.websocket import websocket_manager
 from backend.core.task_manager import task_manager
 
@@ -151,6 +151,7 @@ app.include_router(zero_shot.router, prefix="/api/zero-shot", tags=["零样本�
 app.include_router(few_shot.router, prefix="/api/few-shot", tags=["少样本检测"])
 app.include_router(client_monitor.router, prefix="/api/client", tags=["客户端管理"])
 app.include_router(dataset_builder.router, prefix="/api/dataset", tags=["数据集构建"])
+app.include_router(dataset_builder_v2.router, prefix="/api/dataset", tags=["数据集构建 V2"])
 app.include_router(auth.router, prefix="/api/auth", tags=["用户认证"])
 app.include_router(training.router, prefix="/api/training", tags=["模型训练"])
 
@@ -193,6 +194,11 @@ if os.path.exists(uploads_path):
 data_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "spk")
 if os.path.exists(data_path):
     app.mount("/data/spk", StaticFiles(directory=data_path), name="dataset")
+
+# 数据集构建工作区静态文件服务
+dataset_builder_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "dataset_builder")
+if os.path.exists(dataset_builder_path):
+    app.mount("/data/dataset-builder", StaticFiles(directory=dataset_builder_path), name="dataset_builder")
 
 
 @app.get("/")

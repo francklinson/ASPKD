@@ -88,10 +88,6 @@
      8. 统计卡片点击筛选联动
    - 工作记录: records/20260620_170000_index.html拆分与任务管理增强.md
 
-
-
-
-待办:
 6. ~~修改任务管理模块,使之也能适用于在线检测的任务~~ [已完成 - 2026-06-20 17:25]
    - 改造原因: 任务管理 Tab 原本仅显示离线检测任务，在线检测结果需切换到单独页面查看
    - 后端改造:
@@ -111,3 +107,27 @@
      1. frontend/index.html: 参考音频表格增加"试听"列
      2. frontend/js/reference-audio.js: 新增 toggleRefAudioPlay() 播放函数（独立播放状态），渲染函数增加试听按钮
    - 工作记录: records/20260620_174541_参考音频支持试听.md
+
+
+待办:
+~~完善数据集构建功能. 应当支持:用户手动上传\离线检测\在线检测 三种方式得到的数据,自动使用参考音频进行匹配切分保存数据.
+要设计一下数据集的存储构建方式.~~ [已完成 - 2026-06-20]
+   - 改造方案:
+     1. V2 数据集构建器 (dataset_builder_v2.py) 新增三个后端端点：
+        - POST /from-client-detection — 从在线/客户端检测结果创建构建会话
+        - GET /available-tasks — 获取已完成离线任务列表
+        - GET /available-client-results — 获取在线检测结果列表
+     2. V2 会话持久化：模块加载时从 data/dataset_builder/*.json 恢复会话
+     3. main.py 注册 V2 路由 + data/dataset_builder 静态文件挂载
+     4. 前端 dataset.html 新增：
+        - 数据来源 Tab（手动上传/离线检测/在线检测）
+        - 离线任务浏览面板（选择 → 导入 → 构建会话）
+        - 在线结果浏览面板（多选 → 导入 → 构建会话）
+        - V2 会话管理面板（预览/标注/确认导入正式数据集）
+        - 标注按钮同时支持 V1 和 V2 的标注端点
+   - 数据流：三种来源 → V2 DatasetBuildSession（预标注保留） → 人工标注 → data/spk/
+   - 修改文件:
+     - backend/api/dataset_builder_v2.py (新增端点+持久化)
+     - backend/main.py (注册V2路由+静态挂载)
+     - frontend/dataset.html (前端UI+JS)
+   - 工作记录: records/20260620_数据集构建功能完善.md

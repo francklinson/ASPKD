@@ -136,6 +136,12 @@ class CreateFromManualRequest(BaseModel):
     algorithm: Optional[str] = "dinomaly_dinov3_small"
 
 
+class CreateFromClientDetectionRequest(BaseModel):
+    """从客户端（在线）检测结果创建数据集请求"""
+    result_ids: List[int]
+    auto_annotate_threshold: float = 0.8
+
+
 class BatchAnnotateRequest(BaseModel):
     """批量标注请求"""
     session_id: str
@@ -199,6 +205,26 @@ def save_session(session: DatasetBuildSession):
     session_file = os.path.join(DATASET_BUILDER_DIR, f"{session.session_id}.json")
     with open(session_file, 'w', encoding='utf-8') as f:
         json.dump(session.model_dump(), f, ensure_ascii=False, indent=2)
+
+
+def _load_sessions_from_disk():
+    """从磁盘加载已有会话（服务重启后恢复）"""
+    if not os.path.exists(DATASET_BUILDER_DIR):
+        return
+    loaded_count = 0
+    for fname in os.listdir(DATASET_BUILDER_DIR):
+        if fname.endswith('.json') and fname.startswith('dbs_'):
+            fpath = os.path.join(DATASET_BUILDER_DIR, fname)
+            try:
+                with open(fpath, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                session = DatasetBuildSession(**data)
+                BUILD_SESSIONS[session.session_id] = session
+                loaded_count += 1
+            except Exception as e:
+                log_operation("LOAD_SESSION_ERROR", f"加载 {fname}: {e}", "WARNING")
+    if loaded_count:
+        log_operation("LOAD_SESSIONS", f"从磁盘恢复 {loaded_count} 个会话")
 
 
 # ========== 核心功能 ==========
@@ -333,6 +359,167 @@ async def process_detection_results(
     return DatasetBuildResponse(
         success=True,
         message=f"成功处理 {processed_count} 个检测文件，生成 {len(segments)} 个片段",
+        session_id=session.session_id,
+        segments=segments,
+        stats={
+            "total": len(segments),
+            "normal": session.normal_count,
+            "anomaly": session.anomaly_count,
+            "unlabeled": session.unlabeled_count,
+            "auto_annotated": sum(1 for s in segments if s.status == DatasetItemStatus.ANNOTATED)
+        }
+    )
+
+
+def _find_audio_slice_for_client_result(result: dict) -> Optional[str]:
+    """
+    从客户端检测结果中找到音频切片路径
+    尝试多种推断方式：
+    1. 直接取 audio_slice_path
+    2. 从 overlay_path 反向推断
+    """
+    # 方式1：直接取
+    audio_path = result.get("audio_slice_path")
+    if audio_path:
+        full_path = os.path.join(PROJECT_ROOT, audio_path) if not os.path.isabs(audio_path) else audio_path
+        if os.path.exists(full_path):
+            return full_path
+        # 尝试音频路径已经存在
+        if os.path.exists(audio_path):
+            return audio_path
+
+    # 方式2：从 overlay_path 推断
+    overlay = result.get("overlay_path")
+    if overlay:
+        # overlay 可能是相对路径（如 visualize/dinomaly_xxx/xxx_overlay.png）
+        # 也可能是绝对路径
+        if not os.path.isabs(overlay):
+            full_overlay = os.path.join(PROJECT_ROOT, overlay.replace("visualize/", "output/vis/"))
+        else:
+            full_overlay = overlay
+        base_name = os.path.splitext(os.path.basename(full_overlay))[0]
+        if base_name.endswith('_overlay'):
+            base_name = base_name[:-8]
+        # 尝试几个可能的切片目录
+        candidates = [
+            os.path.join(PROJECT_ROOT, "uploads", "clients", "segments", f"{base_name}.wav"),
+            os.path.join(PROJECT_ROOT, "output", "slices", "audio", f"{base_name}.wav"),
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                return c
+    return None
+
+
+async def process_client_detection_results(
+    session: DatasetBuildSession,
+    request: CreateFromClientDetectionRequest
+) -> DatasetBuildResponse:
+    """
+    处理客户端（在线）检测结果，提取音频片段并保留预测值作为预标注
+    """
+    log_operation("PROCESS_CLIENT_START", f"Result IDs: {request.result_ids}")
+
+    from backend.core.client_monitor_service import client_detection_service
+
+    # 按 result_id 查找结果
+    all_results = list(client_detection_service.detection_results)
+    matched_results = [r for r in all_results if r.get("result_id") in request.result_ids]
+
+    if not matched_results:
+        return DatasetBuildResponse(
+            success=False,
+            message=f"未找到指定的检测结果（IDs: {request.result_ids}）"
+        )
+
+    session.status = "processing"
+    session.source_files = [r.get("filepath") for r in matched_results if r.get("filepath")]
+
+    session_dir = os.path.join(DATASET_BUILDER_DIR, session.session_id)
+    os.makedirs(session_dir, exist_ok=True)
+
+    segments = []
+    for result in matched_results:
+        # 查找音频切片路径
+        full_audio_path = _find_audio_slice_for_client_result(result)
+        if not full_audio_path or not os.path.exists(full_audio_path):
+            log_operation("AUDIO_NOT_FOUND", f"Result {result.get('result_id')}, file: {result.get('filename')}", "WARNING")
+            continue
+
+        # 复制音频到会话目录
+        segment_filename = os.path.basename(full_audio_path)
+        target_path = os.path.join(session_dir, segment_filename)
+        # 如果目标已存在（多个结果指向同一切片），加后缀
+        if os.path.exists(target_path):
+            name, ext = os.path.splitext(segment_filename)
+            segment_filename = f"{name}_{result.get('result_id')}{ext}"
+            target_path = os.path.join(session_dir, segment_filename)
+        shutil.copy2(full_audio_path, target_path)
+
+        # 生成时频图
+        spectrogram_path = target_path.replace('.wav', '.png')
+        generate_spectrogram(target_path, spectrogram_path)
+
+        try:
+            duration = librosa.get_duration(path=target_path)
+        except Exception:
+            duration = 0.0
+
+        # 预标注信息
+        is_anomaly = result.get("is_anomaly", False)
+        anomaly_score = result.get("anomaly_score", 0.0)
+        predicted_label = "anomaly" if is_anomaly else "normal"
+        predicted_confidence = anomaly_score if is_anomaly else (1 - anomaly_score)
+
+        # 从 segment_info 获取参考音频名称
+        seg_info = result.get("segment_info") or {}
+        music_name = seg_info.get("music_name") or result.get("music_name", "unknown")
+
+        # 如果置信度足够高，自动标注
+        manual_label = None
+        status = DatasetItemStatus.PREDICTED
+        if predicted_confidence >= request.auto_annotate_threshold:
+            manual_label = predicted_label
+            status = DatasetItemStatus.ANNOTATED
+
+        segment_id = f"seg_{hashlib.md5(target_path.encode()).hexdigest()[:12]}"
+        segment = AudioSegmentInfo(
+            segment_id=segment_id,
+            source_type="detection",
+            original_filename=result.get("filename", "unknown"),
+            segment_filename=segment_filename,
+            duration=round(duration, 2),
+            file_path=target_path,
+            spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+            reference_audio=music_name,
+            start_time=seg_info.get("start_time", 0.0),
+            end_time=seg_info.get("end_time", round(duration, 2)),
+            predicted_label=predicted_label,
+            predicted_score=anomaly_score,
+            predicted_confidence=predicted_confidence,
+            manual_label=manual_label,
+            status=status,
+            source_file_path=result.get("filepath")
+        )
+        segments.append(segment)
+
+    # 更新会话
+    session.segments = segments
+    session.total_segments = len(segments)
+    session.normal_count = sum(1 for s in segments if s.predicted_label == "normal")
+    session.anomaly_count = sum(1 for s in segments if s.predicted_label == "anomaly")
+    session.unlabeled_count = sum(1 for s in segments if s.status == DatasetItemStatus.PREDICTED)
+    session.status = "completed"
+    session.completed_at = datetime.now().isoformat()
+
+    save_session(session)
+
+    log_operation("PROCESS_CLIENT_COMPLETE",
+                  f"Results: {len(matched_results)}, Segments: {len(segments)}")
+
+    return DatasetBuildResponse(
+        success=True,
+        message=f"成功处理 {len(matched_results)} 个检测结果，生成 {len(segments)} 个片段",
         session_id=session.session_id,
         segments=segments,
         stats={
@@ -743,6 +930,24 @@ async def create_from_manual(
     return result
 
 
+@router.post("/from-client-detection", response_model=DatasetBuildResponse)
+async def create_from_client_detection(request: CreateFromClientDetectionRequest):
+    """
+    从客户端（在线）检测结果创建数据集构建会话
+    保留模型的预测分数作为预标注
+
+    - **result_ids**: 客户端检测结果的 ID 列表（从 /api/client/results 获取）
+    - **auto_annotate_threshold**: 自动标注置信度阈值（0-1），默认 0.8
+    """
+    session = create_session(
+        source_type=DataSourceType.DETECTION,
+        detection_task_id=None
+    )
+
+    result = await process_client_detection_results(session, request)
+    return result
+
+
 @router.get("/preview/{session_id}", response_model=DatasetPreviewResponse)
 async def preview_session(session_id: str):
     """
@@ -945,5 +1150,66 @@ async def delete_session(session_id: str):
     
     # 从内存中移除
     del BUILD_SESSIONS[session_id]
-    
+
     return {"success": True, "message": f"会话 {session_id} 已删除"}
+
+
+@router.get("/available-tasks")
+async def get_available_tasks(limit: int = 50, offset: int = 0):
+    """
+    获取可用于数据集构建的已完成离线检测任务列表
+    """
+    from backend.core.task_manager import task_manager
+
+    all_tasks = list(task_manager.tasks.values())
+    completed = []
+    for t in all_tasks:
+        if t.status == "completed" and t.results:
+            completed.append({
+                "task_id": t.id,
+                "algorithm": t.algorithm,
+                "file_count": len(t.files),
+                "result_count": len(t.results),
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+                "status": t.status
+            })
+
+    # 按完成时间倒序
+    completed.sort(key=lambda x: x.get("completed_at", ""), reverse=True)
+    total = len(completed)
+    paged = completed[offset:offset + limit]
+
+    return {"total": total, "tasks": paged, "limit": limit, "offset": offset}
+
+
+@router.get("/available-client-results")
+async def get_available_client_results(limit: int = 50, offset: int = 0):
+    """
+    获取可用于数据集构建的客户端（在线）检测结果列表
+    """
+    from backend.core.client_monitor_service import client_detection_service
+
+    total = client_detection_service.get_results_count()
+    results = client_detection_service.get_results(limit=limit, offset=offset)
+
+    # 精简返回，只保留关键信息
+    simplified = []
+    for r in results:
+        simplified.append({
+            "result_id": r.get("result_id"),
+            "filename": r.get("filename"),
+            "client_name": r.get("client_name"),
+            "timestamp": r.get("timestamp"),
+            "anomaly_score": r.get("anomaly_score"),
+            "is_anomaly": r.get("is_anomaly"),
+            "status": r.get("status"),
+            "has_audio_slice": r.get("audio_slice_path") is not None,
+            "music_name": (r.get("segment_info") or {}).get("music_name") or r.get("music_name")
+        })
+
+    return {"total": total, "results": simplified, "limit": limit, "offset": offset}
+
+
+# 模块加载时从磁盘恢复会话
+_load_sessions_from_disk()
