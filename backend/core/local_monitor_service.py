@@ -836,9 +836,9 @@ class MonitorService:
         failed = []
         
         try:
-            from backend.core.shazam.database.connector import MySQLConnector
-            db_connector = MySQLConnector()
-            
+            from backend.core.shazam.database.in_memory import InMemoryConnector
+            db_connector = InMemoryConnector()
+
             # 移除不再需要的参考音频
             for ref_path in to_remove:
                 # 注意：LongAudioAnalyzer 目前没有 remove_reference 方法
@@ -972,8 +972,8 @@ class MonitorService:
         try:
             from backend.core.precise_segment_locator.adapter import PreciseSegmentLocatorAdapter
             from backend.core.long_audio_analyzer import AnalyzerConfig  # 保持配置兼容
-            from backend.core.shazam.database.connector import MySQLConnector
-            
+            from backend.core.shazam.database.in_memory import InMemoryConnector
+
             # 创建配置（使用固定默认值）
             config = AnalyzerConfig(
                 window_size=10.0,      # 固定窗口大小 10秒（对应 segment_duration）
@@ -982,9 +982,9 @@ class MonitorService:
                 use_parallel=True,
                 max_workers=4
             )
-            
+
             # 创建数据库连接
-            db_connector = MySQLConnector()
+            db_connector = InMemoryConnector()
             
             # 创建分析器（使用 PreciseSegmentLocatorAdapter 替代 LongAudioAnalyzer）
             # 优化点：全局指纹提取 + 批量查询，比滑动窗口快 ~3x
@@ -1023,9 +1023,7 @@ class MonitorService:
                 # 用户未指定参考音频，加载所有歌曲到索引
                 print(f"[Monitor] [分析器初始化] 用户未指定参考音频，加载所有歌曲到索引")
                 # 获取所有参考音频ID并添加
-                sql = "SELECT music_id, music_name FROM music"
-                db_connector.cursor.execute(sql)
-                musics = db_connector.cursor.fetchall()
+                musics = db_connector.get_all_music()
                 for music_id, music_name in musics:
                     self._add_reference_from_db(db_connector, music_id, music_name)
             

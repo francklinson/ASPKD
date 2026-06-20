@@ -19,7 +19,7 @@ import os
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.core.shazam.database.connector import MySQLConnector
+from backend.core.shazam.database.in_memory import InMemoryConnector
 from backend.core.shazam.utils.hparam import hp
 
 
@@ -114,23 +114,23 @@ class PreciseSegmentLocator:
     5. 切分音频（固定时长）
     """
     
-    def __init__(self, config: Optional[SegmentLocatorConfig] = None, 
-                 db_connector: Optional[MySQLConnector] = None):
+    def __init__(self, config: Optional[SegmentLocatorConfig] = None,
+                 db_connector=None):
         """
         初始化定位器
-        
+
         Args:
             config: 配置对象
-            db_connector: 数据库连接器（可选）
+            db_connector: 数据库连接器（可选，默认使用 InMemoryConnector）
         """
         self.config = config or SegmentLocatorConfig()
         self.db_connector = db_connector
-        
+
         # 参考音频索引
         self.reference_index: Dict[int, Dict] = {}  # music_id -> {hashes, music_name, hash_count}
-        
+
         if db_connector is None:
-            self.db_connector = MySQLConnector()
+            self.db_connector = InMemoryConnector()
     
     def add_reference(self, music_id: int, music_name: str = "") -> bool:
         """
@@ -145,9 +145,7 @@ class PreciseSegmentLocator:
         """
         try:
             # 获取指纹
-            sql = "SELECT hash, offset FROM finger_prints WHERE music_id_fk = %s"
-            self.db_connector.cursor.execute(sql, (music_id,))
-            fingerprints = self.db_connector.cursor.fetchall()
+            fingerprints = self.db_connector.get_fingerprints_by_music_id(music_id)
             
             if not fingerprints:
                 print(f"[Locator] 警告: 音乐ID {music_id} 没有指纹")
@@ -292,30 +290,10 @@ class PreciseSegmentLocator:
                 print(f"[Locator] 内存索引匹配: {len(matches)} 个")
                 return matches
         
-        # 方法2：数据库批量查询（分批处理）
-        hash_values = [h for h, _ in hashes]
-        hash_to_offset = {h: o for h, o in hashes}
-        
-        # 分批查询，避免单次查询过大
-        for i in range(0, len(hash_values), self.config.db_batch_size):
-            batch = hash_values[i:i + self.config.db_batch_size]
-            
-            # 构建IN查询
-            placeholders = ', '.join(['%s'] * len(batch))
-            sql = f"""
-                SELECT music_id_fk, hash, offset 
-                FROM finger_prints 
-                WHERE hash IN ({placeholders})
-            """
-            
-            self.db_connector.cursor.execute(sql, tuple(batch))
-            results = self.db_connector.cursor.fetchall()
-            
-            for music_id, hash_val, db_offset in results:
-                if hash_val in hash_to_offset:
-                    query_offset = hash_to_offset[hash_val]
-                    matches.append((music_id, int(db_offset), query_offset))
-        
+        # 方法2：使用连接器的批量哈希查询（兼容 InMemory / MySQL）
+        print(f"[Locator] 数据库匹配中...")
+        matches = list(self.db_connector.find_math_hash(hashes))
+
         print(f"[Locator] 数据库匹配: {len(matches)} 个")
         return matches
     
@@ -388,10 +366,7 @@ class PreciseSegmentLocator:
                 try:
                     music_name = self.db_connector.find_music_name_by_music_id(music_id) or f"Music_{music_id}"
                     # 查询该音乐的总指纹数
-                    self.db_connector.cursor.execute(
-                        "SELECT COUNT(*) FROM finger_prints WHERE music_id_fk = %s", (music_id,)
-                    )
-                    total_hashes = self.db_connector.cursor.fetchone()[0]
+                    total_hashes = self.db_connector.calculation_hash_num_by_music_id(music_id)
                 except Exception as e:
                     print(f"[Locator] 获取音乐 {music_id} 信息失败: {e}")
                     continue

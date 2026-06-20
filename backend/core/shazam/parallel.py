@@ -14,7 +14,6 @@ import queue
 import time
 
 from .api import AudioFingerprinter, RecognitionResult, LocationResult
-from .database.connector import MySQLConnector
 from .core.implementations.stft.stft_predict import StftMusicProcessorPredict
 from .utils.hparam import Hparam
 
@@ -32,17 +31,18 @@ class ParallelResult:
 class ThreadLocalFingerprinter:
     """
     线程本地指纹识别器
-    
-    每个线程拥有独立的 MySQL 连接，避免线程安全问题
+
+    每个线程拥有独立的连接，避免线程安全问题
     """
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, backend: str = "memory"):
         self.config_path = config_path
+        self.backend = backend
         self._local = threading.local()
-    
+
     def _get_fingerprinter(self) -> AudioFingerprinter:
         """获取线程本地的指纹识别器"""
         if not hasattr(self._local, 'fingerprinter'):
-            self._local.fingerprinter = AudioFingerprinter(self.config_path)
+            self._local.fingerprinter = AudioFingerprinter(self.config_path, backend=self.backend)
         return self._local.fingerprinter
     
     def recognize(self, query_path: str, threshold: int = 10) -> RecognitionResult:
@@ -87,17 +87,19 @@ class ParallelAudioFingerprinter:
         ... )
     """
     
-    def __init__(self, max_workers: int = 4, config_path: Optional[str] = None):
+    def __init__(self, max_workers: int = 4, config_path: Optional[str] = None, backend: str = "memory"):
         """
         初始化并行指纹识别器
 
         Args:
             max_workers: 最大线程数，默认为4
             config_path: 配置文件路径
+            backend: 数据库后端类型，"memory"（默认进程内内存）或 "mysql"
         """
         self.max_workers = max_workers
         self.config_path = config_path
-        self._thread_local = ThreadLocalFingerprinter(config_path)
+        self.backend = backend
+        self._thread_local = ThreadLocalFingerprinter(config_path, backend=backend)
         
         # 统计信息
         self._stats = {
@@ -345,10 +347,11 @@ class ParallelAudioFingerprinter:
 
 # ==================== 便捷函数 ====================
 
-def batch_recognize_parallel(query_paths: List[str], 
+def batch_recognize_parallel(query_paths: List[str],
                              threshold: int = 10,
                              max_workers: int = 4,
-                             config_path: Optional[str] = None) -> List[ParallelResult]:
+                             config_path: Optional[str] = None,
+                             backend: str = "memory") -> List[ParallelResult]:
     """
     并行批量识别音频文件
 
@@ -357,6 +360,7 @@ def batch_recognize_parallel(query_paths: List[str],
         threshold: 匹配阈值
         max_workers: 最大线程数
         config_path: 配置文件路径
+        backend: 数据库后端类型
 
     Returns:
         并行结果列表
@@ -366,7 +370,7 @@ def batch_recognize_parallel(query_paths: List[str],
         >>> for r in results:
         ...     print(r.file_path, r.result.matched if r.success else r.error)
     """
-    fingerprinter = ParallelAudioFingerprinter(max_workers, config_path)
+    fingerprinter = ParallelAudioFingerprinter(max_workers, config_path, backend=backend)
     results = fingerprinter.batch_recognize(query_paths, threshold)
     fingerprinter.close()
     return results
@@ -378,7 +382,8 @@ def batch_locate_parallel(long_audio_paths: List[str],
                          threshold: int = 10,
                          auto_match: bool = False,
                          max_workers: int = 4,
-                         config_path: Optional[str] = None) -> List[ParallelResult]:
+                         config_path: Optional[str] = None,
+                         backend: str = "memory") -> List[ParallelResult]:
     """
     并行批量定位音频片段位置
 
@@ -390,18 +395,19 @@ def batch_locate_parallel(long_audio_paths: List[str],
         auto_match: 是否自动匹配
         max_workers: 最大线程数
         config_path: 配置文件路径
+        backend: 数据库后端类型
 
     Returns:
         并行结果列表
 
     Example:
-        >>> results = batch_locate_parallel(["long1.wav", "long2.wav"], 
+        >>> results = batch_locate_parallel(["long1.wav", "long2.wav"],
         ...                                 reference_path="ref.wav",
         ...                                 max_workers=4)
         >>> for r in results:
         ...     print(r.file_path, r.result.offset if r.success else r.error)
     """
-    fingerprinter = ParallelAudioFingerprinter(max_workers, config_path)
+    fingerprinter = ParallelAudioFingerprinter(max_workers, config_path, backend=backend)
     results = fingerprinter.batch_locate(
         long_audio_paths, reference_path, reference_name, threshold, auto_match
     )

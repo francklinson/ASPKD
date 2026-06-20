@@ -98,7 +98,7 @@ class ClientDetectionService:
         try:
             from backend.core.precise_segment_locator.adapter import PreciseSegmentLocatorAdapter
             from backend.core.long_audio_analyzer import AnalyzerConfig
-            from backend.core.shazam.database.connector import MySQLConnector
+            from backend.core.shazam.database.in_memory import InMemoryConnector
 
             # 创建配置（使用固定默认值）
             # 注意：AnalyzerConfig 参数与 SegmentLocatorConfig 不同
@@ -115,7 +115,7 @@ class ClientDetectionService:
             )
 
             # 创建数据库连接
-            db_connector = MySQLConnector()
+            db_connector = InMemoryConnector()
 
             # 创建分析器
             self._analyzer = PreciseSegmentLocatorAdapter(config=config, db_connector=db_connector)
@@ -153,9 +153,7 @@ class ClientDetectionService:
                 # 用户未指定参考音频，加载所有歌曲到索引
                 print(f"[ClientDetection] [分析器初始化] 用户未指定参考音频，加载所有歌曲到索引")
                 # 获取所有参考音频ID并添加
-                sql = "SELECT music_id, music_name FROM music"
-                db_connector.cursor.execute(sql)
-                musics = db_connector.cursor.fetchall()
+                musics = db_connector.get_all_music()
                 for music_id, music_name in musics:
                     self._analyzer.locator.add_reference(music_id, music_name)
 

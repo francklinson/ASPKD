@@ -95,12 +95,17 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时执行
     print("[Backend] 启动音频异常检测服务...")
-    
+
+    # 注册退出时自动保存 Shazam 内存数据库
+    import atexit
+    from backend.core.shazam.database.in_memory import InMemoryDatabaseChecker
+    atexit.register(InMemoryDatabaseChecker.save_on_exit)
+
     # 初始化任务管理器
     await task_manager.initialize()
-    
+
     yield
-    
+
     # 关闭时执行
     print("[Backend] 关闭服务，清理资源...")
     await task_manager.cleanup()

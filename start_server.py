@@ -173,38 +173,28 @@ if failed_deps:
     print_info("请运行: pip install -r requirements.txt")
     sys.exit(1)
 
-# ========== 第5步：检查数据库连接 ==========
-print_step(5, 7, "检查数据库连接")
+# ========== 第5步：初始化内存数据库 ==========
+print_step(5, 7, "初始化Shazam内存数据库")
 
 try:
-    from backend.core.shazam.database.connector import DatabaseChecker, MySQLConnector
-    from backend.core.shazam.utils.hparam import hp
-    
-    # 先检查并创建数据库和表
-    checker = DatabaseChecker()
+    from backend.core.shazam.database.in_memory import InMemoryDatabaseChecker, _MemDB
+
+    # 初始化内存数据库（自动从磁盘恢复，退出时自动保存）
+    checker = InMemoryDatabaseChecker()
     checker.check_database()
     checker.check_tables()
-    
-    # 测试连接
-    db_connector = MySQLConnector()
-    print_success("MySQL数据库连接成功")
-    print_info(f"数据库: {hp.fingerprint.database.database}")
-    print_info(f"主机: {hp.fingerprint.database.host}:{hp.fingerprint.database.port}")
-    
-    # 测试查询
-    try:
-        db_connector.cursor.execute("SELECT COUNT(*) FROM finger_prints")
-        count = db_connector.cursor.fetchone()[0]
-        print_info(f"指纹库记录数: {count}")
-    except Exception as e:
-        print_warning(f"指纹库查询失败: {e}")
-    
-    db_connector.cursor.close()
-    db_connector.conn.close()
-    
+
+    # 注册退出时自动保存（在 uvicorn lifespan 之前的安全网）
+    import atexit
+    atexit.register(InMemoryDatabaseChecker.save_on_exit)
+
+    # 显示当前数据库状态
+    stats = _MemDB().stats()
+    print_info(f"曲目数: {stats['music_count']}  |  总指纹数: {stats['total_hashes']}  |  唯一哈希数: {stats['unique_hashes']}")
+
 except Exception as e:
-    print_error(f"数据库连接失败: {e}")
-    print_info("请检查数据库配置: backend/config/config.yaml")
+    print_error(f"内存数据库初始化失败: {e}")
+    print_info("请检查 Shazam 模块配置")
     sys.exit(1)
 
 # ========== 第6步：检查模型文件 ==========

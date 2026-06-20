@@ -16,6 +16,7 @@ from pathlib import Path
 from .core.implementations.stft.stft_create import StftMusicProcessorCreate
 from .core.implementations.stft.stft_predict import StftMusicProcessorPredict
 from .database.connector import MySQLConnector, DatabaseChecker
+from .database.in_memory import InMemoryConnector, InMemoryDatabaseChecker, _MemDB
 from .utils.hparam import Hparam, hp
 
 
@@ -67,12 +68,13 @@ class AudioFingerprinter:
         >>> loc = fingerprinter.locate("long_audio.wav", reference_name="歌曲1")
     """
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, backend: str = "memory"):
         """
         初始化指纹识别器
 
         Args:
             config_path: 配置文件路径，默认使用 backend/config/config.yaml
+            backend: 数据库后端类型，"memory"（默认进程内内存）或 "mysql"
         """
         # 加载配置
         if config_path:
@@ -81,8 +83,16 @@ class AudioFingerprinter:
             from .utils.hparam import hp
             self.hp = hp
 
+        # 选择数据库后端
+        if backend == "mysql":
+            self._connector_factory = MySQLConnector
+            self._checker_class = DatabaseChecker
+        else:
+            self._connector_factory = InMemoryConnector
+            self._checker_class = InMemoryDatabaseChecker
+
         # 初始化数据库连接
-        self._connector: Optional[MySQLConnector] = None
+        self._connector: Optional[object] = None
         self._creator: Optional[StftMusicProcessorCreate] = None
         self._predictor: Optional[StftMusicProcessorPredict] = None
 
@@ -90,10 +100,10 @@ class AudioFingerprinter:
         self.sr = self.hp.fingerprint.core.stft.sr
         self.hop_length = self.hp.fingerprint.core.stft.hop_length
 
-    def _get_connector(self) -> MySQLConnector:
+    def _get_connector(self):
         """获取数据库连接（懒加载）"""
         if self._connector is None:
-            self._connector = MySQLConnector()
+            self._connector = self._connector_factory()
         return self._connector
 
     def _get_creator(self) -> StftMusicProcessorCreate:
@@ -112,8 +122,7 @@ class AudioFingerprinter:
         """关闭数据库连接，释放资源"""
         if self._connector:
             try:
-                self._connector.cursor.close()
-                self._connector.conn.close()
+                self._connector.close()
             except Exception:
                 pass
             self._connector = None
@@ -128,7 +137,7 @@ class AudioFingerprinter:
 
     def init_database(self):
         """初始化数据库（检查并创建表）"""
-        dc = DatabaseChecker()
+        dc = self._checker_class()
         dc.check_database()
         dc.check_tables()
 
@@ -420,6 +429,10 @@ class AudioFingerprinter:
             参考音频信息列表 [{music_id, name, path, hash_count}, ...]
         """
         connector = self._get_connector()
+
+        if isinstance(connector, InMemoryConnector):
+            return _MemDB().get_all_references()
+
         hp = self.hp
 
         # 使用 JOIN 和 GROUP BY 一次性获取所有信息和 hash 数量
@@ -458,6 +471,10 @@ class AudioFingerprinter:
             bool: 是否删除成功
         """
         connector = self._get_connector()
+
+        if isinstance(connector, InMemoryConnector):
+            return _MemDB().delete_reference(int(music_id))
+
         hp = self.hp
 
         try:
@@ -485,6 +502,11 @@ class AudioFingerprinter:
             bool: 是否清空成功
         """
         connector = self._get_connector()
+
+        if isinstance(connector, InMemoryConnector):
+            _MemDB().clear()
+            return True
+
         hp = self.hp
 
         try:

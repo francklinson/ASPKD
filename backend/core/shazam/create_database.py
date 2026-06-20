@@ -1,7 +1,7 @@
 import os
 from .utils.hparam import hp
 from .utils.print_utils import print_message
-from .database.MySQLConnector import MySQLConnector, DatabaseChecker
+from .database.connector import MySQLConnector, DatabaseChecker
 from backend.core.STFTMusicProcessor import STFTMusicProcessorCreate
 
 

@@ -50,6 +50,16 @@ class IConnector(abc.ABC):
     def find_math_hash(self, hashes):
         raise NotImplementedError(u"出错了，你没有实现find_math_hash抽象方法")
 
+    # 获取指定音乐的所有指纹
+    @abc.abstractmethod
+    def get_fingerprints_by_music_id(self, music_id):
+        raise NotImplementedError(u"出错了，你没有实现get_fingerprints_by_music_id抽象方法")
+
+    # 获取所有音乐
+    @abc.abstractmethod
+    def get_all_music(self):
+        raise NotImplementedError(u"出错了，你没有实现get_all_music抽象方法")
+
 
 class MySQLConnector(IConnector):
     def __init__(self):
@@ -326,6 +336,69 @@ class MySQLConnector(IConnector):
         #         continue
         #     # 待查指纹对应数据库中的歌曲id，待查指纹在数据库中的偏移，待查指纹在待查音乐片段中的偏移
         #     yield music_id_fk, offset_database, item[1]
+
+    def get_fingerprints_by_music_id(self, music_id):
+        """
+        获取指定音乐的所有指纹
+        :param music_id: 音乐ID
+        :return: [(hash, offset), ...]
+        """
+        sql = "select %s, %s from %s where %s = %s" % (
+            hp.fingerprint.database.tables.finger_prints.column.hash,
+            hp.fingerprint.database.tables.finger_prints.column.offset,
+            hp.fingerprint.database.tables.finger_prints.name,
+            hp.fingerprint.database.tables.finger_prints.column.music_id_fk,
+            music_id
+        )
+        self.cursor.execute(sql)
+        result = self.cursor.fetchall()
+        return [(str(h), int(o)) for h, o in result]
+
+    def get_all_music(self):
+        """
+        获取所有音乐
+        :return: [(music_id, music_name), ...]
+        """
+        sql = "select %s, %s from %s" % (
+            hp.fingerprint.database.tables.music.column.music_id,
+            hp.fingerprint.database.tables.music.column.music_name,
+            hp.fingerprint.database.tables.music.name,
+        )
+        self.cursor.execute(sql)
+        result = self.cursor.fetchall()
+        return [(int(mid), str(name)) for mid, name in result]
+
+    def update_music_info(self, music_id, music_name=None, music_path=None):
+        """
+        更新音乐的名称和/或路径
+        :param music_id: 音乐ID
+        :param music_name: 新名称（可选）
+        :param music_path: 新路径（可选）
+        :return: True/False
+        """
+        try:
+            if music_name is not None:
+                sql = "update %s set %s = '%s' where %s = %s" % (
+                    hp.fingerprint.database.tables.music.name,
+                    hp.fingerprint.database.tables.music.column.music_name,
+                    music_name,
+                    hp.fingerprint.database.tables.music.column.music_id,
+                    music_id
+                )
+                self.cursor.execute(sql)
+            if music_path is not None:
+                sql = "update %s set %s = '%s' where %s = %s" % (
+                    hp.fingerprint.database.tables.music.name,
+                    hp.fingerprint.database.tables.music.column.music_path,
+                    music_path,
+                    hp.fingerprint.database.tables.music.column.music_id,
+                    music_id
+                )
+                self.cursor.execute(sql)
+            self.conn.commit()
+            return True
+        except Exception:
+            return False
 
 
 class DatabaseChecker:

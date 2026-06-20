@@ -199,54 +199,48 @@ check_dependencies() {
 
 # 检查数据库
 check_database() {
-    print_step 4 6 "检查数据库连接"
-    
-    # 尝试导入并测试连接
+    print_step 4 6 "初始化Shazam内存数据库"
+
+    # 初始化内存数据库（无需外部数据库服务）
     local db_output=$($VENV_PYTHON -c "
 import sys
 import io
 sys.path.insert(0, '$PROJECT_DIR')
 
-# 捕获所有输出
 old_stdout = sys.stdout
 sys.stdout = buffer = io.StringIO()
 
 try:
-    from backend.core.shazam.database.connector import DatabaseChecker, MySQLConnector
-    from backend.core.shazam.utils.hparam import hp
-    
-    # 先检查并创建数据库和表
-    checker = DatabaseChecker()
+    from backend.core.shazam.database.in_memory import InMemoryDatabaseChecker, _MemDB
+
+    checker = InMemoryDatabaseChecker()
     checker.check_database()
     checker.check_tables()
-    
-    # 然后测试连接
-    conn = MySQLConnector()
-    conn.cursor.execute('SELECT COUNT(*) FROM finger_prints')
-    count = conn.cursor.fetchone()[0]
-    conn.cursor.close()
-    conn.conn.close()
-    
-    # 恢复输出并打印结果
+
+    stats = _MemDB().stats()
+
     sys.stdout = old_stdout
-    print(f'OK|{count}')
+    print(f'OK|{stats[\"music_count\"]}|{stats[\"total_hashes\"]}|{stats[\"unique_hashes\"]}')
 except Exception as e:
     sys.stdout = old_stdout
     print(f'ERROR|{e}')
 " 2>&1)
-    
-    # 提取最后一行作为结果
+
     local db_test=$(echo "$db_output" | tail -1)
-    
+
     if [[ "$db_test" == OK* ]]; then
-        local count=$(echo "$db_test" | cut -d'|' -f2)
-        print_success "MySQL连接成功"
-        echo "  数据库: music_recognition"
-        echo "  指纹库记录数: $count"
+        local music_count=$(echo "$db_test" | cut -d'|' -f2)
+        local total_hashes=$(echo "$db_test" | cut -d'|' -f3)
+        local unique_hashes=$(echo "$db_test" | cut -d'|' -f4)
+        print_success "Shazam 内存数据库已就绪（无外部依赖）"
+        echo "  已加载曲目: $music_count 首"
+        echo "  总指纹数: $total_hashes"
+        echo "  唯一哈希: $unique_hashes"
     else
         local error=$(echo "$db_test" | cut -d'|' -f2)
-        print_warning "数据库检查: $error"
-        print_info "将在首次使用时自动创建数据库和表"
+        print_error "内存数据库初始化失败: $error"
+        print_info "请检查 Shazam 模块配置"
+        exit 1
     fi
 }
 
@@ -416,9 +410,8 @@ start_service() {
     # 加载环境变量
     load_environment
     
-    # 生成带时间戳的日志文件名
-    local timestamp=$(date +"%Y%m%d_%H%M%S")
-    local LOG_FILE="$PROJECT_DIR/logs/backend_${timestamp}.log"
+    # 使用固定日志文件，持续写入
+    local LOG_FILE="$PROJECT_DIR/logs/backend.log"
     
     # 创建 logs 目录
     mkdir -p "$PROJECT_DIR/logs"
@@ -614,11 +607,11 @@ show_log() {
         tail -f "$log_file"
     else
         echo -e "${YELLOW}未找到日志文件${NC}"
-        # 尝试查找最新的日志
-        local latest_log=$(ls -t "$PROJECT_DIR/logs"/backend_*.log 2>/dev/null | head -1)
-        if [ -n "$latest_log" ]; then
-            echo -e "${BLUE}正在查看最新日志:${NC} $latest_log"
-            tail -f "$latest_log"
+        # 尝试回退到固定日志文件
+        local fallback_log="$PROJECT_DIR/logs/backend.log"
+        if [ -f "$fallback_log" ]; then
+            echo -e "${BLUE}正在查看日志:${NC} $fallback_log"
+            tail -f "$fallback_log"
         fi
     fi
 }

@@ -133,24 +133,19 @@ class FastMatchingEngine:
     def build_index_from_database(self, connector):
         """
         从数据库构建倒排索引
-        
+
         Args:
-            connector: 数据库连接对象
+            connector: 数据库连接对象（需实现 get_all_music / get_fingerprints_by_music_id）
         """
         # 获取所有歌曲
-        sql = "SELECT music_id, music_name FROM music"
-        connector.cursor.execute(sql)
-        musics = connector.cursor.fetchall()
-        
+        musics = connector.get_all_music()
+
         for music_id, music_name in musics:
             # 获取该歌曲的所有指纹
-            sql = "SELECT hash, offset FROM finger_prints WHERE music_id_fk = %s"
-            connector.cursor.execute(sql, (music_id,))
-            fingerprints = connector.cursor.fetchall()
-            
-            hashes = [(h, int(o)) for h, o in fingerprints]
+            fingerprints = connector.get_fingerprints_by_music_id(music_id)
+            hashes = [(str(h), int(o)) for h, o in fingerprints]
             self.index.add_fingerprint(music_id, hashes, music_name)
-        
+
         print(f"索引构建完成，共 {len(musics)} 首歌曲，{len(self.index.index)} 个唯一哈希")
     
     def add_reference(self, music_id: int, hashes: List[Tuple[str, int]], 

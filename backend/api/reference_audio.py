@@ -73,36 +73,17 @@ async def get_reference_list():
     
     try:
         with get_fingerprinter() as fp:
-            connector = fp._get_connector()
-            hp = fp.hp
-            
-            # 使用单次查询获取所有参考音频及其哈希数量
-            sql = f"""
-                SELECT 
-                    m.{hp.fingerprint.database.tables.music.column.music_id},
-                    m.{hp.fingerprint.database.tables.music.column.music_name},
-                    m.{hp.fingerprint.database.tables.music.column.music_path},
-                    COUNT(fp.{hp.fingerprint.database.tables.finger_prints.column.id_fp}) as hash_count
-                FROM {hp.fingerprint.database.tables.music.name} m
-                LEFT JOIN {hp.fingerprint.database.tables.finger_prints.name} fp
-                    ON m.{hp.fingerprint.database.tables.music.column.music_id} = 
-                       fp.{hp.fingerprint.database.tables.finger_prints.column.music_id_fk}
-                GROUP BY m.{hp.fingerprint.database.tables.music.column.music_id}
-                ORDER BY m.{hp.fingerprint.database.tables.music.column.music_id}
-            """
-            
-            connector.cursor.execute(sql)
-            results = connector.cursor.fetchall()
-            
-            # 转换为响应格式
+            # 使用统一接口获取所有参考音频（兼容 InMemory / MySQL）
+            references = fp.get_all_references()
+
             ref_list = [
                 ReferenceAudioInfo(
-                    music_id=music_id,
-                    name=name,
-                    path=path,
-                    hash_count=hash_count or 0
+                    music_id=ref["music_id"],
+                    name=ref["name"],
+                    path=ref["path"],
+                    hash_count=ref["hash_count"] or 0
                 )
-                for music_id, name, path, hash_count in results
+                for ref in references
             ]
             
             elapsed_time = (time.time() - start_time) * 1000
@@ -180,8 +161,7 @@ async def upload_reference_audio(
     try:
         with get_fingerprinter() as fp:
             connector = fp._get_connector()
-            hp = fp.hp
-            
+
             # 检查数据库中是否已存在同名参考音频
             existing_id = connector.find_music_by_music_path(file_path)
             if existing_id is not None:
@@ -252,17 +232,10 @@ async def upload_reference_audio(
             
             # 获取音乐ID
             music_id = connector.find_music_by_music_path(temp_file_path)
-            
+
             # 更新音乐名称为用户指定的名称，并更新路径为虚拟路径（不实际保存）
             if music_id:
-                sql_update = f"""
-                    UPDATE {hp.fingerprint.database.tables.music.name}
-                    SET {hp.fingerprint.database.tables.music.column.music_name} = %s,
-                        {hp.fingerprint.database.tables.music.column.music_path} = %s
-                    WHERE {hp.fingerprint.database.tables.music.column.music_id} = %s
-                """
-                connector.cursor.execute(sql_update, (display_name, file_path, music_id))
-                connector.conn.commit()
+                connector.update_music_info(music_id, music_name=display_name, music_path=file_path)
 
             # 删除临时文件
             if os.path.exists(temp_file_path):
@@ -346,8 +319,7 @@ async def add_existing_reference(
     try:
         with get_fingerprinter() as fp:
             connector = fp._get_connector()
-            hp = fp.hp
-            
+
             # 确定显示名称
             display_name = name if name else os.path.splitext(os.path.basename(file_path))[0]
             
@@ -367,17 +339,7 @@ async def add_existing_reference(
                 )
             
             # 直接添加音乐记录到数据库（不验证文件是否存在）
-            sql = f"""
-                INSERT INTO {hp.fingerprint.database.tables.music.name}
-                ({hp.fingerprint.database.tables.music.column.music_name}, 
-                 {hp.fingerprint.database.tables.music.column.music_path})
-                VALUES (%s, %s)
-            """
-            connector.cursor.execute(sql, (display_name, file_path))
-            connector.conn.commit()
-            
-            # 获取新添加的音乐ID
-            music_id = connector.find_music_by_music_path(file_path)
+            music_id = connector.add_music(music_path=file_path, music_name=display_name)
             
             elapsed_time = (time.time() - start_time) * 1000
             log_operation(
@@ -420,19 +382,11 @@ async def delete_reference_audio(music_id: int):
         with get_fingerprinter() as fp:
             # 先获取音频信息用于日志记录
             connector = fp._get_connector()
-            hp = fp.hp
 
             # 查询要删除的音频信息
-            sql = f"""
-                SELECT {hp.fingerprint.database.tables.music.column.music_name}
-                FROM {hp.fingerprint.database.tables.music.name}
-                WHERE {hp.fingerprint.database.tables.music.column.music_id} = %s
-            """
-            connector.cursor.execute(sql, (music_id,))
-            result = connector.cursor.fetchone()
+            music_name = connector.find_music_name_by_music_id(music_id)
 
-            if result:
-                music_name = result[0]
+            if music_name:
                 log_operation(
                     "DELETE_INFO",
                     f"找到要删除的音频: ID={music_id}, 名称='{music_name}'"
@@ -452,7 +406,7 @@ async def delete_reference_audio(music_id: int):
                 log_operation(
                     "DELETE_SUCCESS",
                     f"参考音频删除成功: ID={music_id}, "
-                    f"名称='{music_name if result else '未知'}', 耗时={elapsed_time:.2f}ms"
+                    f"名称='{music_name or '未知'}', 耗时={elapsed_time:.2f}ms"
                 )
                 return DeleteReferenceResponse(
                     success=True,
