@@ -40,8 +40,51 @@
    - 兼容性: AudioFingerprinter(backend="mysql") 仍可用
    - 切换回 MySQL: AudioFingerprinter(backend="mysql")
 
-3. ~~[1]分析整理一下当前项目中需要用到的数据和存储路径 存储方式~~ [已完成 - 2026-06-20 16:12]
+3. ~~分析整理一下当前项目中需要用到的数据和存储路径 存储方式~~ [已完成 - 2026-06-20 16:12]
    - 分析范围: 项目全部模块（Shazam指纹库、模型文件、参考音频、数据集、上传文件、输出文件、日志、配置、前端存储等）
    - 存储路径: 逐一列出所有数据目录的绝对/相对路径和用途
    - 存储方式: 内存+JSON持久化（指纹库）、文件系统（模型/音频/图片）、YAML（配置）、localStorage（前端）
    - 工作记录: records/20260620_161238_数据存储路径分析.md
+
+
+待办:
+
+已完成:
+4. ~~将web上的特征聚类 零样本检测 少样本检测 三个tab隐藏,后续再开发~~ [已完成 - 2026-06-20 16:38]
+   - 修改方案: 在三个 tab 按钮和对应的 content div 上添加 `style="display:none"`，保留 JS 逻辑不变
+   - 修改文件: frontend/index.html
+   - 修改内容:
+     1. 第 717-719 行：三个 tab 按钮添加 `style="display:none"`
+     2. 第 1021 行：cluster 内容区添加 `style="display:none"`
+     3. 第 1138 行：zero-shot 内容区添加 `style="display:none"`
+     4. 第 1275 行：few-shot 内容区添加 `style="display:none"`
+     5. 注释标记添加 "(已隐藏，待后续开发)" 提示
+   - 恢复方法: 删除对应元素上的 `style="display:none"` 即可
+   - 工作记录: records/20260620_163844_隐藏三个待开发Tab.md
+5. ~~拆分 index.html 到多文件 + 增强任务管理 Tab 功能~~ [已完成 - 2026-06-20 17:00]
+   - 改造原因: index.html 达 5799 行、279KB，维护困难；任务管理功能太少
+   - 拆分方案:
+     1. CSS 提取到 frontend/css/index.css（原 680 行内联样式）
+     2. 内联 JS（~4200 行）拆分为 9 个独立模块文件
+   - 新建文件:
+     - frontend/css/index.css — 全部样式
+     - frontend/js/app.js — 核心模块（登录、API、弹窗、Tab切换、音频播放、设备/参考音频加载）
+     - frontend/js/offline-detection.js — 离线检测
+     - frontend/js/realtime-monitor.js — 实时监控（隐藏保留）
+     - frontend/js/task-manager.js — 任务管理（增强版）
+     - frontend/js/reference-audio.js — 参考音频库管理
+     - frontend/js/client-monitor.js — 客户端监控
+     - frontend/js/cluster.js — 特征聚类（隐藏保留）
+     - frontend/js/zero-shot.js — 零样本检测（隐藏保留）
+     - frontend/js/few-shot.js — 少样本检测（隐藏保留）
+   - index.html: 5799 行 → 982 行（仅保留 HTML 骨架）
+   - 任务管理增强:
+     1. 统计卡片（总/运行中/排队/已完成/失败，使用 /api/tasks/stats）
+     2. 筛选栏（按状态/算法/搜索任务ID）
+     3. 进度条可视化
+     4. 分页（后端已支持 limit/offset）
+     5. 单任务删除（使用 DELETE /api/tasks/{task_id}）
+     6. 结构化任务详情（内嵌于弹窗，显示文件级结果）
+     7. 任务耗时显示
+     8. 统计卡片点击筛选联动
+   - 工作记录: records/20260620_170000_index.html拆分与任务管理增强.md
