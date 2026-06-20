@@ -582,23 +582,30 @@ class TaskManager:
                             overlay_path = result.metadata.get('overlay_path')
                             heatmap_path = result.metadata.get('heatmap_path')
                             
-                            # 将绝对路径转换为相对路径，便于前端访问
+                            # 将绝对路径转换为前端可访问的相对URL路径
                             project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                            
+
                             if original_path:
                                 if original_path.startswith(project_root):
                                     original_path = original_path[len(project_root)+1:]
                                 original_path = original_path.replace('\\', '/')
-                            
+                                # output/vis/ → visualize/ (匹配 StaticFiles mount)
+                                if original_path.startswith('output/vis/'):
+                                    original_path = 'visualize/' + original_path[len('output/vis/'):]
+
                             if overlay_path:
                                 if overlay_path.startswith(project_root):
                                     overlay_path = overlay_path[len(project_root)+1:]
                                 overlay_path = overlay_path.replace('\\', '/')
-                            
+                                if overlay_path.startswith('output/vis/'):
+                                    overlay_path = 'visualize/' + overlay_path[len('output/vis/'):]
+
                             if heatmap_path:
                                 if heatmap_path.startswith(project_root):
                                     heatmap_path = heatmap_path[len(project_root)+1:]
                                 heatmap_path = heatmap_path.replace('\\', '/')
+                                if heatmap_path.startswith('output/vis/'):
+                                    heatmap_path = 'visualize/' + heatmap_path[len('output/vis/'):]
                                 print(f"[TaskManager] 生成图像: original={original_path}, overlay={overlay_path}, heatmap={heatmap_path}, 异常: {is_anomaly}")
                             else:
                                 print(f"[TaskManager] 无热力图: metadata={result.metadata is not None}, score={result.anomaly_score:.4f}")
@@ -612,13 +619,13 @@ class TaskManager:
                 if overlay_path:
                     # 从 overlay_path 推断音频路径
                     # 注意：overlay_path 文件名包含 _overlay 后缀，但音频文件没有
-                    # overlay_path 格式: slice/picture/xxx_overlay.png
-                    # audio_path 格式: slice/audio/xxx.wav
+                    # overlay_path 格式: visualize/.../xxx_overlay.png
+                    # audio_path 格式: output/slices/audio/xxx.wav (由 preprocessing 保存)
                     base_name = os.path.splitext(os.path.basename(overlay_path))[0]
                     # 去除 _overlay 后缀
                     if base_name.endswith('_overlay'):
                         base_name = base_name[:-8]
-                    audio_slice_path = f"slice/audio/{base_name}.wav"
+                    audio_slice_path = f"output/slices/audio/{base_name}.wav"
                     # 检查文件是否存在
                     project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
                     full_audio_path = os.path.join(project_root, audio_slice_path)

@@ -573,13 +573,19 @@ class ClientDetectionService:
                     overlay_path = metadata.get('overlay_path')
                     heatmap_path = metadata.get('heatmap_path')
                     
-                    # 转换为相对路径
+                    # 转换为前端可访问的相对URL路径
                     if original_path and original_path.startswith(project_root):
                         original_path = original_path[len(project_root)+1:].replace('\\', '/')
+                        if original_path.startswith('output/vis/'):
+                            original_path = 'visualize/' + original_path[len('output/vis/'):]
                     if overlay_path and overlay_path.startswith(project_root):
                         overlay_path = overlay_path[len(project_root)+1:].replace('\\', '/')
+                        if overlay_path.startswith('output/vis/'):
+                            overlay_path = 'visualize/' + overlay_path[len('output/vis/'):]
                     if heatmap_path and heatmap_path.startswith(project_root):
                         heatmap_path = heatmap_path[len(project_root)+1:].replace('\\', '/')
+                        if heatmap_path.startswith('output/vis/'):
+                            heatmap_path = 'visualize/' + heatmap_path[len('output/vis/'):]
                 
                 # 更新统计
                 if is_anomaly:

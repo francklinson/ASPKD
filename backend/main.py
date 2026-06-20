@@ -165,6 +165,11 @@ visualize_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "outpu
 if os.path.exists(visualize_path):
     app.mount("/visualize", StaticFiles(directory=visualize_path), name="visualize")
 
+# 音频切片和输出文件服务
+output_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
+if os.path.exists(output_path):
+    app.mount("/output", StaticFiles(directory=output_path), name="output")
+
 # 数据集临时文件服务
 uploads_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 if os.path.exists(uploads_path):

@@ -683,24 +683,27 @@ class MonitorService:
                 overlay_path = detection_result_obj.metadata.get('overlay_path')
                 heatmap_path = detection_result_obj.metadata.get('heatmap_path')
                 
-                # 转换为相对路径
+                # 转换为前端可访问的相对URL路径
                 if original_path and original_path.startswith(project_root):
                     original_path = original_path[len(project_root)+1:].replace('\\', '/')
+                    if original_path.startswith('output/vis/'):
+                        original_path = 'visualize/' + original_path[len('output/vis/'):]
                 if overlay_path and overlay_path.startswith(project_root):
                     overlay_path = overlay_path[len(project_root)+1:].replace('\\', '/')
+                    if overlay_path.startswith('output/vis/'):
+                        overlay_path = 'visualize/' + overlay_path[len('output/vis/'):]
                 if heatmap_path and heatmap_path.startswith(project_root):
                     heatmap_path = heatmap_path[len(project_root)+1:].replace('\\', '/')
-            
+                    if heatmap_path.startswith('output/vis/'):
+                        heatmap_path = 'visualize/' + heatmap_path[len('output/vis/'):]
+
             # 构建音频切片路径（与图片同名，但扩展名为.wav）
                 audio_slice_path = None
                 if overlay_path:
-                    # 从 overlay_path 推断音频路径
-                    # 注意：overlay_path 文件名包含 _overlay 后缀，但音频文件没有
                     base_name = os.path.splitext(os.path.basename(overlay_path))[0]
-                    # 去除 _overlay 后缀
                     if base_name.endswith('_overlay'):
                         base_name = base_name[:-8]
-                    audio_slice_path = f"slice/monitor/{base_name}.wav"
+                    audio_slice_path = f"output/slices/audio/{base_name}.wav"
                     # 检查文件是否存在
                     full_audio_path = os.path.join(project_root, audio_slice_path)
                     if not os.path.exists(full_audio_path):
