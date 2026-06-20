@@ -5,8 +5,8 @@ fingerprint:
   # 路径
   path:
     split: '/'
-    music_path: "/mnt/test/scripts/label-studio-zch/label-studio-ml-backend/label_studio_ml/examples/music_mos/dataset/key/"
-    query_path: "/mnt/test/scripts/label-studio-zch/label-studio-ml-backend/label_studio_ml/examples/music_mos/dataset/query/music_query/"
+    music_path: "data/ref/"
+    query_path: "data/query/"
   # 核心参数
   core:
     # 能量最小值

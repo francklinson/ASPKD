@@ -46,8 +46,8 @@ class ADerBaseAdapter(BaseDetector):
         # ADer使用inference模式
         # 需要将图像放到指定目录
         import shutil
-        inference_dir = 'inference_dir_temp'
-        os.makedirs(inference_dir, exist_ok=True)
+        import tempfile
+        inference_dir = tempfile.mkdtemp(prefix='ader_inference_')
         
         # 复制图像到推理目录
         dst_path = os.path.join(inference_dir, os.path.basename(image_path))
@@ -61,9 +61,9 @@ class ADerBaseAdapter(BaseDetector):
             score = 0.5  # 占位
             is_anomaly = score > self.threshold
         finally:
-            # 清理临时文件
-            if os.path.exists(dst_path):
-                os.remove(dst_path)
+            # 清理临时文件和目录
+            if os.path.exists(inference_dir):
+                shutil.rmtree(inference_dir, ignore_errors=True)
         
         inference_time = (time.time() - start_time) * 1000
         

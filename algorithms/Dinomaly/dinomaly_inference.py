@@ -201,7 +201,7 @@ class DinomalyBaseInferencer(ABC):
                     if paths.get('heatmap'):
                         save_img_path_list.append(paths['heatmap'])
 
-                print(f"Visualization done!! Saved to ./visualize/{visualize_save_dir}")
+                print(f"Visualization done!! Saved to output/vis/{visualize_save_dir}")
         pred_res_dict = dict()
         for i in range(len(sp_score_list)):
             score = sp_score_list[i]

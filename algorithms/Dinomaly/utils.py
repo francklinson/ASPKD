@@ -926,7 +926,8 @@ def save_feature(model, dataloader, device, _class_='None', save_name='save'):
     """
     model.eval()  # 将模型设置为评估模式
     # 创建特征保存目录
-    save_dir = os.path.join('./feature', save_name)
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    save_dir = os.path.join(_project_root, 'output', 'feature', save_name)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     # 关闭梯度计算，节省内存
@@ -994,7 +995,8 @@ def visualize(model, dataloader, device, _class_='None', save_name='save'):
         save_name: 保存结果的目录名，默认为'save'
     """
     model.eval()  # 将模型设置为评估模式
-    save_dir = os.path.join('./visualize', save_name)  # 设置保存目录
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    save_dir = os.path.join(_project_root, 'output', 'vis', save_name)  # 保存到 output/vis/
     if not os.path.exists(save_dir):  # 如果目录不存在则创建
         os.makedirs(save_dir)
     gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(device)  # 获取高斯核并移动到指定设备
@@ -1049,7 +1051,8 @@ def visualize_when_predict(model, dataloader, device, _class_='None', save_name=
 
     """
     model.eval()  # 将模型设置为评估模式
-    save_dir = os.path.join('./visualize', save_name)  # 设置保存目录
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    save_dir = os.path.join(_project_root, 'output', 'vis', save_name)  # 保存到 output/vis/
     if not os.path.exists(save_dir):  # 如果目录不存在则创建
         os.makedirs(save_dir)
     gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(device)  # 获取高斯核并移动到指定设备
@@ -1121,14 +1124,16 @@ def visualize_when_predict_with_all_images(model, dataloader, device, _class_='N
               {'original': path, 'overlay': path, 'heatmap': path}
     """
     model.eval()  # 将模型设置为评估模式
-    save_dir = os.path.join('./visualize', save_name)  # 设置保存目录
+    # 保存到项目 output/vis/ 目录，与 main.py 中 /visualize 的 StaticFiles mount 一致
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    save_dir = os.path.join(_project_root, 'output', 'vis', save_name)
     if not os.path.exists(save_dir):  # 如果目录不存在则创建
         os.makedirs(save_dir)
     gaussian_kernel = get_gaussian_kernel(kernel_size=5, sigma=4).to(device)  # 获取高斯核并移动到指定设备
 
     with torch.no_grad():  # 禁用梯度计算
         result_dict = {}  # 存储每个文件对应的三种图像路径
-        
+
         for img, img_path in dataloader:  # 遍历数据加载器
             img = img.to(device)  # 将图像移动到指定设备
             output = model(img)  # 获取模型输出
@@ -1150,7 +1155,7 @@ def visualize_when_predict_with_all_images(model, dataloader, device, _class_='N
                 im = im * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])  # 反标准化
                 im = (im * 255).astype('uint8')  # 转换为8位整数
                 im = im[:, :, ::-1]  # RGB转BGR (OpenCV格式)
-                
+
                 # 将热力图叠加到原始图像上
                 overlay_img = show_cam_on_image(im, heatmap)
 
@@ -1164,12 +1169,12 @@ def visualize_when_predict_with_all_images(model, dataloader, device, _class_='N
                 original_path = os.path.join(save_dir_class, name + '_original.png')
                 original_path = os.path.abspath(original_path)
                 cv2.imencode('.png', im)[1].tofile(original_path)
-                
+
                 # 2. 叠加图
                 overlay_path = os.path.join(save_dir_class, name + '_overlay.png')
                 overlay_path = os.path.abspath(overlay_path)
                 cv2.imencode('.png', overlay_img)[1].tofile(overlay_path)
-                
+
                 # 3. 纯热力图
                 heatmap_path = os.path.join(save_dir_class, name + '_heatmap.png')
                 heatmap_path = os.path.abspath(heatmap_path)
@@ -1202,7 +1207,8 @@ def visualize_noseg(model, dataloader, device, _class_='None', save_name='save')
         None
     """
     model.eval()  # 将模型设置为评估模式，关闭dropout和batch normalization
-    save_dir = os.path.join('./visualize', save_name)  # 创建保存结果的目录路径
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    save_dir = os.path.join(_project_root, 'output', 'vis', save_name)  # 保存到 output/vis/
     if not os.path.exists(save_dir):  # 如果目录不存在，则创建
         os.mkdir(save_dir)
     with torch.no_grad():  # 禁用梯度计算，节省内存
@@ -1246,7 +1252,8 @@ def visualize_loco(model, dataloader, device, _class_='None', save_name='save'):
         save_name: 保存结果的目录名，默认为'save'
     """
     model.eval()  # 将模型设置为评估模式
-    save_dir = os.path.join('./visualize', save_name)  # 设置保存结果的根目录
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    save_dir = os.path.join(_project_root, 'output', 'vis', save_name)  # 保存到 output/vis/
     with torch.no_grad():  # 禁用梯度计算，节省内存
         for img, gt, label, img_path, defect_type, size in dataloader:  # 遍历数据加载器
             img = img.to(device)  # 将图像移动到指定设备
