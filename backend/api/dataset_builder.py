@@ -261,10 +261,10 @@ def split_audio_auto_match_v2(
     try:
         # 导入长音频分析器
         from backend.core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
-        from backend.core.shazam.database.connector import MySQLConnector
+        from backend.core.shazam.database.in_memory import InMemoryConnector
 
-        # 创建数据库连接
-        db_connector = MySQLConnector()
+        # 创建数据库连接（使用进程内内存数据库）
+        db_connector = InMemoryConnector()
 
         # 创建分析器配置（使用传入的参数）
         config = AnalyzerConfig(
@@ -436,11 +436,11 @@ def split_audio_auto_match(
     try:
         # 导入长音频分析器
         from backend.core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
-        from backend.core.shazam.database.connector import MySQLConnector
+        from backend.core.shazam.database.in_memory import InMemoryConnector
         from backend.core.shazam.utils.hparam import hp
 
-        # 创建数据库连接（MySQLConnector 从全局 hp 配置读取数据库信息）
-        db_connector = MySQLConnector()
+        # 创建数据库连接（使用进程内内存数据库）
+        db_connector = InMemoryConnector()
 
         # 创建分析器配置
         config = AnalyzerConfig(
@@ -891,9 +891,9 @@ async def split_manual_audio(
 
     try:
         from backend.core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
-        from backend.core.shazam.database.connector import MySQLConnector
+        from backend.core.shazam.database.in_memory import InMemoryConnector
 
-        db_connector = MySQLConnector()
+        db_connector = InMemoryConnector()
         config = AnalyzerConfig(
             window_size=10.0,
             step_size=5.0,

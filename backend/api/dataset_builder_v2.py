@@ -443,9 +443,9 @@ async def slice_audio_file(
     
     try:
         from backend.core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
-        from backend.core.shazam.database.connector import MySQLConnector
-        
-        db_connector = MySQLConnector()
+        from backend.core.shazam.database.in_memory import InMemoryConnector
+
+        db_connector = InMemoryConnector()
         config = AnalyzerConfig(
             window_size=10.0,
             step_size=5.0,
