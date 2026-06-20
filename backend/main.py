@@ -176,17 +176,17 @@ async def favicon():
     raise HTTPException(status_code=404, detail="Favicon not found")
 
 # 热力图静态文件服务
-visualize_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output", "vis")
+visualize_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "output", "vis")
 if os.path.exists(visualize_path):
     app.mount("/visualize", StaticFiles(directory=visualize_path), name="visualize")
 
 # 音频切片和输出文件服务
-output_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
+output_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "output")
 if os.path.exists(output_path):
     app.mount("/output", StaticFiles(directory=output_path), name="output")
 
 # 数据集临时文件服务
-uploads_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+uploads_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "uploads")
 if os.path.exists(uploads_path):
     app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
 

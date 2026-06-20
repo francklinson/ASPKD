@@ -34,7 +34,7 @@ DATASET_BUILDER_DIR = os.path.join(PROJECT_ROOT, "data", "dataset_builder")
 os.makedirs(DATASET_BUILDER_DIR, exist_ok=True)
 
 # 检测任务结果关联目录
-DETECTION_RESULTS_DIR = os.path.join(PROJECT_ROOT, "output", "results")
+DETECTION_RESULTS_DIR = os.path.join(PROJECT_ROOT, "data", "output", "results")
 
 
 def log_operation(operation: str, details: str = "", status: str = "INFO"):
@@ -394,7 +394,7 @@ def _find_audio_slice_for_client_result(result: dict) -> Optional[str]:
         # overlay 可能是相对路径（如 visualize/dinomaly_xxx/xxx_overlay.png）
         # 也可能是绝对路径
         if not os.path.isabs(overlay):
-            full_overlay = os.path.join(PROJECT_ROOT, overlay.replace("visualize/", "output/vis/"))
+            full_overlay = os.path.join(PROJECT_ROOT, overlay.replace("visualize/", "data/output/vis/"))
         else:
             full_overlay = overlay
         base_name = os.path.splitext(os.path.basename(full_overlay))[0]
@@ -402,8 +402,8 @@ def _find_audio_slice_for_client_result(result: dict) -> Optional[str]:
             base_name = base_name[:-8]
         # 尝试几个可能的切片目录
         candidates = [
-            os.path.join(PROJECT_ROOT, "uploads", "clients", "segments", f"{base_name}.wav"),
-            os.path.join(PROJECT_ROOT, "output", "slices", "audio", f"{base_name}.wav"),
+            os.path.join(PROJECT_ROOT, "data", "uploads", "clients", "segments", f"{base_name}.wav"),
+            os.path.join(PROJECT_ROOT, "data", "output", "slices", "audio", f"{base_name}.wav"),
         ]
         for c in candidates:
             if os.path.exists(c):

@@ -205,7 +205,7 @@ class ClientDetectionService:
             task_id: 任务ID
         """
         # 保存上传的文件到临时目录
-        temp_dir = os.path.join(project_root, "uploads", "clients", client_id)
+        temp_dir = os.path.join(project_root, "data", "uploads", "clients", client_id)
         os.makedirs(temp_dir, exist_ok=True)
         
         saved_files = []
@@ -446,8 +446,8 @@ class ClientDetectionService:
         from tools.preprocessing import plot_spectrogram
         from backend.core.shazam.api import AudioFingerprinter
         
-        temp_dir = os.path.join(project_root, "uploads", "clients", "segments")
-        pic_dir = os.path.join(project_root, "uploads", "clients", "pictures")
+        temp_dir = os.path.join(project_root, "data", "uploads", "clients", "segments")
+        pic_dir = os.path.join(project_root, "data", "uploads", "clients", "pictures")
         os.makedirs(temp_dir, exist_ok=True)
         os.makedirs(pic_dir, exist_ok=True)
         
@@ -580,16 +580,16 @@ class ClientDetectionService:
                     # 转换为前端可访问的相对URL路径
                     if original_path and original_path.startswith(project_root):
                         original_path = original_path[len(project_root)+1:].replace('\\', '/')
-                        if original_path.startswith('output/vis/'):
-                            original_path = 'visualize/' + original_path[len('output/vis/'):]
+                        if original_path.startswith('data/output/vis/'):
+                            original_path = 'visualize/' + original_path[len('data/output/vis/'):]
                     if overlay_path and overlay_path.startswith(project_root):
                         overlay_path = overlay_path[len(project_root)+1:].replace('\\', '/')
-                        if overlay_path.startswith('output/vis/'):
-                            overlay_path = 'visualize/' + overlay_path[len('output/vis/'):]
+                        if overlay_path.startswith('data/output/vis/'):
+                            overlay_path = 'visualize/' + overlay_path[len('data/output/vis/'):]
                     if heatmap_path and heatmap_path.startswith(project_root):
                         heatmap_path = heatmap_path[len(project_root)+1:].replace('\\', '/')
-                        if heatmap_path.startswith('output/vis/'):
-                            heatmap_path = 'visualize/' + heatmap_path[len('output/vis/'):]
+                        if heatmap_path.startswith('data/output/vis/'):
+                            heatmap_path = 'visualize/' + heatmap_path[len('data/output/vis/'):]
                 
                 # 更新统计
                 if is_anomaly:
@@ -608,7 +608,7 @@ class ClientDetectionService:
                     # 去除 _overlay 后缀
                     if base_name.endswith('_overlay'):
                         base_name = base_name[:-8]
-                    audio_slice_path = os.path.join(project_root, "uploads", "clients", "segments", f"{base_name}.wav")
+                    audio_slice_path = os.path.join(project_root, "data", "uploads", "clients", "segments", f"{base_name}.wav")
                     # 检查文件是否存在
                     print(f"[ClientMonitor Debug] 构建音频路径: overlay={overlay_path}, base={base_name}, audio={audio_slice_path}")
                     print(f"[ClientMonitor Debug] 完整音频路径: {audio_slice_path}, 存在={os.path.exists(audio_slice_path)}")

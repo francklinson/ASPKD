@@ -154,7 +154,7 @@ async def analyze_few_shot(
         )
 
     # 创建任务目录
-    task_dir = os.path.join(PROJECT_ROOT, "uploads", "few_shot", task_id)
+    task_dir = os.path.join(PROJECT_ROOT, "data", "uploads", "few_shot", task_id)
     os.makedirs(task_dir, exist_ok=True)
 
     # 保存上传的文件
@@ -253,7 +253,7 @@ def run_few_shot_analysis(
         log_operation("DETECTOR_INIT", f"任务ID={task_id}, 正在初始化检测器: {backbone}...")
         
         # 创建虚拟模型路径
-        temp_model_path = os.path.join(PROJECT_ROOT, "uploads", "few_shot", task_id, "model_placeholder.pth")
+        temp_model_path = os.path.join(PROJECT_ROOT, "data", "uploads", "few_shot", task_id, "model_placeholder.pth")
         
         detector = create_detector(
             backbone,
@@ -494,7 +494,7 @@ async def get_few_shot_result(task_id: str):
 
     if not os.path.exists(result_file):
         # 检查任务是否还在进行中
-        task_dir = os.path.join(PROJECT_ROOT, "uploads", "few_shot", task_id)
+        task_dir = os.path.join(PROJECT_ROOT, "data", "uploads", "few_shot", task_id)
         if os.path.exists(task_dir):
             return {
                 "task_id": task_id,

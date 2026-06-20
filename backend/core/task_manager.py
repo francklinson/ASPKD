@@ -401,7 +401,7 @@ class TaskManager:
                 print(f"[TaskManager] 开始预处理，使用指定参考音频: {ref_file}")
             else:
                 print(f"[TaskManager] 开始预处理，使用 Shazam 自动匹配模式")
-            result = task_preprocessor.process_audio(task.files, save_dir=os.path.join(self.project_root, "output", "slices"), original_names=original_names)
+            result = task_preprocessor.process_audio(task.files, save_dir=os.path.join(self.project_root, "data", "output", "slices"), original_names=original_names)
             print(f"[TaskManager] 预处理完成，结果数量: {len(result)}")
             
             # 处理结果
@@ -599,22 +599,22 @@ class TaskManager:
                             if original_path.startswith(project_root):
                                 original_path = original_path[len(project_root)+1:]
                             original_path = original_path.replace('\\', '/')
-                            if original_path.startswith('output/vis/'):
-                                original_path = 'visualize/' + original_path[len('output/vis/'):]
+                            if original_path.startswith('data/output/vis/'):
+                                original_path = 'visualize/' + original_path[len('data/output/vis/'):]
 
                         if overlay_path:
                             if overlay_path.startswith(project_root):
                                 overlay_path = overlay_path[len(project_root)+1:]
                             overlay_path = overlay_path.replace('\\', '/')
-                            if overlay_path.startswith('output/vis/'):
-                                overlay_path = 'visualize/' + overlay_path[len('output/vis/'):]
+                            if overlay_path.startswith('data/output/vis/'):
+                                overlay_path = 'visualize/' + overlay_path[len('data/output/vis/'):]
 
                         if heatmap_path:
                             if heatmap_path.startswith(project_root):
                                 heatmap_path = heatmap_path[len(project_root)+1:]
                             heatmap_path = heatmap_path.replace('\\', '/')
-                            if heatmap_path.startswith('output/vis/'):
-                                heatmap_path = 'visualize/' + heatmap_path[len('output/vis/'):]
+                            if heatmap_path.startswith('data/output/vis/'):
+                                heatmap_path = 'visualize/' + heatmap_path[len('data/output/vis/'):]
 
                     # 音频切片路径：多片段模式下直接从预处理结果获取
                     audio_slice_path = file_data.get("audio_slice_path")
@@ -629,7 +629,7 @@ class TaskManager:
                         base_name = os.path.splitext(os.path.basename(overlay_path))[0]
                         if base_name.endswith('_overlay'):
                             base_name = base_name[:-8]
-                        audio_slice_path = f"output/slices/audio/{base_name}.wav"
+                        audio_slice_path = f"data/output/slices/audio/{base_name}.wav"
                         project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
                         full_audio_path = os.path.join(project_root, audio_slice_path)
                         if not os.path.exists(full_audio_path):

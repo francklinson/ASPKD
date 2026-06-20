@@ -133,7 +133,7 @@ async def analyze_audio_cluster(
         )
 
     # 创建任务目录
-    task_dir = os.path.join(PROJECT_ROOT, "uploads", "cluster", task_id)
+    task_dir = os.path.join(PROJECT_ROOT, "data", "uploads", "cluster", task_id)
     os.makedirs(task_dir, exist_ok=True)
 
     # 保存上传的文件
@@ -215,7 +215,7 @@ def run_cluster_analysis(
                                 f"tsne_perplexity={config.tsne_perplexity}, max_iter={config.tsne_max_iter}")
 
         # 设置输出路径（使用项目根目录的绝对路径）
-        result_dir = os.path.join(PROJECT_ROOT, "output", "vis", "cluster", task_id)
+        result_dir = os.path.join(PROJECT_ROOT, "data", "output", "vis", "cluster", task_id)
         os.makedirs(result_dir, exist_ok=True)
         config.output_image = os.path.join(result_dir, f"cluster_result_{extractor_type}.png")
         log_operation("OUTPUT", f"任务ID={task_id}, 输出路径: {config.output_image}")
@@ -308,9 +308,9 @@ def run_cluster_analysis(
             rel_html_path = interactive_html_path.replace(os.path.sep, '/')
             if '/visualize/' in rel_html_path:
                 rel_html_path = rel_html_path[rel_html_path.find('visualize/'):]
-            elif 'output/vis/' in rel_html_path:
+            elif 'data/output/vis/' in rel_html_path:
                 # 提取 output/vis/ 之后的部分，加上 visualize/ 前缀
-                rel_html_path = 'visualize/' + rel_html_path.split('output/vis/', 1)[1]
+                rel_html_path = 'visualize/' + rel_html_path.split('data/output/vis/', 1)[1]
             elif rel_html_path.startswith('./'):
                 rel_html_path = rel_html_path[2:]
             result_data["interactive_html"] = rel_html_path
@@ -341,7 +341,7 @@ def run_cluster_analysis(
             "progress": 0,
             "error": str(e)
         }
-        result_dir = os.path.join(PROJECT_ROOT, "output", "vis", "cluster", task_id)
+        result_dir = os.path.join(PROJECT_ROOT, "data", "output", "vis", "cluster", task_id)
         os.makedirs(result_dir, exist_ok=True)
         import json
         result_file = os.path.join(result_dir, "result.json")
@@ -388,12 +388,12 @@ def generate_report(file_labels, labels, is_outlier, outlier_scores, extractor_t
 @router.get("/result/{task_id}")
 async def get_cluster_result(task_id: str):
     """获取聚类分析结果"""
-    result_dir = os.path.join(PROJECT_ROOT, "output", "vis", "cluster", task_id)
+    result_dir = os.path.join(PROJECT_ROOT, "data", "output", "vis", "cluster", task_id)
     result_file = os.path.join(result_dir, "result.json")
 
     if not os.path.exists(result_file):
         # 检查任务是否还在进行中
-        task_dir = os.path.join(PROJECT_ROOT, "uploads", "cluster", task_id)
+        task_dir = os.path.join(PROJECT_ROOT, "data", "uploads", "cluster", task_id)
         if os.path.exists(task_dir):
             return {
                 "task_id": task_id,

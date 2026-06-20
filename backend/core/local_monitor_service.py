@@ -554,8 +554,8 @@ class MonitorService:
         from tools.preprocessing import plot_spectrogram
         from backend.core.shazam.api import AudioFingerprinter
         
-        temp_dir = os.path.join(project_root, "output", "slices", "monitor")
-        pic_dir = os.path.join(project_root, "output", "slices", "monitor", "picture")
+        temp_dir = os.path.join(project_root, "data", "output", "slices", "monitor")
+        pic_dir = os.path.join(project_root, "data", "output", "slices", "monitor", "picture")
         os.makedirs(temp_dir, exist_ok=True)
         os.makedirs(pic_dir, exist_ok=True)
         
@@ -686,16 +686,16 @@ class MonitorService:
                 # 转换为前端可访问的相对URL路径
                 if original_path and original_path.startswith(project_root):
                     original_path = original_path[len(project_root)+1:].replace('\\', '/')
-                    if original_path.startswith('output/vis/'):
-                        original_path = 'visualize/' + original_path[len('output/vis/'):]
+                    if original_path.startswith('data/output/vis/'):
+                        original_path = 'visualize/' + original_path[len('data/output/vis/'):]
                 if overlay_path and overlay_path.startswith(project_root):
                     overlay_path = overlay_path[len(project_root)+1:].replace('\\', '/')
-                    if overlay_path.startswith('output/vis/'):
-                        overlay_path = 'visualize/' + overlay_path[len('output/vis/'):]
+                    if overlay_path.startswith('data/output/vis/'):
+                        overlay_path = 'visualize/' + overlay_path[len('data/output/vis/'):]
                 if heatmap_path and heatmap_path.startswith(project_root):
                     heatmap_path = heatmap_path[len(project_root)+1:].replace('\\', '/')
-                    if heatmap_path.startswith('output/vis/'):
-                        heatmap_path = 'visualize/' + heatmap_path[len('output/vis/'):]
+                    if heatmap_path.startswith('data/output/vis/'):
+                        heatmap_path = 'visualize/' + heatmap_path[len('data/output/vis/'):]
 
             # 构建音频切片路径（与图片同名，但扩展名为.wav）
                 audio_slice_path = None
@@ -703,7 +703,7 @@ class MonitorService:
                     base_name = os.path.splitext(os.path.basename(overlay_path))[0]
                     if base_name.endswith('_overlay'):
                         base_name = base_name[:-8]
-                    audio_slice_path = f"output/slices/audio/{base_name}.wav"
+                    audio_slice_path = f"data/output/slices/audio/{base_name}.wav"
                     # 检查文件是否存在
                     full_audio_path = os.path.join(project_root, audio_slice_path)
                     if not os.path.exists(full_audio_path):
@@ -944,7 +944,7 @@ class MonitorService:
     
     async def cleanup_temp_files(self, max_age_hours: int = 24) -> int:
         """清理临时文件"""
-        slice_dir = os.path.join(project_root, "output", "slices")
+        slice_dir = os.path.join(project_root, "data", "output", "slices")
         if not os.path.exists(slice_dir):
             return 0
         

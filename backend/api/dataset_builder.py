@@ -29,11 +29,11 @@ DATASET_ROOT = os.path.join(PROJECT_ROOT, "data", "spk")
 os.makedirs(DATASET_ROOT, exist_ok=True)
 
 # 临时上传目录（默认，用于未登录场景）
-UPLOAD_TEMP_DIR = os.path.join(PROJECT_ROOT, "uploads", "dataset_temp")
+UPLOAD_TEMP_DIR = os.path.join(PROJECT_ROOT, "data", "uploads", "dataset_temp")
 os.makedirs(UPLOAD_TEMP_DIR, exist_ok=True)
 
 # 切分后音频临时存储目录（默认，用于未登录场景）
-SLICE_TEMP_DIR = os.path.join(PROJECT_ROOT, "uploads", "dataset_slices")
+SLICE_TEMP_DIR = os.path.join(PROJECT_ROOT, "data", "uploads", "dataset_slices")
 os.makedirs(SLICE_TEMP_DIR, exist_ok=True)
 
 

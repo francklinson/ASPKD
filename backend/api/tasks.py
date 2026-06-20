@@ -72,7 +72,7 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
     # 清理物理文件
     if include_files:
         # 1. 清理 uploads/ 目录（上传的音频文件）
-        uploads_dir = os.path.join(project_root, "uploads")
+        uploads_dir = os.path.join(project_root, "data", "uploads")
         if os.path.exists(uploads_dir):
             try:
                 for item in os.listdir(uploads_dir):
@@ -88,8 +88,8 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
             except Exception as e:
                 file_stats["errors"].append(f"uploads: {str(e)}")
 
-        # 2. 清理 output/vis/ 目录（热力图）
-        visualize_dir = os.path.join(project_root, "output", "vis")
+        # 2. 清理 data/output/vis/ 目录（热力图）
+        visualize_dir = os.path.join(project_root, "data", "output", "vis")
         if os.path.exists(visualize_dir):
             try:
                 for item in os.listdir(visualize_dir):
@@ -101,12 +101,12 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
                             os.remove(item_path)
                         file_stats["visualize"] += 1
                     except Exception as e:
-                        file_stats["errors"].append(f"output/vis/{item}: {str(e)}")
+                        file_stats["errors"].append(f"data/output/vis/{item}: {str(e)}")
             except Exception as e:
-                file_stats["errors"].append(f"output/vis: {str(e)}")
+                file_stats["errors"].append(f"data/output/vis: {str(e)}")
 
-        # 3. 清理 output/exports/ 目录（导出的Excel/Zip文件）
-        exports_dir = os.path.join(project_root, "output", "exports")
+        # 3. 清理 data/output/exports/ 目录（导出的Excel/Zip文件）
+        exports_dir = os.path.join(project_root, "data", "output", "exports")
         if os.path.exists(exports_dir):
             try:
                 for item in os.listdir(exports_dir):
@@ -118,12 +118,12 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
                             os.remove(item_path)
                         file_stats["exports"] += 1
                     except Exception as e:
-                        file_stats["errors"].append(f"output/exports/{item}: {str(e)}")
+                        file_stats["errors"].append(f"data/output/exports/{item}: {str(e)}")
             except Exception as e:
-                file_stats["errors"].append(f"output/exports: {str(e)}")
+                file_stats["errors"].append(f"data/output/exports: {str(e)}")
 
-        # 4. 清理 output/slices/ 目录（临时切片文件）
-        slice_dir = os.path.join(project_root, "output", "slices")
+        # 4. 清理 data/output/slices/ 目录（临时切片文件）
+        slice_dir = os.path.join(project_root, "data", "output", "slices")
         if os.path.exists(slice_dir):
             try:
                 for item in os.listdir(slice_dir):
@@ -135,9 +135,9 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
                             os.remove(item_path)
                         file_stats["slice"] += 1
                     except Exception as e:
-                        file_stats["errors"].append(f"output/slices/{item}: {str(e)}")
+                        file_stats["errors"].append(f"data/output/slices/{item}: {str(e)}")
             except Exception as e:
-                file_stats["errors"].append(f"output/slices: {str(e)}")
+                file_stats["errors"].append(f"data/output/slices: {str(e)}")
     
     return {
         "status": "cleaned",

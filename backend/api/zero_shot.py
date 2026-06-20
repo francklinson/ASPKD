@@ -144,7 +144,7 @@ async def analyze_zero_shot(
         r_list = [1, 3, 5]
 
     # 创建任务目录
-    task_dir = os.path.join(PROJECT_ROOT, "uploads", "zero_shot", task_id)
+    task_dir = os.path.join(PROJECT_ROOT, "data", "uploads", "zero_shot", task_id)
     os.makedirs(task_dir, exist_ok=True)
 
     # 保存上传的文件
@@ -226,7 +226,7 @@ def run_zero_shot_analysis(
         
         # 使用临时模型路径（MuSc是预训练的，不需要本地模型文件）
         # 创建一个虚拟路径用于初始化
-        temp_model_path = os.path.join(PROJECT_ROOT, "uploads", "zero_shot", task_id, "model_placeholder.pth")
+        temp_model_path = os.path.join(PROJECT_ROOT, "data", "uploads", "zero_shot", task_id, "model_placeholder.pth")
         
         detector = create_detector(
             backbone,
@@ -492,7 +492,7 @@ async def get_zero_shot_result(task_id: str):
 
     if not os.path.exists(result_file):
         # 检查任务是否还在进行中
-        task_dir = os.path.join(PROJECT_ROOT, "uploads", "zero_shot", task_id)
+        task_dir = os.path.join(PROJECT_ROOT, "data", "uploads", "zero_shot", task_id)
         if os.path.exists(task_dir):
             return {
                 "task_id": task_id,
