@@ -792,14 +792,14 @@
                         <button class="btn btn-danger" onclick="cleanupOldTasks()" style="padding:6px 16px;font-size:13px;">🧹 清理旧任务</button>
                     </div>
                 </div>
-                <div style="background: #f0f9ff; border-left: 4px solid #1890ff; padding: 12px 16px; margin-bottom: 16px; border-radius: 4px; font-size: 13px; color: #666;">
-                    <strong>💡 说明：</strong>本页面仅显示<strong>离线检测</strong>（手动上传/批量检测）的任务记录。
-                    <strong>在线检测</strong>（实时监控/客户端检测）的结果请在对应的"📡 实时监控"或"🖥️ 在线检测"页面查看。
-                </div>
-
                 <!-- 筛选栏 -->
                 <div class="filter-bar">
                     <span style="font-size:13px;color:#666;font-weight:500;">筛选：</span>
+                    <select id="filterType" onchange="applyFilters()">
+                        <option value="all">全部类型</option>
+                        <option value="offline">📋 离线任务</option>
+                        <option value="online">🌐 在线检测</option>
+                    </select>
                     <select id="filterStatus" onchange="applyFilters()">
                         <option value="">全部状态</option>
                         <option value="pending">⏳ 排队中</option>
@@ -819,8 +819,10 @@
                     <table class="results-table" id="taskList">
                         <thead>
                             <tr>
+                                <th>类型</th>
                                 <th>任务ID</th>
                                 <th>状态</th>
+                                <th>客户端</th>
                                 <th>算法</th>
                                 <th>文件数</th>
                                 <th>进度</th>
@@ -926,6 +928,7 @@
                                 <th>ID</th>
                                 <th>名称</th>
                                 <th>指纹哈希数</th>
+                                <th>试听</th>
                                 <th>操作</th>
                             </tr>
                         </thead>

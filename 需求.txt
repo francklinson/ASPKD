@@ -47,7 +47,6 @@
    - 工作记录: records/20260620_161238_数据存储路径分析.md
 
 
-待办:
 
 已完成:
 4. ~~将web上的特征聚类 零样本检测 少样本检测 三个tab隐藏,后续再开发~~ [已完成 - 2026-06-20 16:38]
@@ -88,3 +87,27 @@
      7. 任务耗时显示
      8. 统计卡片点击筛选联动
    - 工作记录: records/20260620_170000_index.html拆分与任务管理增强.md
+
+
+
+
+待办:
+6. ~~修改任务管理模块,使之也能适用于在线检测的任务~~ [已完成 - 2026-06-20 17:25]
+   - 改造原因: 任务管理 Tab 原本仅显示离线检测任务，在线检测结果需切换到单独页面查看
+   - 后端改造:
+     1. backend/core/client_monitor_service.py: 新增 get_results/get_results_count/delete_result 分页查询方法，为每条结果添加 result_id 自增标识和 algorithm 字段
+     2. backend/api/client_monitor.py: 新增 GET /api/client/results (分页列表)、GET /api/client/stats (统计)、DELETE /api/client/results/{result_id} (删除单条) 三个端点
+   - 前端改造:
+     1. frontend/index.html: 移除"仅显示离线检测任务"提示框，筛选栏增加"类型"下拉框(全部/离线任务/在线检测)，表格增加"类型"和"客户端"列
+     2. frontend/js/task-manager.js: 全面重构，支持同时加载离线任务(/api/tasks/list)和在线结果(/api/client/results)，按时间合并排序后统一渲染，类型徽章区分，在线结果仅显示"详情"和"删除"操作
+   - 工作记录: records/20260620_172517_任务管理支持在线检测.md
+
+7. ~~参考音频列表中应能支持参考音频试听~~ [已完成 - 2026-06-20 17:45]
+   - 改造原因: 参考音频库只有 ID/名称/哈希数/删除 等基本信息，无法试听音频内容
+   - 后端改造:
+     1. backend/api/reference_audio.py: 新增 GET /api/reference-audio/audio/{music_id} 端点，返回音频文件(FileResponse)，支持 wav/mp3/flac 等格式
+     2. backend/api/reference_audio.py: 上传流程增加保存音频文件到 data/ref/ 目录（之前仅保存指纹，文件已被删除）
+   - 前端改造:
+     1. frontend/index.html: 参考音频表格增加"试听"列
+     2. frontend/js/reference-audio.js: 新增 toggleRefAudioPlay() 播放函数（独立播放状态），渲染函数增加试听按钮
+   - 工作记录: records/20260620_174541_参考音频支持试听.md

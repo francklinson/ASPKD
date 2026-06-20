@@ -457,6 +457,62 @@ async def get_client_detection_status():
     }
 
 
+# ========== 在线检测结果管理（供任务管理模块调用） ==========
+
+@router.get("/results")
+async def get_client_detection_results(limit: int = 50, offset: int = 0):
+    """
+    获取客户端检测结果列表（分页）
+
+    - **limit**: 每页条数（默认 50）
+    - **offset**: 偏移量（从最新结果开始偏移）
+    """
+    from backend.core.client_monitor_service import client_detection_service
+
+    total = client_detection_service.get_results_count()
+    results = client_detection_service.get_results(limit=limit, offset=offset)
+
+    return {
+        "total": total,
+        "results": results,
+        "limit": limit,
+        "offset": offset
+    }
+
+
+@router.get("/stats")
+async def get_client_detection_stats():
+    """获取客户端检测结果统计"""
+    from backend.core.client_monitor_service import client_detection_service
+
+    total = client_detection_service.get_results_count()
+    anomaly_count = client_detection_service.anomaly_count
+
+    return {
+        "total": total,
+        "anomaly_count": anomaly_count
+    }
+
+
+@router.delete("/results/{result_id}")
+async def delete_client_detection_result(result_id: int):
+    """
+    删除单条客户端检测结果
+
+    - **result_id**: 结果自增ID
+    """
+    from backend.core.client_monitor_service import client_detection_service
+
+    success = client_detection_service.delete_result(result_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="结果不存在")
+
+    return {
+        "success": True,
+        "message": "结果已删除"
+    }
+
+
 # ========== WebSocket 路由 ==========
 
 @router.websocket("/ws/{client_id}")

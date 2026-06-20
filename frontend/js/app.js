@@ -573,7 +573,7 @@ async function initMonitorOnLoad() {
 }
 
 // 初始化
-log('系统就绪，等待文件上传...');
+console.log('系统就绪，等待文件上传...');
 updateDetectionContext(); // 立即执行一次
 initMonitorOnLoad(); // 检查监控状态并恢复连接
 

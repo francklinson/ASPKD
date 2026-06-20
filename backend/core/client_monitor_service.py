@@ -54,25 +54,26 @@ from backend.core.websocket import websocket_manager
 
 class ClientDetectionService:
     """客户端检测服务 - 与实时检测使用相同的处理流程"""
-    
+
     def __init__(self):
         # 配置
         self.algorithm: str = "dinomaly_dinov3_small"
         self.device: str = "auto"
         self.reference_audios: List[str] = []
-        
+
         # 长音频分析器
         self._analyzer = None
-        
+
         # 检测器（常驻内存）
         self._detector = None
         self._current_algorithm: Optional[str] = None
-        
+
         # 结果存储
         self.detection_results: deque = deque(maxlen=1000)
+        self._result_id_counter: int = 0  # 自增ID，用于唯一定位每个结果
         self.total_processed: int = 0
         self.anomaly_count: int = 0
-        
+
         # 批量处理
         self._pending_files: List[Dict] = []  # 存储文件信息和客户端信息
         self._batch_lock = asyncio.Lock()
@@ -411,6 +412,9 @@ class ClientDetectionService:
         })
         
         no_match_result = {
+            "result_id": self._next_result_id(),
+            "algorithm": self.algorithm,
+            "device": self.device,
             "timestamp": datetime.now().isoformat(),
             "filename": filename,
             "filepath": file_path,
@@ -613,6 +617,9 @@ class ClientDetectionService:
 
                 # 构建结果 - 与实时检测对齐
                 detection_result = {
+                    "result_id": self._next_result_id(),
+                    "algorithm": self.algorithm,
+                    "device": self.device,
                     "timestamp": datetime.now().isoformat(),
                     "filename": filename,
                     "filepath": file_path,
@@ -728,6 +735,52 @@ class ClientDetectionService:
             # 重新初始化分析器
             await self._init_analyzer()
     
+    def _next_result_id(self) -> int:
+        """生成下一个结果自增ID"""
+        self._result_id_counter += 1
+        return self._result_id_counter
+
+    def get_results(self, limit: int = 50, offset: int = 0) -> List[Dict]:
+        """
+        获取检测结果列表（分页，按时间倒序）
+
+        Args:
+            limit: 每页条数
+            offset: 偏移量
+
+        Returns:
+            结果字典列表
+        """
+        # detection_results 是最新在右，从右向左取
+        total = len(self.detection_results)
+        # 计算切片：offset 从 0（最新）开始
+        start = max(0, total - offset - limit)
+        end = max(0, total - offset)
+        # 反转顺序（从新到旧）
+        results = list(self.detection_results)[start:end]
+        results.reverse()
+        return results
+
+    def get_results_count(self) -> int:
+        """获取检测结果总数"""
+        return len(self.detection_results)
+
+    def delete_result(self, result_id: int) -> bool:
+        """
+        根据 result_id 删除单条检测结果
+
+        Args:
+            result_id: 结果自增ID
+
+        Returns:
+            是否成功删除
+        """
+        for i, r in enumerate(self.detection_results):
+            if r.get("result_id") == result_id:
+                del self.detection_results[i]
+                return True
+        return False
+
     def get_status(self) -> Dict:
         """获取服务状态"""
         return {

@@ -61,8 +61,12 @@ class DetectionResult(BaseModel):
     task_id: str
     status: str
     progress: float
+    algorithm: Optional[str] = None
+    device: Optional[str] = None
     results: Optional[List[dict]] = None
     error: Optional[str] = None
+    created_at: Optional[str] = None
+    completed_at: Optional[str] = None
 
 
 @router.post("/upload", response_model=DetectionResponse)

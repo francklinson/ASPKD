@@ -7,6 +7,7 @@ import shutil
 import time
 from typing import List, Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from backend.core.shazam import AudioFingerprinter
@@ -233,9 +234,24 @@ async def upload_reference_audio(
             # 获取音乐ID
             music_id = connector.find_music_by_music_path(temp_file_path)
 
-            # 更新音乐名称为用户指定的名称，并更新路径为虚拟路径（不实际保存）
+            # 更新音乐名称为用户指定的名称，并更新路径为持久化存储路径
             if music_id:
                 connector.update_music_info(music_id, music_name=display_name, music_path=file_path)
+
+            # 保存音频文件到参考音频目录（用于后续试听）
+            try:
+                os.makedirs(REF_AUDIO_DIR, exist_ok=True)
+                shutil.copy2(temp_file_path, file_path)
+                log_operation(
+                    "UPLOAD_FILE_SAVED",
+                    f"音频文件已保存到: {file_path}"
+                )
+            except Exception as save_err:
+                log_operation(
+                    "UPLOAD_FILE_SAVE_ERROR",
+                    f"保存音频文件失败: {save_err}",
+                    "WARNING"
+                )
 
             # 删除临时文件
             if os.path.exists(temp_file_path):
@@ -468,3 +484,82 @@ async def get_reference_stats():
             "ERROR"
         )
         raise HTTPException(status_code=500, detail=f"获取统计信息失败: {str(e)}")
+
+
+@router.get("/audio/{music_id}")
+async def get_reference_audio(music_id: int):
+    """
+    获取参考音频文件（用于试听）
+
+    - **music_id**: 参考音频ID
+    """
+    import fnmatch
+
+    try:
+        with get_fingerprinter() as fp:
+            references = fp.get_all_references()
+            ref = next((r for r in references if r["music_id"] == music_id), None)
+            if not ref:
+                raise HTTPException(status_code=404, detail=f"参考音频不存在: music_id={music_id}")
+
+            audio_path = ref.get("path")
+            resolved_path = None
+
+            # 尝试1：直接使用数据库中的路径
+            if audio_path and os.path.exists(audio_path):
+                resolved_path = audio_path
+            else:
+                # 尝试2：在 REF_AUDIO_DIR 中按文件名查找
+                if audio_path:
+                    basename = os.path.basename(audio_path)
+                    fallback = os.path.join(REF_AUDIO_DIR, basename)
+                    if os.path.exists(fallback):
+                        resolved_path = fallback
+                        log_operation(
+                            "AUDIO_FALLBACK",
+                            f"参考音频(music_id={music_id})路径修正: {audio_path} -> {fallback}"
+                        )
+
+                # 尝试3：按音乐名称在 REF_AUDIO_DIR 中模糊查找
+                if not resolved_path:
+                    ref_name = ref.get("name", "")
+                    for f in os.listdir(REF_AUDIO_DIR):
+                        # 匹配名称（不含扩展名）
+                        f_name = os.path.splitext(f)[0]
+                        if f_name == ref_name or ref_name in f_name or f_name in ref_name:
+                            candidate = os.path.join(REF_AUDIO_DIR, f)
+                            if os.path.isfile(candidate):
+                                resolved_path = candidate
+                                log_operation(
+                                    "AUDIO_FALLBACK_NAME",
+                                    f"参考音频(music_id={music_id})按名称匹配: {ref_name} -> {candidate}"
+                                )
+                                break
+
+            if not resolved_path:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"参考音频文件不存在 (music_id={music_id}, path={audio_path})"
+                )
+
+            # 根据扩展名判断媒体类型
+            ext = os.path.splitext(resolved_path)[1].lower()
+            media_type_map = {
+                '.wav': 'audio/wav',
+                '.mp3': 'audio/mpeg',
+                '.flac': 'audio/flac',
+                '.aac': 'audio/aac',
+                '.ogg': 'audio/ogg',
+                '.m4a': 'audio/mp4',
+            }
+            media_type = media_type_map.get(ext, 'audio/wav')
+
+            return FileResponse(
+                path=resolved_path,
+                media_type=media_type,
+                filename=os.path.basename(resolved_path)
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取参考音频文件失败: {str(e)}")

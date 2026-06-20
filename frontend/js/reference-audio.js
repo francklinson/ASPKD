@@ -129,7 +129,7 @@ async function loadReferenceList(forceRefresh = false) {
     // 显示加载状态
     const tbody = document.querySelector('#referenceList tbody');
     const emptyState = document.getElementById('refEmptyState');
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 40px;">
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px;">
         <div style="color: #667eea;">⏳ 加载中...</div>
     </td></tr>`;
     emptyState.style.display = 'none';
@@ -149,7 +149,7 @@ async function loadReferenceList(forceRefresh = false) {
         renderReferenceList(data);
     } catch (error) {
         console.error('加载参考音频列表失败:', error);
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ff4d4f; padding: 40px;">加载失败: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #ff4d4f; padding: 40px;">加载失败: ${error.message}</td></tr>`;
     } finally {
         isLoadingReferenceList = false;
     }
@@ -172,6 +172,13 @@ function renderReferenceList(data) {
             <td>${ref.music_id}</td>
             <td>${escapeHtml(ref.name)}</td>
             <td>${ref.hash_count.toLocaleString()}</td>
+            <td>
+                <button class="play-btn" onclick="toggleRefAudioPlay(${ref.music_id}, this)"
+                        title="点击试听"
+                        style="background:#6366f1;color:white;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;min-width:58px;text-align:center;">
+                    ▶ 试听
+                </button>
+            </td>
             <td>
                 <button class="btn btn-danger" onclick="deleteReferenceAudio(${ref.music_id}, '${escapeHtml(ref.name).replace(/'/g, "\\'")}')" style="padding: 4px 8px; font-size: 12px;">
                     🗑️ 删除
@@ -261,6 +268,102 @@ async function deleteReferenceAudio(musicId, name) {
         console.error('删除参考音频失败:', error);
         await showModal('删除失败: ' + error.message, '错误');
     }
+}
+
+// ==================== 参考音频试听功能 ====================
+
+let refAudioPlayer = null;
+let refPlayingButton = null;
+const refPlayIconSvg = '▶ 试听';
+const refPauseIconSvg = '⏸ 暂停';
+
+function toggleRefAudioPlay(musicId, buttonElement) {
+    // 如果点击的是当前正在播放的按钮
+    if (refPlayingButton === buttonElement && refAudioPlayer) {
+        if (refAudioPlayer.paused) {
+            refAudioPlayer.play();
+            buttonElement.textContent = refPauseIconSvg;
+            buttonElement.style.background = '#4f46e5';
+        } else {
+            refAudioPlayer.pause();
+            buttonElement.textContent = refPlayIconSvg;
+            buttonElement.style.background = '#6366f1';
+        }
+        return;
+    }
+
+    // 停止之前播放的音频
+    if (refAudioPlayer) {
+        refAudioPlayer.pause();
+        refAudioPlayer = null;
+    }
+    if (refPlayingButton) {
+        refPlayingButton.textContent = refPlayIconSvg;
+        refPlayingButton.style.background = '#6366f1';
+    }
+
+    // 先通过 HEAD 请求检查音频文件是否存在
+    const audioUrl = `${API_BASE}/api/reference-audio/audio/${musicId}`;
+
+    // 创建新的音频对象
+    refAudioPlayer = new Audio(audioUrl);
+    refPlayingButton = buttonElement;
+
+    // 更新按钮状态
+    buttonElement.style.opacity = '0.7';
+
+    refAudioPlayer.oncanplay = function() {
+        // 可以播放时自动开始
+        buttonElement.textContent = refPauseIconSvg;
+        buttonElement.style.background = '#4f46e5';
+        refAudioPlayer.play().catch(err => {
+            console.error('参考音频播放失败:', err);
+            buttonElement.textContent = refPlayIconSvg;
+            buttonElement.style.background = '#6366f1';
+            showModal('音频播放失败，浏览器可能不支持该音频格式', '播放失败');
+        });
+    };
+
+    // 音频加载出错时的处理
+    refAudioPlayer.onerror = function() {
+        console.error('参考音频加载出错, music_id=' + musicId);
+        buttonElement.textContent = refPlayIconSvg;
+        buttonElement.style.background = '#6366f1';
+        refPlayingButton = null;
+        refAudioPlayer = null;
+
+        // 获取具体错误信息
+        const error = refAudioPlayer?.error;
+        let message = '音频文件不存在或无法访问，请确认参考音频已正确上传';
+        if (error) {
+            switch (error.code) {
+                case MediaError.MEDIA_ERR_ABORTED:
+                    message = '音频加载被中断';
+                    break;
+                case MediaError.MEDIA_ERR_NETWORK:
+                    message = '音频加载失败（网络错误），请检查服务端音频文件是否存在';
+                    break;
+                case MediaError.MEDIA_ERR_DECODE:
+                    message = '音频解码失败，文件可能已损坏';
+                    break;
+                case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                    message = '浏览器不支持该音频格式';
+                    break;
+            }
+        }
+        showModal(message, '播放失败');
+    };
+
+    // 音频结束时的处理
+    refAudioPlayer.onended = function() {
+        buttonElement.textContent = refPlayIconSvg;
+        buttonElement.style.background = '#6366f1';
+        refPlayingButton = null;
+        refAudioPlayer = null;
+    };
+
+    // 开始加载音频
+    refAudioPlayer.load();
 }
 
 function initReferenceUpload() {
