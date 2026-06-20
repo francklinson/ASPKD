@@ -384,15 +384,16 @@ async def disconnect_client(client_id: str = Form(...)):
 class ClientConfigRequest(BaseModel):
     """客户端配置请求"""
     algorithm: str = "dinomaly_dinov3_small"
-    device: str = "auto"
+    device: str = "cuda"
     reference_audios: List[str] = []
 
 
 # 全局客户端配置（简化实现，实际应用可使用数据库）
 # 注意：需要在服务端配置参考音频，否则客户端上传的文件无法匹配
+# device 固定为 cuda（启动时已验证 CUDA 可用）
 client_global_config = {
     "algorithm": "dinomaly_dinov3_small",
-    "device": "auto",
+    "device": "cuda",
     "reference_audios": []
 }
 

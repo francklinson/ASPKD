@@ -415,9 +415,10 @@ class PreciseSegmentLocator:
         segments = []
         
         for music_id, music_candidates in by_music.items():
-            # 转换为时间
+            # 转换为时间（offset_diff 可能为负：db_offset - query_offset，
+            # 负值表示参考音频在查询音频的 |offset_diff| 帧处出现）
             for c in music_candidates:
-                c['start_time'] = c['offset_diff'] * self.config.hop_length / self.config.sr
+                c['start_time'] = abs(c['offset_diff']) * self.config.hop_length / self.config.sr
             
             # 按时间排序
             music_candidates.sort(key=lambda x: x['start_time'])
@@ -476,55 +477,79 @@ class PreciseSegmentLocator:
     def locate_segments(self, audio_path: str) -> LocatorResult:
         """
         定位长音频中的所有片段
-        
+
         Args:
             audio_path: 音频文件路径
-            
+
         Returns:
             LocatorResult
         """
         import time
         start_time = time.time()
-        
-        print(f"[Locator] 开始分析: {audio_path}")
-        
+
+        print(f"[Locator] 开始分析: {audio_path}, 阈值={self.config.threshold}, "
+              f"min_match_ratio={self.config.min_match_ratio}, "
+              f"参考音频索引数={len(self.reference_index)}")
+
         # 1. 获取音频时长
         total_duration = librosa.get_duration(path=audio_path, sr=self.config.sr)
-        
+        print(f"[Locator] 音频时长: {total_duration:.2f}s")
+
         # 2. 提取完整指纹（全局，不分割窗口）
         print("[Locator] 步骤1: 提取全局指纹...")
         hashes = self._extract_fingerprint(audio_path)
-        
+        print(f"[Locator] 提取到 {len(hashes)} 个hash")
+
         if not hashes:
             print("[Locator] 警告: 未提取到指纹")
             return LocatorResult(audio_path=audio_path, total_duration=total_duration)
-        
+
         # 3. 批量查询数据库（优化负载）
         print("[Locator] 步骤2: 批量查询匹配...")
         matches = self._batch_query_matches(hashes)
-        
+        print(f"[Locator] 数据库匹配结果: {len(matches)} 个匹配对")
+
         if not matches:
             print("[Locator] 警告: 未找到匹配")
             return LocatorResult(audio_path=audio_path, total_duration=total_duration)
-        
+
         # 4. 时间对齐聚类
         print("[Locator] 步骤3: 时间对齐聚类...")
         vote_map = self._time_alignment_clustering(matches)
-        
+        print(f"[Locator] 聚类结果: {len(vote_map)} 个 (music_id, offset_diff) 组合")
+
+        # 统计每个 music_id 的投票数
+        from collections import Counter
+        music_votes = Counter(music_id for (music_id, _), _ in vote_map.items())
+        for music_id, votes in music_votes.most_common():
+            music_name = self.reference_index.get(music_id, {}).get('music_name', 'Unknown')
+            print(f"[Locator]   音乐 {music_id} ({music_name}): {votes} 个偏移点")
+
         # 5. 找出所有匹配点
-        print("[Locator] 步骤4: 找出所有匹配点...")
+        print(f"[Locator] 步骤4: 找出所有匹配点 (阈值≥{self.config.threshold}, 匹配率≥{self.config.min_match_ratio})...")
         candidates = self._find_all_match_points(vote_map)
-        
+
         # 6. 合并相近匹配点
-        print("[Locator] 步骤5: 合并相近匹配点...")
+        print(f"[Locator] 步骤5: 合并相近匹配点 (time_tolerance={self.config.time_tolerance}s, min_duration={self.config.min_segment_duration}s)...")
         segments = self._merge_nearby_matches(candidates)
-        
+
         processing_time = time.time() - start_time
-        
+
         print(f"[Locator] 分析完成: 找到 {len(segments)} 个片段, 耗时 {processing_time:.2f}s")
-        for seg in segments:
-            print(f"  - {seg.music_name}: {seg.start_time:.2f}s - {seg.end_time:.2f}s (置信度: {seg.confidence})")
-        
+        if segments:
+            for seg in segments:
+                print(f"  ✅ {seg.music_name}: {seg.start_time:.2f}s - {seg.end_time:.2f}s "
+                      f"(置信度={seg.confidence}, 匹配率={seg.match_ratio:.4f})")
+        else:
+            print(f"[Locator] 未生成任何有效片段 (候选数={len(candidates)})")
+            # 打印候选被过滤的原因
+            if candidates:
+                for c in candidates[:10]:
+                    total_hashes = self.reference_index.get(c['music_id'], {}).get('total_hashes', 0)
+                    print(f"  - 候选: {c['music_name']} offset_diff={c['offset_diff']} "
+                          f"conf={c['confidence']} ratio={c['match_ratio']:.4f} "
+                          f"total_hashes={total_hashes}")
+
         return LocatorResult(
             audio_path=audio_path,
             total_duration=total_duration,

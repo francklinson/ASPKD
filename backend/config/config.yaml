@@ -1,10 +1,9 @@
 # 算法统一配置文件
 # 所有检测算法的配置、模型路径、阈值等在此管理
 
-# 参考文件配置（已弃用，系统现在自动从数据库匹配参考音频）
-# 保留此配置仅用于向后兼容，不再作为默认参考音频使用
-ref_file: ""
-example_audio_file: "data/ref/asd_src_audio.wav"
+# 运行设备（固定为 cuda，启动时强制检查 CUDA 可用性）
+device: "cuda"
+
 pic_output_dir: "output/slices"
 
 # 算法通用配置
@@ -286,7 +285,7 @@ preprocessing:
   ref_file: "渡口片段"
   split_method: "shazam"  # shazam, mfcc_dtw, corr
   shazam:
-    threshold: 10
+    threshold: 5
     auto_match: false
     max_workers: 4  # 1为串行，>1启用并行
   output_size: [600, 600]

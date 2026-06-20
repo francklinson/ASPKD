@@ -491,26 +491,59 @@ function renderTaskDetailHtml(taskId, data) {
 
         html += `
             <div class="task-detail-section">
-                <h4>📊 检测结果 <span style="font-size:12px;font-weight:400;color:#999;">${data.results.length} 个文件，${anomalyCount} 个异常，${failedCount} 个失败</span></h4>
+                <h4>📊 检测结果 <span style="font-size:12px;font-weight:400;color:#999;">${data.results.length} 条结果，${anomalyCount} 个异常，${failedCount} 个失败</span></h4>
                 <div class="task-detail-results">
         `;
 
-        data.results.forEach((r, i) => {
-            const isAnomaly = r.is_anomaly;
-            const isFailed = r.status === '预处理失败';
-            const resultColor = isFailed ? '#ffc107' : (isAnomaly ? '#dc3545' : '#52c41a');
-            const resultIcon = isFailed ? '⚠️' : (isAnomaly ? '🔴' : '🟢');
-            const scoreText = r.anomaly_score !== undefined ? r.anomaly_score.toFixed(4) : '-';
+        // 按文件名分组显示（支持多片段）
+        const grouped = {};
+        data.results.forEach(r => {
+            const key = r.filename;
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(r);
+        });
 
+        Object.entries(grouped).forEach(([filename, items]) => {
+            // 文件标题行
+            const isFailed = items.some(r => r.status === '预处理失败');
+            const fileAnomalyCount = items.filter(r => r.is_anomaly).length;
             html += `
-                <div class="task-detail-result-item">
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;" title="${r.filename}">${r.filename}</span>
-                    <span style="color:${resultColor};font-weight:500;white-space:nowrap;margin-left:12px;">
-                        ${resultIcon} ${isFailed ? '失败' : (isAnomaly ? '异常' : '正常')}
-                        <span style="color:#999;font-weight:400;margin-left:8px;">分数: ${scoreText}</span>
-                    </span>
+                <div style="font-weight:600;font-size:13px;padding:6px 8px;margin-top:${Object.keys(grouped).indexOf(filename) > 0 ? '8px' : '0'};background:#f8f9fa;border-radius:4px;color:#333;">
+                    📄 ${filename}
+                    ${fileAnomalyCount > 0 ? `<span style="color:#dc3545;font-weight:400;margin-left:8px;font-size:12px;">${fileAnomalyCount} 个异常</span>` : ''}
+                    ${isFailed ? '<span style="color:#ffc107;margin-left:8px;font-size:12px;">⚠️ 部分失败</span>' : ''}
                 </div>
             `;
+
+            items.forEach((r, i) => {
+                const isAnomaly = r.is_anomaly;
+                const isFailed = r.status === '预处理失败';
+                const resultColor = isFailed ? '#ffc107' : (isAnomaly ? '#dc3545' : '#52c41a');
+                const resultIcon = isFailed ? '⚠️' : (isAnomaly ? '🔴' : '🟢');
+                const scoreText = r.anomaly_score !== undefined ? r.anomaly_score.toFixed(4) : '-';
+
+                // 多片段信息
+                let segmentInfo = '';
+                if (r.segment_index !== undefined) {
+                    const startTime = r.segment_start !== undefined ? r.segment_start.toFixed(2) : '?';
+                    segmentInfo = `<span style="color:#999;font-size:11px;margin-left:8px;">#${r.segment_index} @${startTime}s</span>`;
+                }
+                const musicName = r.music_name ? `<span style="color:#666;font-size:11px;margin-left:6px;">🎵 ${r.music_name}</span>` : '';
+
+                html += `
+                    <div class="task-detail-result-item" style="${items.length > 1 ? 'padding:4px 8px 4px 20px;' : ''}">
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;" title="${r.filename}">
+                            ${items.length > 1 ? `▸ 片段 ${i + 1}` : r.filename}
+                        </span>
+                        ${segmentInfo}
+                        ${musicName}
+                        <span style="color:${resultColor};font-weight:500;white-space:nowrap;margin-left:auto;">
+                            ${resultIcon} ${isFailed ? '失败' : (isAnomaly ? '异常' : '正常')}
+                            <span style="color:#999;font-weight:400;margin-left:8px;">分数: ${scoreText}</span>
+                        </span>
+                    </div>
+                `;
+            });
         });
 
         html += `</div></div>`;

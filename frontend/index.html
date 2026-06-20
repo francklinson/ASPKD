@@ -48,11 +48,11 @@
             <!-- 第一行：上传控件 + 日志 -->
             <div class="row">
                 <div class="card" style="flex: 1;">
-                    <div class="card-title">📤 上传音频文件</div>
-                    
-                    <div class="dropzone" id="dropzone">
+                    <div class="card-title" style="margin-bottom:12px;">📤 上传音频文件</div>
+
+                    <div class="dropzone" id="dropzone" style="padding:25px;">
                         <div>📁 拖拽文件到此处，或点击选择</div>
-                        <div style="color: #999; font-size: 14px; margin-top: 8px;">支持 WAV, MP3, FLAC 等格式</div>
+                        <div style="color: #999; font-size: 14px; margin-top: 6px;">支持 WAV, MP3, FLAC 等格式</div>
                         <input type="file" id="fileInput" multiple accept="audio/*" style="display: none;">
                     </div>
 
@@ -67,31 +67,30 @@
                         </button>
                     </div>
                     
-                    <div class="form-group" style="margin-top: 20px;">
-                        <label>选择算法</label>
-                        <select class="form-control" id="algorithm">
+                    <div class="form-group" style="margin-top: 12px; margin-bottom:12px;">
+                        <label style="margin-bottom:4px;">选择算法</label>
+                        <select class="form-control" id="algorithm" style="padding:8px 12px;">
                             <option value="dinomaly_dinov3_small">Dinomaly DINOv3 Small</option>
                             <option value="dinomaly_dinov2_small">Dinomaly DINOv2 Small</option>
                         </select>
                     </div>
 
-                    <div class="form-group">
-                        <label>参考音频 <span style="font-weight: normal; color: #999;">(用于音频片段定位)</span></label>
+                    <div class="form-group" style="display:none;">
+                        <label>参考音频 <span style="font-weight: normal; color: #999;">(已启用自动匹配所有参考音频)</span></label>
                         <select class="form-control" id="referenceAudio">
-                            <option value="">正在加载参考音频列表...</option>
+                            <option value="">自动匹配全部参考音频...</option>
                         </select>
                         <div id="referenceAudioInfo" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
                     </div>
 
-                    <div class="form-group">
-                        <label>运行设备</label>
+                    <div class="form-group" style="display:none;">
+                        <label>运行设备 <span style="font-weight: normal; color: #999;">(固定使用 CUDA)</span></label>
                         <select class="form-control" id="device">
-                            <option value="auto">正在加载设备列表...</option>
+                            <option value="cuda">CUDA</option>
                         </select>
-                        <div id="deviceInfo" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
                     </div>
-                    
-                    <div style="display: flex; gap: 10px;">
+
+                    <div style="display: flex; gap: 10px; margin-top:4px;">
                         <button class="btn btn-primary" id="startBtn" onclick="startDetection()" style="flex: 2;">
                             🚀 开始检测
                         </button>
@@ -109,8 +108,8 @@
                 </div>
                 
                 <div class="card" style="flex: 1;">
-                    <div class="card-title">📝 检测日志</div>
-                    <div class="status-log" id="statusLog" style="height: 400px;"></div>
+                    <div class="card-title" style="margin-bottom:12px;">📝 检测日志</div>
+                    <div class="status-log" id="statusLog" style="height: 250px;"></div>
                 </div>
             </div>
 
@@ -173,14 +172,13 @@
                         </select>
                     </div>
                     
-                    <div class="form-group">
-                        <label>运行设备</label>
+                    <div class="form-group" style="display:none;">
+                        <label>运行设备 <span style="font-weight: normal; color: #999;">(固定使用 CUDA)</span></label>
                         <select class="form-control" id="monitorDevice">
-                            <option value="auto">正在加载设备列表...</option>
+                            <option value="cuda">CUDA</option>
                         </select>
-                        <div id="monitorDeviceInfo" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
                     </div>
-                    
+
                     <div class="form-group">
                         <label>参考音频 <span style="font-weight: normal; color: #999;">(为空则自动匹配)</span></label>
                         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
@@ -254,58 +252,58 @@
             
             <div class="row">
                 <!-- 左侧：客户端状态与日志合并 -->
-                <div class="card" style="flex: 0 0 320px; display: flex; flex-direction: column; height: 420px;">
-                    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-                        <span>🖥️ 已连接客户端</span>
-                        <button class="btn btn-secondary" onclick="refreshClientStatus()" style="padding: 6px 12px; font-size: 12px;">
-                            🔄 刷新状态
+                <div class="card" style="flex: 0 0 280px; display: flex; flex-direction: column;">
+                    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; margin-bottom:6px;">
+                        <span style="font-size:15px;">🖥️ 已连接客户端</span>
+                        <button class="btn btn-secondary" onclick="refreshClientStatus()" style="padding: 3px 8px; font-size: 11px;">
+                            🔄 刷新
                         </button>
                     </div>
-                    <div id="clientList" style="max-height: 220px; overflow-y: auto; flex-shrink: 0; margin-bottom: 12px; padding-right: 4px;">
-                        <div style="text-align: center; color: #999; padding: 20px;">
+                    <div id="clientList" style="overflow-y: auto; flex:1; min-height:60px; padding-right: 4px;">
+                        <div style="text-align: center; color: #999; padding: 8px;">
                             暂无客户端连接
                         </div>
                     </div>
-                    <div class="card-title" style="border-top: 1px solid #e8e8e8; padding-top: 12px; margin-top: 4px; flex-shrink: 0;">📡 客户端活动日志</div>
-                    <div class="status-log" id="clientLog" style="flex: 1; overflow-y: auto;"></div>
                 </div>
 
-                <!-- 右侧：监控设置 -->
-                <div class="card" style="flex: 1;">
-                    <div class="card-title">⚙️ 监控设置</div>
-                    
-                    <div class="form-group">
-                        <label>检测算法</label>
-                        <select class="form-control" id="clientAlgorithm">
+                <!-- 右侧：监控设置 + 活动日志 -->
+                <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+                    <div class="card-title" style="margin-bottom:10px;">⚙️ 监控设置</div>
+
+                    <div class="form-group" style="margin-bottom:10px;">
+                        <label style="margin-bottom:4px;">检测算法</label>
+                        <select class="form-control" id="clientAlgorithm" style="padding:7px 10px;">
                             <option value="dinomaly_dinov3_small">Dinomaly DINOv3 Small</option>
                             <option value="dinomaly_dinov2_small">Dinomaly DINOv2 Small</option>
                         </select>
                     </div>
-                    
-                    <div class="form-group">
-                        <label>运行设备</label>
+
+                    <div class="form-group" style="display:none;">
+                        <label>运行设备 <span style="font-weight: normal; color: #999;">(固定使用 CUDA)</span></label>
                         <select class="form-control" id="clientDevice">
-                            <option value="auto">正在加载设备列表...</option>
+                            <option value="cuda">CUDA</option>
                         </select>
-                        <div id="clientDeviceInfo" style="margin-top: 6px; font-size: 12px; color: #666;"></div>
                     </div>
-                    
-                    <div class="form-group">
-                        <label>参考音频 <span style="font-weight: normal; color: #999;">(为空则自动匹配)</span></label>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <select class="form-control" id="clientReferenceAudioSelect" style="flex: 1;">
-                                <option value="">选择参考音频...</option>
+
+                    <div class="form-group" style="display:none;">
+                        <label style="margin-bottom:4px;">参考音频 <span style="font-weight: normal; color: #999;">(已启用自动匹配)</span></label>
+                        <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                            <select class="form-control" id="clientReferenceAudioSelect" style="flex:1;padding:7px 10px;">
+                                <option value="">自动匹配全部...</option>
                             </select>
-                            <button type="button" class="btn btn-primary" id="addClientRefBtn" style="padding: 8px 16px;">添加</button>
+                            <button type="button" class="btn btn-primary" id="addClientRefBtn" style="padding:6px 14px;">添加</button>
                         </div>
-                        <div id="clientSelectedRefs" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px; padding: 8px; border: 1px dashed #ddd; border-radius: 4px; background: #fafafa;">
-                            <span style="color: #999; font-size: 12px; line-height: 20px;">未选择参考音频，将使用自动匹配</span>
+                        <div id="clientSelectedRefs" style="display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; padding: 6px; border: 1px dashed #ddd; border-radius: 4px; background: #fafafa;">
+                            <span style="color: #999; font-size: 12px; line-height: 20px;">自动匹配全部参考音频</span>
                         </div>
                         <input type="hidden" id="clientReferenceAudios" value="">
                     </div>
-                    
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
-                        <button class="btn btn-secondary" onclick="clearClientResults()">
+
+                    <div class="card-title" style="border-top: 1px solid #e8e8e8; padding-top: 6px; margin-top: 6px; flex-shrink: 0; font-size:14px;">📡 客户端活动日志</div>
+                    <div class="status-log" id="clientLog" style="flex: 1; overflow-y: auto; height:auto; min-height:80px;"></div>
+
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; flex-shrink:0;">
+                        <button class="btn btn-secondary" onclick="clearClientResults()" style="padding:5px 12px;font-size:12px;">
                             🗑️ 清空结果
                         </button>
                     </div>

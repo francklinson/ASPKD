@@ -446,8 +446,9 @@ function restoreOfflineResultsDisplay() {
         resultsHtml += `
             <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white;">
                 <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa; display: flex; align-items: center; gap: 8px;">
-                    <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;" title="${r.filename}">
+                    <div style="font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;" title="${r.filename}${r.segment_index !== undefined ? ` #${r.segment_index} @${r.segment_start?.toFixed(2)}s` : ''}">
                         🎵 ${r.filename}
+                        ${r.segment_index !== undefined ? `<span style="color:#999;font-weight:400;font-size:11px;margin-left:4px;">#${r.segment_index} @${(r.segment_start || 0).toFixed(2)}s</span>` : ''}
                     </div>
                     ${r.audio_slice_path ? `
                         <button onclick="toggleAudioPlay('${r.audio_slice_path}', this)"

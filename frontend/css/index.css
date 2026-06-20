@@ -128,20 +128,20 @@ body {
 .card {
     background: white;
     border-radius: 10px;
-    padding: 24px;
+    padding: 18px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .card-title {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     color: #333;
 }
 
 .form-group {
-    margin-bottom: 20px;
+    margin-bottom: 14px;
 }
 
 .form-group label {
@@ -210,7 +210,7 @@ body {
 .dropzone {
     border: 2px dashed #d9d9d9;
     border-radius: 10px;
-    padding: 40px;
+    padding: 28px;
     text-align: center;
     cursor: pointer;
     transition: all 0.3s;
@@ -227,8 +227,8 @@ body {
 }
 
 .file-list {
-    margin-top: 16px;
-    max-height: 130px;
+    margin-top: 10px;
+    max-height: 110px;
     overflow-y: auto;
 }
 
@@ -236,10 +236,10 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px;
+    padding: 8px 10px;
     background: #f8f9fa;
     border-radius: 6px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .file-more {
@@ -317,13 +317,13 @@ body {
     background: #f8f9fa;
     color: #333;
     border: 1px solid #e8e8e8;
-    padding: 16px;
+    padding: 10px 14px;
     border-radius: 8px;
     font-family: 'Consolas', monospace;
     font-size: 13px;
-    height: 200px;
+    height: 180px;
     overflow-y: auto;
-    margin-top: 16px;
+    margin-top: 10px;
 }
 
 .status-log .timestamp {
@@ -737,13 +737,13 @@ body {
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-    margin-bottom: 20px;
+    gap: 14px;
+    margin-bottom: 14px;
 }
 
 .stat-card {
     background: white;
-    padding: 20px;
+    padding: 16px;
     border-radius: 10px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
@@ -786,7 +786,7 @@ body {
 .row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 16px;
     align-items: stretch;
 }
 
@@ -794,7 +794,7 @@ body {
     display: flex;
     flex-direction: column;
     height: auto;
-    min-height: 500px;
+    min-height: 320px;
 }
 
 .row > .card > #results {

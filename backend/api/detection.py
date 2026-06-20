@@ -74,16 +74,16 @@ async def upload_and_detect(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     algorithm: str = Form("dinomaly_dinov3_small"),
-    device: str = Form("auto"),
+    device: str = Form("cuda"),
     save_results: bool = Form(True),
     reference_audio: Optional[str] = Form(None)
 ):
     """
     上传音频文件并创建检测任务
-    
+
     - **files**: 音频文件列表 (支持 wav, mp3, flac 等格式)
     - **algorithm**: 检测算法名称
-    - **device**: 运行设备 (auto, cpu, cuda:0 等)
+    - **device**: 运行设备 (已固定为 cuda)
     - **save_results**: 是否保存结果文件
     - **reference_audio**: 参考音频文件路径（可选，从参考音频库中选择）
     """
@@ -107,11 +107,11 @@ async def upload_and_detect(
     # 延迟导入 task_manager，避免启动时触发 torch 初始化
     from backend.core.task_manager import task_manager
     
-    # 创建任务
+    # 创建任务（设备固定为 cuda，由 config.yaml 定义、启动时验证）
     task_id = await task_manager.create_task(
         files=files,
         algorithm=algorithm,
-        device=device,
+        device="cuda",
         save_results=save_results,
         reference_audio=reference_audio
     )

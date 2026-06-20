@@ -23,6 +23,8 @@ if PROJECT_ROOT not in sys.path:
 # 尝试导入 Shazam 模块
 try:
     from backend.core.shazam import AudioFingerprinter
+    from backend.core.precise_segment_locator.locator import PreciseSegmentLocator, SegmentLocatorConfig
+    from backend.core.shazam.database.in_memory import InMemoryConnector, InMemoryDatabaseChecker
 
     SHAZAM_AVAILABLE = True
 except ImportError as e:
@@ -506,7 +508,43 @@ class Preprocessor:
 
         # Shazam 定位器（懒加载）
         self._shazam_finder = None
+        self._segment_locator = None
         self._shazam_threshold = shazam_threshold
+
+    def _get_segment_locator(self):
+        """获取 PreciseSegmentLocator（懒加载），支持多片段匹配"""
+        if self._segment_locator is None:
+            connector = InMemoryConnector()
+            # 确保内存数据库已从磁盘恢复
+            InMemoryDatabaseChecker().check_database()
+            config = SegmentLocatorConfig(threshold=self._shazam_threshold, min_match_ratio=0.0)
+            self._segment_locator = PreciseSegmentLocator(config=config, db_connector=connector)
+
+            # 统计数据库中参考音频总数
+            total_music = len(connector.get_all_music())
+            print(f"[Preprocessor] 数据库中共 {total_music} 个参考音频记录")
+
+            # 加载参考音频到定位器索引
+            if self.ref_file and os.path.exists(self.ref_file):
+                # 单参考音频模式：只加载用户指定的参考音频
+                ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
+                music_id = connector.find_music_by_music_name(ref_name)
+                if music_id:
+                    self._segment_locator.add_reference(music_id, ref_name)
+                    print(f"[Preprocessor] 定位器加载指定参考音频: {ref_name} (ID={music_id})")
+                else:
+                    print(f"[Preprocessor] 警告: 未在数据库中找到参考音频 '{ref_name}'")
+            else:
+                # 自动匹配模式：加载数据库中的所有参考音频
+                musics = connector.get_all_music()
+                loaded_count = 0
+                for music_id, music_name in musics:
+                    ok = self._segment_locator.add_reference(music_id, music_name)
+                    if ok:
+                        loaded_count += 1
+                print(f"[Preprocessor] 定位器加载了 {loaded_count}/{len(musics)} 个参考音频到索引 (阈值={self._shazam_threshold})")
+
+        return self._segment_locator
 
     def _get_shazam_finder(self):
         """获取 Shazam 定位器（懒加载）"""
@@ -553,6 +591,89 @@ class Preprocessor:
             return positions.mean()
         else:
             return -1
+
+    def _process_single_segment(self, audio_file, found_position, music_name, pic_dir, audio_dir, result_dict):
+        """处理单个片段（兼容 corr/mfcc_dtw 等单匹配模式）"""
+        if hasattr(self, '_original_names') and self._original_names and audio_file in self._original_names:
+            original_name = os.path.splitext(self._original_names[audio_file])[0]
+            parent_dir = ""
+        else:
+            original_name = os.path.splitext(os.path.basename(audio_file))[0]
+            parent_dir = os.path.basename(os.path.dirname(audio_file))
+
+        ref_name = music_name or (os.path.splitext(os.path.basename(self.ref_file))[0] if self.ref_file else 'unknown')
+
+        def sanitize_name(name):
+            import re
+            name = re.sub(r'[\\/:*?"<>|\.\s]+', '_', name)
+            return name[:30]
+
+        parent_dir_clean = sanitize_name(parent_dir)
+        original_name_clean = sanitize_name(original_name)
+        ref_name_clean = sanitize_name(ref_name)
+        new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s" if parent_dir_clean else f"{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s"
+        slice_duration = min(10.0, self.target_segment_duration)
+
+        pic_output_path = os.path.join(pic_dir, f'{new_file_name}.png')
+        try:
+            plot_spectrogram(audio_file, pic_output_path, offset=found_position, duration=slice_duration)
+            self.src_audio_gen_pic_map[audio_file] = '{}.png'.format(new_file_name)
+            result_dict[audio_file] = {ref_name: pic_output_path, "music_name": ref_name}
+        except Exception as e:
+            print(f"Data transform failed! Error: {e} \nPlease check file:{audio_file}")
+
+        audio_output_path = os.path.join(audio_dir, f'{new_file_name}.wav')
+        try:
+            y_slice, sr_slice = librosa.load(audio_file, offset=found_position, duration=slice_duration, sr=22050)
+            sf.write(audio_output_path, y_slice, sr_slice)
+        except Exception as e:
+            print(f"Audio save failed! Error: {e} \nPlease check file:{audio_file}")
+
+    def _process_segment(self, audio_file, seg_info, seg_idx, pic_dir, audio_dir):
+        """处理单个 SegmentInfo，生成频谱图和音频切片，返回结果 dict"""
+        found_position = seg_info.start_time
+        music_name = seg_info.music_name
+
+        # 生成文件名
+        original_name = os.path.splitext(os.path.basename(audio_file))[0]
+
+        def sanitize_name(name):
+            import re
+            name = re.sub(r'[\\/:*?"<>|\.\s]+', '_', name)
+            return name[:30]
+
+        original_name_clean = sanitize_name(original_name)
+        ref_name_clean = sanitize_name(music_name)
+        new_file_name = f"{original_name_clean}_{ref_name_clean}_seg{seg_idx}_pos{found_position:.2f}s"
+        slice_duration = min(10.0, self.target_segment_duration)
+
+        pic_output_path = os.path.join(pic_dir, f'{new_file_name}.png')
+        audio_output_path = os.path.join(audio_dir, f'{new_file_name}.wav')
+
+        try:
+            # 生成频谱图
+            plot_spectrogram(audio_file, pic_output_path, offset=found_position, duration=slice_duration)
+            print(f"保存图像到: {pic_output_path}")
+        except Exception as e:
+            print(f"频谱图生成失败: {e}")
+            return None
+
+        try:
+            # 保存音频切片
+            y_slice, sr_slice = librosa.load(audio_file, offset=found_position, duration=slice_duration, sr=22050)
+            sf.write(audio_output_path, y_slice, sr_slice)
+            print(f"保存音频到: {audio_output_path}")
+        except Exception as e:
+            print(f"音频切片保存失败: {e}")
+            audio_output_path = None
+
+        return {
+            "music_name": music_name,
+            "pic_path": pic_output_path,
+            "audio_slice_path": audio_output_path,
+            "start_time": found_position,
+            "segment_index": seg_idx
+        }
 
     def process_audio(self, file_list, save_dir, original_names=None):
         """
@@ -744,23 +865,12 @@ class Preprocessor:
             print("[错误] 无法导入并行接口，回退到串行处理")
             return self.process_audio(file_list, save_dir)
 
-        # 阶段1：并行定位所有音频
-        print("[阶段1/2] 并行音频指纹查询...")
-        parallel_fp = ParallelAudioFingerprinter(max_workers=self.max_workers)
+        # 使用串行处理（支持多片段匹配，并行处理暂不兼容 PreciseSegmentLocator）
+        print("[Preprocessor] 使用串行多片段匹配模式（并行模式暂不兼容多片段定位）")
+        return self._process_audio_serial(file_list, save_dir)
 
-        def progress_callback(completed, total):
-            print(f"  进度: {completed}/{total} ({completed / total * 100:.1f}%)")
-
-        locate_results = parallel_fp.batch_locate(
-            long_audio_paths=wav_files,
-            reference_path=self.ref_file if not self.shazam_auto_match else None,
-            threshold=self._shazam_threshold,
-            auto_match=self.shazam_auto_match,
-            progress_callback=progress_callback,
-            use_parallel=True
-        )
-
-        stats = parallel_fp.get_stats()
+        # 原并行逻辑保留（仅用于单匹配场景）
+        # parallel_fp = ParallelAudioFingerprinter(max_workers=self.max_workers)
         print(f"[阶段1完成] 成功: {stats['success']}, 失败: {stats['failed']}, 总耗时: {stats['total_time']:.2f}s")
 
         # 阶段2：串行处理切片和保存（IO操作，不需要并行）
@@ -929,101 +1039,62 @@ class Preprocessor:
 
                 if self.split_method == 'corr':
                     found_position = self.find_audio_segment(_file)
+                    if found_position >= 0:
+                        # 单匹配：保持原有结果格式
+                        self._process_single_segment(_file, found_position, None, pic_dir, audio_dir, result_dict)
+                    else:
+                        result_dict[_file] = {"failed": True}
                 elif self.split_method == 'mfcc_dtw':
                     found_position = self.mfcc_finder.audio_locate(_file)
+                    if found_position >= 0:
+                        self._process_single_segment(_file, found_position, None, pic_dir, audio_dir, result_dict)
+                    else:
+                        result_dict[_file] = {"failed": True}
                 elif self.split_method == 'shazam':
-                    found_position = self._get_shazam_finder().audio_locate(_file)
-                    # 获取Shazam识别出的参考音频名称
-                    matched_name = getattr(self._shazam_finder, '_last_matched_name', '')
-                    
-                    # 验证：检查识别出的参考音频是否与用户选择的一致
-                    if not self.shazam_auto_match and self.ref_file and matched_name:
-                        selected_ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
-                        if matched_name != selected_ref_name:
-                            print(f"[警告] 识别结果与用户选择的参考音频不一致!")
-                            print(f"       用户选择: {selected_ref_name}")
-                            print(f"       识别结果: {matched_name}")
-                            print(f"[跳过] {_file}: 参考音频不匹配，跳过处理")
-                            # 将不匹配的文件添加到结果字典中（标记为失败）
-                            result_dict[_file] = {
-                                "failed": True,
-                                "error": f"参考音频不匹配: 选择'{selected_ref_name}'，识别出'{matched_name}'"
-                            }
-                            continue
-
-                if found_position >= 0:
-                    print(f"找到片段起始位置(秒): {found_position}")
-                    # 提取目标片段
-
-                    # 生成直观的文件名
-                    if hasattr(self, '_original_names') and self._original_names and _file in self._original_names:
-                        original_name = os.path.splitext(self._original_names[_file])[0]
-                        parent_dir = ""
-                    else:
-                        original_name = os.path.splitext(os.path.basename(_file))[0]
-                        parent_dir = os.path.basename(os.path.dirname(_file))
-
-                    if self.shazam_auto_match and self._shazam_finder:
-                        ref_name = getattr(self._shazam_finder, '_last_matched_name', 'unknown')
-                    elif self.ref_file:
-                        ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
-                    else:
-                        ref_name = 'unknown'
-
-                    def sanitize_name(name):
-                        import re
-                        name = re.sub(r'[\\/:*?"<>|\.\s]+', '_', name)
-                        return name[:30]
-
-                    parent_dir_clean = sanitize_name(parent_dir)
-                    original_name_clean = sanitize_name(original_name)
-                    ref_name_clean = sanitize_name(ref_name)
-
-                    # 如果parent_dir为空，则不添加前缀
-                    if parent_dir_clean:
-                        new_file_name = f"{parent_dir_clean}_{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s"
-                    else:
-                        new_file_name = f"{original_name_clean}_{ref_name_clean}_pos{found_position:.2f}s"
-
-                    slice_duration = min(10.0, self.target_segment_duration)
-
-                    # 保存图片到picture目录
-                    pic_output_path = os.path.join(pic_dir, f'{new_file_name}.png')
+                    # 使用 PreciseSegmentLocator 获取所有匹配片段
                     try:
-                        plot_spectrogram(_file, pic_output_path, offset=found_position,
-                                         duration=slice_duration)
-                        print(f"保存图像到: {pic_output_path}")
-                        self.src_audio_gen_pic_map[_file] = '{}.png'.format(new_file_name)
+                        locator = self._get_segment_locator()
+                        locator_result = locator.locate_segments(_file)
+                        segments = locator_result.segments
 
-                        # 记录到结果字典
-                        # 根据匹配到的参考音频名称动态分类
-                        if self.shazam_auto_match:
-                            matched_name = getattr(self._shazam_finder, '_last_matched_name', '')
-                            # 动态生成结果字典，使用匹配到的参考音频名称作为key
-                            result_dict[_file] = {matched_name: pic_output_path, "music_name": matched_name}
-                            print(f"[Shazam] 自动匹配到 '{matched_name}'")
+                        if segments:
+                            # 处理每个匹配片段
+                            segment_results = []
+                            total_segments = len(segments)
+                            skipped = 0
+                            for seg_idx, seg_info in enumerate(segments):
+                                # 验证：如果指定了 ref_file，只处理匹配的参考音频
+                                if not self.shazam_auto_match and self.ref_file:
+                                    selected_ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
+                                    if seg_info.music_name != selected_ref_name:
+                                        print(f"[Preprocessor] 跳过不匹配的参考音频: {seg_info.music_name} (选择: {selected_ref_name})")
+                                        skipped += 1
+                                        continue
+
+                                print(f"[Preprocessor] 片段 #{seg_idx}: {seg_info.music_name} "
+                                      f"位置={seg_info.start_time:.2f}s 置信度={seg_info.confidence} "
+                                      f"匹配率={seg_info.match_ratio:.4f} 可靠={seg_info.is_reliable}")
+                                result = self._process_segment(
+                                    _file, seg_info, seg_idx, pic_dir, audio_dir
+                                )
+                                if result:
+                                    segment_results.append(result)
+
+                            if segment_results:
+                                result_dict[_file] = {"segments": segment_results}
+                                print(f"[Preprocessor] ✅ {os.path.basename(_file)}: 成功处理 {len(segment_results)}/{total_segments} 个片段 "
+                                      f"(跳过{skipped}, 总候选={total_segments})")
+                            else:
+                                print(f"[Preprocessor] ❌ {os.path.basename(_file)}: 所有 {total_segments} 个候选均被过滤")
+                                result_dict[_file] = {"failed": True, "error": "未找到匹配的参考音频片段"}
                         else:
-                            # 使用用户指定的参考音频名称
-                            ref_name = os.path.splitext(os.path.basename(self.ref_file))[0]
-                            result_dict[_file] = {ref_name: pic_output_path, "music_name": ref_name}
-
+                            print(f"[Preprocessor] ❌ {os.path.basename(_file)}: 未找到任何匹配片段")
+                            result_dict[_file] = {"failed": True, "error": "未找到匹配的参考音频片段"}
                     except Exception as e:
-                        print(f"Data transform failed! Error: {e} \nPlease check file:{_file}")
-                        continue
-
-                    # 保存音频切片到audio目录
-                    audio_output_path = os.path.join(audio_dir, f'{new_file_name}.wav')
-                    try:
-                        y_slice, sr_slice = librosa.load(_file, offset=found_position,
-                                                         duration=slice_duration, sr=22050)
-                        sf.write(audio_output_path, y_slice, sr_slice)
-                        print(f"保存音频到: {audio_output_path}")
-                    except Exception as e:
-                        print(f"Audio save failed! Error: {e} \nPlease check file:{_file}")
-                else:
-                    # 未找到片段，记录到结果字典中（标记为失败）
-                    print("未找到指定片段")
-                    result_dict[_file] = {"failed": True}
+                        print(f"Shazam 多片段匹配失败: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        result_dict[_file] = {"failed": True, "error": str(e)}
             else:
                 print("---跳过非音频文件: {}".format(_file))
 

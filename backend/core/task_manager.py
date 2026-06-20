@@ -365,38 +365,25 @@ class TaskManager:
         for file_path in task.files:
             original_names[file_path] = os.path.basename(file_path)
         
-        # 根据任务指定的参考音频创建预处理器
-        ref_file = task.reference_audio
-        if ref_file:
-            print(f"[TaskManager] 使用指定的参考音频: {ref_file}")
-            await websocket_manager.send_progress(task.id, {
-                "progress": 5,
-                "status": "preprocessing",
-                "message": f"使用参考音频: {os.path.basename(ref_file)}"
-            })
-        else:
-            # 用户未指定参考音频，使用 Shazam 自动匹配模式
-            ref_file = None
-            print(f"[TaskManager] 用户未指定参考音频，将使用 Shazam 自动匹配模式")
-        
-        # 创建任务特定的预处理器（强制使用 shazam 模式，非 shazam 模式已屏蔽）
+        # 始终使用自动匹配模式（参考音频选择器已隐藏，由系统自动匹配所有参考音频）
+        print(f"[TaskManager] 使用 Shazam 自动匹配模式（自动匹配数据库中的所有参考音频）")
+        await websocket_manager.send_progress(task.id, {
+            "progress": 5,
+            "status": "preprocessing",
+            "message": f"🔄 自动匹配参考音频..."
+        })
+
         split_method = 'shazam'
         shazam_config = self.config.config.get('preprocessing', {}).get('shazam', {})
-        shazam_threshold = shazam_config.get('threshold', 10)
-        shazam_auto_match = shazam_config.get('auto_match', False)
+        shazam_threshold = shazam_config.get('threshold', 5)
         max_workers = shazam_config.get('max_workers', 1)
-
-        # 如果没有指定参考音频且未启用 auto_match，则启用 auto_match
-        if not ref_file and not shazam_auto_match:
-            print("[TaskManager] 未指定参考音频，自动启用 Shazam auto_match 模式")
-            shazam_auto_match = True
 
         try:
             task_preprocessor = self.Preprocessor(
-                ref_file=ref_file if ref_file else None,
+                ref_file=None,
                 split_method=split_method,
                 shazam_threshold=shazam_threshold,
-                shazam_auto_match=shazam_auto_match,
+                shazam_auto_match=True,
                 max_workers=max_workers
             )
         except Exception as e:
@@ -434,21 +421,42 @@ class TaskManager:
                 # 检查是否标记为失败（未找到片段）
                 is_failed = isinstance(file_result, dict) and file_result.get("failed")
 
-                # 获取参考音频名称
-                music_name = None
-                if isinstance(file_result, dict):
-                    music_name = file_result.get("music_name")
-                    print(f"[TaskManager Debug] 获取参考音频: file={os.path.basename(audio_file)}, music_name={music_name}")
-                    # 根据参考音频名称动态获取图片路径
-                    if music_name and music_name in file_result:
-                        images.append(file_result[music_name])
+                # 检查是否为多片段格式
+                segments = []
+                if isinstance(file_result, dict) and "segments" in file_result:
+                    segments = file_result["segments"]
+                    if not is_failed:
+                        print(f"[TaskManager] 多片段模式: {len(segments)} 个片段")
+                        for seg in segments:
+                            seg_pic = seg.get("pic_path")
+                            if seg_pic:
+                                # 使用特殊 key 区分同一文件的不同片段
+                                seg_key = f"{audio_file}__seg{seg.get('segment_index', 0)}"
+                                file_image_map[seg_key] = {
+                                    "images": [seg_pic],
+                                    "music_name": seg.get("music_name"),
+                                    "segment_index": seg.get("segment_index", 0),
+                                    "segment_start": seg.get("start_time", 0),
+                                    "audio_slice_path": seg.get("audio_slice_path"),
+                                    "audio_file": audio_file
+                                }
+                                all_images.append(seg_pic)
+                                processed_count += 1
 
-                if images and not is_failed:
-                    file_image_map[audio_file] = {"images": images, "music_name": music_name}
-                    print(f"[TaskManager Debug] 保存到file_image_map: music_name={music_name}")
-                    all_images.extend(images)
-                    processed_count += 1
-                else:
+                # 兼容旧格式（单匹配）：通过 music_name 取图片
+                if not segments:
+                    music_name = None
+                    if isinstance(file_result, dict):
+                        music_name = file_result.get("music_name")
+                        if music_name and music_name in file_result:
+                            images.append(file_result[music_name])
+
+                    if images and not is_failed:
+                        file_image_map[audio_file] = {"images": images, "music_name": music_name}
+                        all_images.extend(images)
+                        processed_count += 1
+
+                if not segments and (not images or is_failed):
                     # 记录未找到片段的文件
                     failed_files.append(audio_file)
                     # 获取详细的错误信息
@@ -458,21 +466,21 @@ class TaskManager:
                         error_detail = file_result.get("error")
                         if error_detail:
                             error_msg = f" ({error_detail})"
-                    
+
                     # 发送失败消息到前端
                     message_text = ""
                     if error_detail and "参考音频不匹配" in error_detail:
                         message_text = f"⚠️ {os.path.basename(audio_file)}: {error_detail}"
                     else:
                         message_text = f"⚠️ {os.path.basename(audio_file)}: 未找到指定片段{error_msg}"
-                    
+
                     print(f"[TaskManager] 发送消息到前端: {message_text}")
                     await websocket_manager.send_progress(task.id, {
                         "progress": 25,
                         "status": "preprocessing",
                         "message": message_text
                     })
-                    
+
                     # 将失败信息添加到任务结果中（以便前端在WebSocket重连后获取）
                     task.results.append({
                         "filename": os.path.basename(audio_file),
@@ -559,97 +567,96 @@ class TaskManager:
             current_idx = 0
             anomaly_count = 0
 
-            for audio_file, file_data in file_image_map.items():
+            for file_key, file_data in file_image_map.items():
                 images = file_data["images"]
                 music_name = file_data.get("music_name")
                 file_results = detection_results[current_idx:current_idx + len(images)]
                 current_idx += len(images)
 
-                # 找出最高异常分数
-                max_score = 0
-                is_anomaly = False
-                original_path = None
-                overlay_path = None
-                heatmap_path = None
+                # 判断是否为多片段（通过 audio_file 字段区分）
+                is_multi_seg = "audio_file" in file_data
+                actual_file = file_data.get("audio_file", file_key)
+                segment_index = file_data.get("segment_index")
+                segment_start = file_data.get("segment_start")
 
-                for result in file_results:
-                    if result.anomaly_score > max_score:
-                        max_score = result.anomaly_score
-                        is_anomaly = result.is_anomaly
-                        # 获取三种图像路径并转换为相对路径
-                        if result.metadata:
-                            original_path = result.metadata.get('original_path')
-                            overlay_path = result.metadata.get('overlay_path')
-                            heatmap_path = result.metadata.get('heatmap_path')
-                            
-                            # 将绝对路径转换为前端可访问的相对URL路径
-                            project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                # 对每个 segment 创建独立的结果条目
+                for img_idx, result in enumerate(file_results):
+                    max_score = result.anomaly_score
+                    is_anomaly = result.is_anomaly
+                    original_path = None
+                    overlay_path = None
+                    heatmap_path = None
 
-                            if original_path:
-                                if original_path.startswith(project_root):
-                                    original_path = original_path[len(project_root)+1:]
-                                original_path = original_path.replace('\\', '/')
-                                # output/vis/ → visualize/ (匹配 StaticFiles mount)
-                                if original_path.startswith('output/vis/'):
-                                    original_path = 'visualize/' + original_path[len('output/vis/'):]
+                    if result.metadata:
+                        original_path = result.metadata.get('original_path')
+                        overlay_path = result.metadata.get('overlay_path')
+                        heatmap_path = result.metadata.get('heatmap_path')
 
-                            if overlay_path:
-                                if overlay_path.startswith(project_root):
-                                    overlay_path = overlay_path[len(project_root)+1:]
-                                overlay_path = overlay_path.replace('\\', '/')
-                                if overlay_path.startswith('output/vis/'):
-                                    overlay_path = 'visualize/' + overlay_path[len('output/vis/'):]
+                        # 路径转换
+                        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
-                            if heatmap_path:
-                                if heatmap_path.startswith(project_root):
-                                    heatmap_path = heatmap_path[len(project_root)+1:]
-                                heatmap_path = heatmap_path.replace('\\', '/')
-                                if heatmap_path.startswith('output/vis/'):
-                                    heatmap_path = 'visualize/' + heatmap_path[len('output/vis/'):]
-                                print(f"[TaskManager] 生成图像: original={original_path}, overlay={overlay_path}, heatmap={heatmap_path}, 异常: {is_anomaly}")
-                            else:
-                                print(f"[TaskManager] 无热力图: metadata={result.metadata is not None}, score={result.anomaly_score:.4f}")
+                        if original_path:
+                            if original_path.startswith(project_root):
+                                original_path = original_path[len(project_root)+1:]
+                            original_path = original_path.replace('\\', '/')
+                            if original_path.startswith('output/vis/'):
+                                original_path = 'visualize/' + original_path[len('output/vis/'):]
 
-                if is_anomaly:
-                    anomaly_count += 1
+                        if overlay_path:
+                            if overlay_path.startswith(project_root):
+                                overlay_path = overlay_path[len(project_root)+1:]
+                            overlay_path = overlay_path.replace('\\', '/')
+                            if overlay_path.startswith('output/vis/'):
+                                overlay_path = 'visualize/' + overlay_path[len('output/vis/'):]
 
-                # 构建音频切片路径（与图片同名，但扩展名为.wav）
-                audio_slice_path = None
-                print(f"[TaskManager Debug] 准备构建音频路径: overlay_path={overlay_path}, filename={os.path.basename(audio_file)}")
-                if overlay_path:
-                    # 从 overlay_path 推断音频路径
-                    # 注意：overlay_path 文件名包含 _overlay 后缀，但音频文件没有
-                    # overlay_path 格式: visualize/.../xxx_overlay.png
-                    # audio_path 格式: output/slices/audio/xxx.wav (由 preprocessing 保存)
-                    base_name = os.path.splitext(os.path.basename(overlay_path))[0]
-                    # 去除 _overlay 后缀
-                    if base_name.endswith('_overlay'):
-                        base_name = base_name[:-8]
-                    audio_slice_path = f"output/slices/audio/{base_name}.wav"
-                    # 检查文件是否存在
-                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                    full_audio_path = os.path.join(project_root, audio_slice_path)
-                    print(f"[TaskManager Debug] 构建音频路径: overlay={overlay_path}, base={base_name}, audio={audio_slice_path}")
-                    print(f"[TaskManager Debug] 完整音频路径: {full_audio_path}, 存在={os.path.exists(full_audio_path)}")
-                    if not os.path.exists(full_audio_path):
-                        audio_slice_path = None
-                        print(f"[TaskManager Debug] 音频文件不存在，设为null")
-                else:
-                    print(f"[TaskManager Debug] overlay_path为空，无法构建音频路径")
+                        if heatmap_path:
+                            if heatmap_path.startswith(project_root):
+                                heatmap_path = heatmap_path[len(project_root)+1:]
+                            heatmap_path = heatmap_path.replace('\\', '/')
+                            if heatmap_path.startswith('output/vis/'):
+                                heatmap_path = 'visualize/' + heatmap_path[len('output/vis/'):]
 
-                print(f"[TaskManager Debug] 保存结果: file={os.path.basename(audio_file)}, music_name={music_name}")
-                task.results.append({
-                    "filename": os.path.basename(audio_file),
-                    "filepath": audio_file,
-                    "anomaly_score": max_score,
-                    "is_anomaly": is_anomaly,
-                    "status": "异常" if is_anomaly else "正常",
-                    "original_path": original_path,
-                    "overlay_path": overlay_path,
-                    "heatmap_path": heatmap_path,
-                    "audio_slice_path": audio_slice_path,  # 添加音频切片路径
-                    "music_name": music_name  # 添加参考音频名称
-                })
+                    # 音频切片路径：多片段模式下直接从预处理结果获取
+                    audio_slice_path = file_data.get("audio_slice_path")
+                    # 将绝对路径转为项目相对路径（与前端 /api/detection/audio/ 端点匹配）
+                    if audio_slice_path:
+                        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                        if audio_slice_path.startswith(project_root):
+                            audio_slice_path = audio_slice_path[len(project_root) + 1:]
+                        audio_slice_path = audio_slice_path.replace('\\', '/')
+                    if not audio_slice_path and overlay_path:
+                        # 单匹配模式下从 overlay_path 推导
+                        base_name = os.path.splitext(os.path.basename(overlay_path))[0]
+                        if base_name.endswith('_overlay'):
+                            base_name = base_name[:-8]
+                        audio_slice_path = f"output/slices/audio/{base_name}.wav"
+                        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                        full_audio_path = os.path.join(project_root, audio_slice_path)
+                        if not os.path.exists(full_audio_path):
+                            audio_slice_path = None
+
+                    result_entry = {
+                        "filename": os.path.basename(actual_file),
+                        "filepath": actual_file,
+                        "anomaly_score": max_score,
+                        "is_anomaly": is_anomaly,
+                        "status": "异常" if is_anomaly else "正常",
+                        "original_path": original_path,
+                        "overlay_path": overlay_path,
+                        "heatmap_path": heatmap_path,
+                        "audio_slice_path": audio_slice_path,
+                        "music_name": music_name
+                    }
+
+                    # 多片段额外信息
+                    if is_multi_seg:
+                        result_entry["segment_index"] = segment_index
+                        result_entry["segment_start"] = segment_start
+                        result_entry["filename"] = os.path.basename(actual_file)
+
+                    task.results.append(result_entry)
+                    if is_anomaly:
+                        anomaly_count += 1
 
                 task.progress = 55 + (current_idx / len(all_images)) * 40  # 检测占55%-95%
                 await websocket_manager.send_progress(task.id, {
@@ -657,7 +664,7 @@ class TaskManager:
                     "current": current_idx,
                     "total": len(all_images),
                     "status": "detecting",
-                    "message": f"检测中 [{current_idx}/{len(all_images)}]: {os.path.basename(audio_file)}"
+                    "message": f"检测中 [{current_idx}/{len(all_images)}]: {os.path.basename(actual_file)}"
                 })
 
             # 检测完成统计

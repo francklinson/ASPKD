@@ -96,6 +96,20 @@ async def lifespan(app: FastAPI):
     # 启动时执行
     print("[Backend] 启动音频异常检测服务...")
 
+    # 强制检查 CUDA 可用性
+    import torch
+    if not torch.cuda.is_available():
+        error_msg = (
+            "CUDA 不可用！服务无法启动。\n"
+            "请确保: 1) NVIDIA 驱动已安装  2) PyTorch CUDA 版本已正确安装\n"
+            f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES', '未设置')}"
+        )
+        print(f"[Backend] ❌ {error_msg}")
+        raise RuntimeError(error_msg)
+    cuda_count = torch.cuda.device_count()
+    cuda_name = torch.cuda.get_device_name(0)
+    print(f"[Backend] ✅ CUDA 可用: {cuda_count} 块 GPU, 当前: {cuda_name}")
+
     # 注册退出时自动保存 Shazam 内存数据库
     import atexit
     from backend.core.shazam.database.in_memory import InMemoryDatabaseChecker
