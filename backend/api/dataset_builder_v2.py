@@ -34,8 +34,12 @@ os.makedirs(DATASET_ROOT, exist_ok=True)
 DATASET_BUILDER_DIR = os.path.join(PROJECT_ROOT, "data", "dataset_builder")
 os.makedirs(DATASET_BUILDER_DIR, exist_ok=True)
 
-# 检测任务结果关联目录
-DETECTION_RESULTS_DIR = os.path.join(PROJECT_ROOT, "data", "output", "results")
+# 可视化输出目录（兼容旧路径转换）
+VIS_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "data", "output", "vis")
+# 客户端切片目录
+CLIENT_SEGMENTS_DIR = os.path.join(PROJECT_ROOT, "data", "uploads", "clients", "segments")
+# 服务端切片目录
+SERVER_SLICES_DIR = os.path.join(PROJECT_ROOT, "data", "output", "slices", "audio")
 
 
 def log_operation(operation: str, details: str = "", status: str = "INFO"):
@@ -465,9 +469,11 @@ def _find_audio_slice_for_client_result(result: dict) -> Optional[str]:
     overlay = result.get("overlay_path")
     if overlay:
         # overlay 可能是相对路径（如 visualize/dinomaly_xxx/xxx_overlay.png）
-        # 也可能是绝对路径
+        # 也可能是绝对路径；可视化迁移后路径前缀从 visualize/ 变为 data/output/vis/
         if not os.path.isabs(overlay):
-            full_overlay = os.path.join(PROJECT_ROOT, overlay.replace("visualize/", "data/output/vis/"))
+            # 兼容旧路径：visualize/ → data/output/vis/
+            rel_overlay = overlay.replace("visualize/", "data/output/vis/") if overlay.startswith("visualize/") else overlay
+            full_overlay = os.path.join(PROJECT_ROOT, rel_overlay)
         else:
             full_overlay = overlay
         base_name = os.path.splitext(os.path.basename(full_overlay))[0]
@@ -475,8 +481,8 @@ def _find_audio_slice_for_client_result(result: dict) -> Optional[str]:
             base_name = base_name[:-8]
         # 尝试几个可能的切片目录
         candidates = [
-            os.path.join(PROJECT_ROOT, "data", "uploads", "clients", "segments", f"{base_name}.wav"),
-            os.path.join(PROJECT_ROOT, "data", "output", "slices", "audio", f"{base_name}.wav"),
+            os.path.join(CLIENT_SEGMENTS_DIR, f"{base_name}.wav"),
+            os.path.join(SERVER_SLICES_DIR, f"{base_name}.wav"),
         ]
         for c in candidates:
             if os.path.exists(c):
