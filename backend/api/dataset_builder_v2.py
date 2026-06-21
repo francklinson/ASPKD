@@ -182,6 +182,12 @@ class ConfirmToDatasetRequest(BaseModel):
     train_ratio: int = 10  # 训练集:测试集比例，默认 10:1
 
 
+class ConfirmAllAnnotatedRequest(BaseModel):
+    """一键确认所有已标注片段导入数据集请求"""
+    reference_audios: Optional[List[str]] = None  # None 表示全部
+    train_ratio: int = 10  # 训练集:测试集比例，默认 10:1
+
+
 class ImportToSessionRequest(BaseModel):
     """追加导入到已有会话请求"""
     session_id: str
@@ -901,6 +907,66 @@ def generate_spectrogram(audio_path: str, output_path: str) -> bool:
         return False
 
 
+def _import_single_segment(
+    segment: "AudioSegmentInfo",
+    train_ratio: int = 10,
+    target_category: Optional[str] = None
+) -> Tuple[bool, dict]:
+    """
+    拷贝一个已标注片段到正式数据集目录 data/spk/{category}/{split}/{label}/。
+
+    Returns:
+        (success, info_dict) 其中 info_dict = {"category", "split_type", "label"}
+    """
+    try:
+        category = target_category or segment.reference_audio
+        label = segment.manual_label or segment.predicted_label or "normal"
+
+        category_path = os.path.join(DATASET_ROOT, category)
+        train_good = os.path.join(category_path, "train", "good")
+        test_good = os.path.join(category_path, "test", "good")
+        test_anomaly = os.path.join(category_path, "test", "anomaly")
+
+        os.makedirs(train_good, exist_ok=True)
+        os.makedirs(test_good, exist_ok=True)
+        os.makedirs(test_anomaly, exist_ok=True)
+
+        train_count = len([f for f in os.listdir(train_good) if f.endswith('.wav')])
+        test_count = len([f for f in os.listdir(test_good) if f.endswith('.wav')])
+
+        if label == "anomaly":
+            target_dir = test_anomaly
+            split_type = "test"
+        else:
+            total = train_count + test_count
+            target_ratio = train_ratio / (train_ratio + 1)
+            if total == 0 or train_count / (total + 1) < target_ratio:
+                target_dir = train_good
+                split_type = "train"
+            else:
+                target_dir = test_good
+                split_type = "test"
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        new_filename = f"{timestamp}_{segment.segment_filename}"
+        target_path = os.path.join(target_dir, new_filename)
+
+        shutil.copy2(segment.file_path, target_path)
+
+        if segment.spectrogram_path and os.path.exists(segment.spectrogram_path):
+            target_spec = target_path.replace('.wav', '.png')
+            shutil.copy2(segment.spectrogram_path, target_spec)
+
+        segment.status = DatasetItemStatus.IN_DATASET
+
+        return True, {"category": category, "split_type": split_type, "label": label}
+
+    except Exception as e:
+        log_operation("IMPORT_SEGMENT_ERROR",
+                      f"Segment: {segment.segment_id}, Path: {segment.file_path}, Error: {str(e)}", "ERROR")
+        return False, {}
+
+
 async def confirm_to_dataset(
     session: DatasetBuildSession,
     segment_ids: Optional[List[str]] = None,
@@ -942,72 +1008,25 @@ async def confirm_to_dataset(
     split_stats = {}  # 按参考音频统计划分结果
 
     for segment in segments_to_import:
-        try:
-            # 确定类别
-            category = target_category or segment.reference_audio
-
-            # 确定标签
-            label = segment.manual_label or segment.predicted_label
-            if not label:
-                label = "normal"  # 默认标签
-
-            # 确定划分（train/test）
-            category_path = os.path.join(DATASET_ROOT, category)
-            train_good = os.path.join(category_path, "train", "good")
-            test_good = os.path.join(category_path, "test", "good")
-            test_anomaly = os.path.join(category_path, "test", "anomaly")
-
-            os.makedirs(train_good, exist_ok=True)
-            os.makedirs(test_good, exist_ok=True)
-            os.makedirs(test_anomaly, exist_ok=True)
-
-            # 统计现有数据
-            train_count = len([f for f in os.listdir(train_good) if f.endswith('.wav')])
-            test_count = len([f for f in os.listdir(test_good) if f.endswith('.wav')])
-
-            # 决定划分（使用自定义比例）
-            if label == "anomaly":
-                target_dir = test_anomaly
-                split_type = "test"
-            else:
-                # 正常数据按 train_ratio:1 比例划分
-                total = train_count + test_count
-                target_ratio = train_ratio / (train_ratio + 1)
-                if total == 0 or train_count / (total + 1) < target_ratio:
-                    target_dir = train_good
-                    split_type = "train"
-                else:
-                    target_dir = test_good
-                    split_type = "test"
-
-            # 复制文件
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            new_filename = f"{timestamp}_{segment.segment_filename}"
-            target_path = os.path.join(target_dir, new_filename)
-
-            shutil.copy2(segment.file_path, target_path)
-
-            # 复制时频图
-            if segment.spectrogram_path and os.path.exists(segment.spectrogram_path):
-                target_spec = target_path.replace('.wav', '.png')
-                shutil.copy2(segment.spectrogram_path, target_spec)
-
-            # 更新状态
-            segment.status = DatasetItemStatus.IN_DATASET
+        success, info = _import_single_segment(
+            segment=segment,
+            train_ratio=train_ratio,
+            target_category=target_category
+        )
+        if success:
             imported_count += 1
-
-            # 记录划分统计
-            if category not in split_stats:
-                split_stats[category] = {"train": 0, "test_normal": 0, "test_anomaly": 0}
-            if split_type == "train":
-                split_stats[category]["train"] += 1
-            elif label == "anomaly":
-                split_stats[category]["test_anomaly"] += 1
+            cat = info["category"]
+            st = info["split_type"]
+            lb = info["label"]
+            if cat not in split_stats:
+                split_stats[cat] = {"train": 0, "test_normal": 0, "test_anomaly": 0}
+            if st == "train":
+                split_stats[cat]["train"] += 1
+            elif lb == "anomaly":
+                split_stats[cat]["test_anomaly"] += 1
             else:
-                split_stats[category]["test_normal"] += 1
-
-        except Exception as e:
-            log_operation("IMPORT_ERROR", f"Segment: {segment.segment_id}, Error: {str(e)}", "ERROR")
+                split_stats[cat]["test_normal"] += 1
+        else:
             failed_count += 1
 
     # 输出详细的划分日志
@@ -1028,6 +1047,98 @@ async def confirm_to_dataset(
         stats={
             "imported": imported_count,
             "failed": failed_count,
+            "split_details": split_stats
+        }
+    )
+
+
+async def confirm_all_annotated_to_dataset(
+    reference_audios: Optional[List[str]] = None,
+    train_ratio: int = 10
+) -> DatasetBuildResponse:
+    """
+    一键将所有会话中已人工标注的片段导入正式数据集。
+    遍历 BUILD_SESSIONS，收集 manual_label 非空且状态为 annotated 的片段，
+    导入后设置状态为 in_dataset。
+    """
+    log_operation("CONFIRM_ALL_ANNOTATED",
+                  f"跨会话收集已标注片段, 比例 {train_ratio}:1, 参考音频过滤: {reference_audios or '全部'}")
+
+    # 收集所有会话中已人工标注的片段
+    all_annotated = []
+    affected_sessions = []
+
+    for session in BUILD_SESSIONS.values():
+        annotated = [
+            s for s in session.segments
+            if s.manual_label is not None and s.status == DatasetItemStatus.ANNOTATED
+        ]
+        if annotated:
+            all_annotated.extend(annotated)
+            affected_sessions.append(session)
+
+    if not all_annotated:
+        return DatasetBuildResponse(
+            success=False,
+            message="没有找到已标注的片段。请先在各个会话中完成标注后再导入。",
+            stats={"imported": 0, "failed": 0}
+        )
+
+    # 按参考音频过滤
+    if reference_audios:
+        filtered = [s for s in all_annotated if s.reference_audio in reference_audios]
+        log_operation("FILTER_REFERENCE",
+                      f"按参考音频过滤前: {len(all_annotated)}, 过滤后: {len(filtered)}")
+        if not filtered:
+            return DatasetBuildResponse(
+                success=False,
+                message=f"在已标注片段中未找到参考音频: {reference_audios}",
+                stats={"imported": 0, "failed": 0}
+            )
+        all_annotated = filtered
+
+    imported_count = 0
+    failed_count = 0
+    split_stats = {}
+
+    for segment in all_annotated:
+        success, info = _import_single_segment(segment=segment, train_ratio=train_ratio)
+        if success:
+            imported_count += 1
+            cat = info["category"]
+            st = info["split_type"]
+            lb = info["label"]
+            if cat not in split_stats:
+                split_stats[cat] = {"train": 0, "test_normal": 0, "test_anomaly": 0}
+            if st == "train":
+                split_stats[cat]["train"] += 1
+            elif lb == "anomaly":
+                split_stats[cat]["test_anomaly"] += 1
+            else:
+                split_stats[cat]["test_normal"] += 1
+        else:
+            failed_count += 1
+
+    # 保存所有受影响会话
+    for session in affected_sessions:
+        save_session(session)
+
+    # 输出划分日志
+    for cat, stats in split_stats.items():
+        log_operation("SPLIT_RESULT",
+                      f"类别 '{cat}': 训练集={stats['train']}, 测试集(正常)={stats['test_normal']}, 测试集(异常)={stats['test_anomaly']}")
+
+    log_operation("CONFIRM_ALL_COMPLETE",
+                  f"从 {len(affected_sessions)} 个会话导入 {imported_count} 个片段, 失败 {failed_count}")
+
+    return DatasetBuildResponse(
+        success=(failed_count == 0 or imported_count > 0),
+        message=f"成功导入 {imported_count} 个片段（来自 {len(affected_sessions)} 个会话）"
+                + (f"，失败 {failed_count} 个" if failed_count else ""),
+        stats={
+            "imported": imported_count,
+            "failed": failed_count,
+            "session_count": len(affected_sessions),
             "split_details": split_stats
         }
     )
@@ -1238,6 +1349,19 @@ async def confirm_to_dataset_endpoint(request: ConfirmToDatasetRequest):
         train_ratio=request.train_ratio
     )
 
+    return result
+
+
+@router.post("/confirm-all-annotated", response_model=DatasetBuildResponse)
+async def confirm_all_annotated_endpoint(request: ConfirmAllAnnotatedRequest):
+    """
+    一键将所有会话中已人工标注的片段导入正式数据集。
+    无需指定 session_id，自动扫描所有会话中的已标注片段。
+    """
+    result = await confirm_all_annotated_to_dataset(
+        reference_audios=request.reference_audios,
+        train_ratio=request.train_ratio
+    )
     return result
 
 

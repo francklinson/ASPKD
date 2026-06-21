@@ -321,6 +321,11 @@
             color: #ff4d4f;
         }
 
+        .segment-status.in-dataset {
+            background: #e6f7ff;
+            color: #1890ff;
+        }
+
         .segment-item .segment-actions {
             display: flex;
             gap: 4px;
@@ -1734,6 +1739,20 @@
 						✅ 确认导入正式数据集
 					</button>
 				</div>
+
+				<!-- 一键构建数据集（跨会话，始终可见） -->
+				<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #d9d9d9;" id="buildDatasetBar">
+					<button class="btn btn-success" onclick="buildDatasetFromAllAnnotated()" style="width:100%;padding:12px 16px;font-size:14px;">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<rect x="3" y="3" width="18" height="18" rx="2"/>
+							<path d="M3 9h18M9 21V9"/>
+						</svg>
+						📦 一键构建数据集（所有已标注样本）
+					</button>
+					<div style="font-size:11px;color:#888;margin-top:4px;text-align:center;">
+						将所有会话中已人工标注的片段一次性导入正式数据集
+					</div>
+				</div>
 			</div>
 
 			<div id="emptyPlayer" class="empty-state">
@@ -1823,6 +1842,8 @@
         let currentCategory = 'all';
         let currentFilter = 'all';
         let uploadMode = 'auto'; // 'auto' or 'manual'
+        let currentV2SessionId = null;
+        let v2FilteredSegments = []; // 会话模式下当前显示的过滤后片段列表
 
         // API 基础 URL
         const API_BASE = '/api/dataset';
@@ -2031,9 +2052,9 @@
 
         // 加载音频片段列表
         async function loadSegments() {
-            // 如果当前正在预览会话，不重新加载
+            // 如果当前正在预览会话，从本地过滤
             if (currentV2SessionId) {
-                logMessage('当前在会话浏览模式', 'info');
+                filterV2Segments();
                 return;
             }
 
@@ -2099,6 +2120,43 @@
                     </span>
                 </div>
             `).join('');
+        }
+
+        // 在会话预览模式下本地过滤片段
+        function filterV2Segments() {
+            if (!currentV2SessionId || !currentSegments.length) {
+                v2FilteredSegments = currentSegments;
+                renderV2SegmentsList(currentSegments);
+                return;
+            }
+
+            let filtered = [...currentSegments];
+
+            // 按类别过滤
+            if (currentCategory !== 'all') {
+                filtered = filtered.filter(s => s.reference_audio === currentCategory);
+            }
+
+            // 按标签过滤
+            if (currentFilter !== 'all') {
+                if (currentFilter === 'unlabeled') {
+                    filtered = filtered.filter(s => !s.label);
+                } else {
+                    filtered = filtered.filter(s => s.label === currentFilter);
+                }
+            }
+
+            // 保存过滤结果用于导航
+            v2FilteredSegments = filtered;
+
+            // 如果当前选中的片段不在过滤结果中，清除选择
+            if (selectedSegment && !filtered.some(s => s.segment_id === selectedSegment.segment_id)) {
+                selectedSegment = null;
+                document.getElementById('playerSection').style.display = 'none';
+                document.getElementById('emptyPlayer').style.display = 'block';
+            }
+
+            renderV2SegmentsList(filtered);
         }
 
         // wavesurfer 实例
@@ -3276,15 +3334,20 @@
             }
         }
 
+        function getActiveSegments() {
+            return (currentV2SessionId && v2FilteredSegments.length > 0) ? v2FilteredSegments : currentSegments;
+        }
+
         function updateNavButtons() {
             if (!selectedSegment) {
                 document.getElementById('btnPrev').disabled = true;
                 document.getElementById('btnNext').disabled = true;
                 return;
             }
-            const currentIndex = currentSegments.findIndex(s => s.segment_id === selectedSegment.segment_id);
+            const list = getActiveSegments();
+            const currentIndex = list.findIndex(s => s.segment_id === selectedSegment.segment_id);
             document.getElementById('btnPrev').disabled = currentIndex <= 0;
-            document.getElementById('btnNext').disabled = currentIndex >= currentSegments.length - 1;
+            document.getElementById('btnNext').disabled = currentIndex >= list.length - 1;
         }
 
         // 提交标注
@@ -3344,18 +3407,20 @@
         // 上一个片段
         function goToPrevious() {
             if (!selectedSegment) return;
-            const currentIndex = currentSegments.findIndex(s => s.segment_id === selectedSegment.segment_id);
+            const list = getActiveSegments();
+            const currentIndex = list.findIndex(s => s.segment_id === selectedSegment.segment_id);
             if (currentIndex > 0) {
-                selectSegment(currentSegments[currentIndex - 1]);
+                selectSegment(list[currentIndex - 1]);
             }
         }
 
         // 下一个片段
         function goToNext() {
             if (!selectedSegment) return;
-            const currentIndex = currentSegments.findIndex(s => s.segment_id === selectedSegment.segment_id);
-            if (currentIndex < currentSegments.length - 1) {
-                selectSegment(currentSegments[currentIndex + 1]);
+            const list = getActiveSegments();
+            const currentIndex = list.findIndex(s => s.segment_id === selectedSegment.segment_id);
+            if (currentIndex < list.length - 1) {
+                selectSegment(list[currentIndex + 1]);
             }
         }
 
@@ -3839,11 +3904,19 @@
             return div;
         }
 
-        let currentV2SessionId = null;
-
         async function previewV2Session(sessionId) {
             if (!sessionId) return;
             currentV2SessionId = sessionId;
+            v2FilteredSegments = [];  // 重置过滤状态
+            // 重置分类和筛选为"全部"
+            currentCategory = 'all';
+            currentFilter = 'all';
+            document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+            const allCatTab = document.querySelector('.category-tab[data-category="all"]');
+            if (allCatTab) allCatTab.classList.add('active');
+            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+            const allFilterTab = document.querySelector('.filter-tab[data-filter="all"]');
+            if (allFilterTab) allFilterTab.classList.add('active');
 
             // 显示"确认导入正式数据集"按钮
             const confirmBtn = document.getElementById('btnConfirmDataset');
@@ -3883,6 +3956,7 @@
                         annotated_at: s.annotated_at,
                         source_type: s.source_type,
                         predicted_score: s.predicted_score,
+                        status: s.status,  // 片段状态（用于展示已导入标记）
                         _v2session: sessionId,
                         _v2segment_id: s.segment_id
                     });});
@@ -3917,8 +3991,11 @@
                 div.className = 'segment-item';
                 div.dataset.segmentId = seg.segment_id;
                 const label = seg.label;
+                const segStatus = seg.status;  // 后端返回的 status，如 "annotated", "in_dataset"
                 let statusHtml = '<span class="segment-status unlabeled">未标注</span>';
-                if (label === 'normal') statusHtml = '<span class="segment-status normal">正常</span>';
+                if (segStatus === 'in_dataset') {
+                    statusHtml = '<span class="segment-status in-dataset">已导入</span>';
+                } else if (label === 'normal') statusHtml = '<span class="segment-status normal">正常</span>';
                 else if (label === 'anomaly') statusHtml = '<span class="segment-status anomaly">异常</span>';
 
                 // 显示预标注信息
@@ -3996,7 +4073,8 @@
                         // 更新本地状态（保留标注时间）
                         selectedSegment.label = label;
                         selectedSegment.annotated_at = new Date().toISOString();
-                        renderV2SegmentsList(currentSegments);
+                        // 重新渲染过滤后的列表
+                        filterV2Segments();
                         // 自动选择下一个
                         goToNext();
                     } else {
@@ -4106,6 +4184,88 @@
                 alert('导入请求失败: ' + err.message);
                 logMessage('❌ 导入请求失败: ' + err.message, 'error');
             });
+        }
+
+        // ============================================================
+        // 一键构建数据集（所有已标注样本，跨会话）
+        // ============================================================
+
+        async function buildDatasetFromAllAnnotated() {
+            // 弹窗选择训练:测试比例
+            const ratio = prompt(
+                '【一键构建数据集】\n\n' +
+                '将所有会话中已人工标注(已提交)的音频片段，一次性导入正式数据集。\n\n' +
+                '输入 训练集:测试集 比例（默认 10:1）\n' +
+                '例如：10 表示训练集10份 : 测试集1份',
+                '10'
+            );
+            if (ratio === null) return;  // 用户取消
+            const trainRatio = parseInt(ratio) || 10;
+
+            // 可选：参考音频过滤
+            let selectedRefs = null;
+            const refAudios = [...new Set(currentSegments.map(s => s.reference_audio).filter(Boolean))];
+            if (refAudios.length > 1) {
+                const input = prompt(
+                    `可用参考音频: ${refAudios.join(', ')}\n\n` +
+                    `如需限定特定参考音频，请输入名称（逗号分隔，留空表示全部）`,
+                    ''
+                );
+                if (input === null) return;  // 用户取消
+                if (input.trim()) {
+                    selectedRefs = input.split(',').map(s => s.trim()).filter(s => refAudios.includes(s));
+                    if (selectedRefs.length === 0) {
+                        alert('未选择有效的参考音频');
+                        return;
+                    }
+                }
+            }
+
+            logMessage(`📦 一键构建数据集: 所有已标注样本, 比例 ${trainRatio}:1, 参考音频 ${selectedRefs ? selectedRefs.join(', ') : '全部'}`, 'info');
+
+            try {
+                const resp = await apiFetch('/api/dataset/confirm-all-annotated', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reference_audios: selectedRefs,
+                        train_ratio: trainRatio
+                    })
+                });
+                const result = await resp.json();
+
+                if (result.success || (result.stats && result.stats.imported > 0)) {
+                    const stats = result.stats || {};
+                    let summary = `✅ 成功导入 ${stats.imported || 0} 个片段`;
+                    if (stats.session_count) {
+                        summary += `（来自 ${stats.session_count} 个会话）`;
+                    }
+                    if (stats.failed > 0) {
+                        summary += `，${stats.failed} 个失败`;
+                    }
+
+                    // 显示划分详情
+                    if (stats.split_details) {
+                        const lines = Object.entries(stats.split_details).map(([cat, st]) =>
+                            `  ${cat}: 训练 ${st.train} | 测试正常 ${st.test_normal} | 异常 ${st.test_anomaly}`
+                        );
+                        lines.forEach(l => logMessage(`📊 ${l}`, 'success'));
+                        summary += '\n\n' + lines.join('\n');
+                    }
+
+                    logMessage(`✅ ${summary.replace('\n\n', ' — ')}`, 'success');
+                    alert(`导入成功！\n\n${summary}`);
+
+                    refreshStats();
+                    loadV2Sessions();
+                } else {
+                    alert(result.message || '导入失败');
+                    logMessage('❌ ' + (result.message || '导入失败'), 'error');
+                }
+            } catch (err) {
+                alert('导入请求失败: ' + err.message);
+                logMessage('❌ 导入请求失败: ' + err.message, 'error');
+            }
         }
 
         // (已合并到主 DOMContentLoaded 中)
