@@ -4203,6 +4203,21 @@
                 const result = await resp.json();
                 if (result.success) {
                     logMessage(`已删除会话: ${sessionId.slice(-8)}`, 'warning');
+                    // 如果当前预览的正是被删除的会话，清空片段列表和播放器
+                    if (currentV2SessionId === sessionId) {
+                        currentV2SessionId = null;
+                        currentSegments = [];
+                        v2FilteredSegments = [];
+                        selectedSegment = null;
+                        document.getElementById('segmentsList').innerHTML = ''
+                            + '<div class="empty-state"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+                            + '<path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>'
+                            + '<circle cx="12" cy="12" r="3"/></svg>'
+                            + '<p>暂无音频片段</p>'
+                            + '<p style="font-size: 13px; margin-top: 8px;">请先上传音频文件</p></div>';
+                        document.getElementById('playerSection').style.display = 'none';
+                        document.getElementById('emptyPlayer').style.display = 'block';
+                    }
                     loadV2Sessions();
                 } else {
                     alert('删除失败: ' + (result.message || ''));
@@ -4211,7 +4226,6 @@
                 alert('删除请求失败: ' + err.message);
             }
         }
-
         // 配置划分并导入到正式数据集
         function confirmV2SessionToDataset() {
             if (!currentV2SessionId) {
