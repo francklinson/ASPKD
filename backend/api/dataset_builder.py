@@ -38,7 +38,9 @@ os.makedirs(SLICE_TEMP_DIR, exist_ok=True)
 
 
 def get_user_temp_dirs(username: Optional[str] = None) -> tuple:
-    """获取共享临时目录"""
+    """获取共享临时目录（确保目录存在）"""
+    os.makedirs(UPLOAD_TEMP_DIR, exist_ok=True)
+    os.makedirs(SLICE_TEMP_DIR, exist_ok=True)
     return UPLOAD_TEMP_DIR, SLICE_TEMP_DIR
 
 

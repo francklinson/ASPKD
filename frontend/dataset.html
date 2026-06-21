@@ -1740,19 +1740,6 @@
 					</button>
 				</div>
 
-				<!-- 一键构建数据集（跨会话，始终可见） -->
-				<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #d9d9d9;" id="buildDatasetBar">
-					<button class="btn btn-success" onclick="buildDatasetFromAllAnnotated()" style="width:100%;padding:12px 16px;font-size:14px;">
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<rect x="3" y="3" width="18" height="18" rx="2"/>
-							<path d="M3 9h18M9 21V9"/>
-						</svg>
-						📦 一键构建数据集（所有已标注样本）
-					</button>
-					<div style="font-size:11px;color:#888;margin-top:4px;text-align:center;">
-						将所有会话中已人工标注的片段一次性导入正式数据集
-					</div>
-				</div>
 			</div>
 
 			<div id="emptyPlayer" class="empty-state">
@@ -1800,22 +1787,52 @@
 		</div>
 	</div>
 
-	<!-- 参考音频库（全宽，可折叠） -->
+		<!-- 数据集构建（全宽，可折叠） -->
 	<div class="card dataset-section" style="margin-bottom:12px;">
-		<h2 class="card-title" style="cursor:pointer;padding:8px 12px;" onclick="toggleV1Section()">
+		<h2 class="card-title" style="cursor:pointer;padding:8px 12px;" onclick="toggleBuildSection()">
 			<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+				<rect x="3" y="3" width="18" height="18" rx="2"/>
+				<path d="M3 9h18M9 21V9"/>
 			</svg>
-			参考音频库
-			<span style="font-size:12px;font-weight:400;color:#888;margin-left:6px;">参考音频、已标注片段</span>
-			<span id="v1ToggleIcon" style="margin-left:auto;font-size:16px;">▶</span>
+			数据集构建
+			<span style="font-size:12px;font-weight:400;color:#888;margin-left:6px;">训练集/测试集划分 · 一键构建</span>
+			<span id="buildToggleIcon" style="margin-left:auto;font-size:16px;">▼</span>
 		</h2>
-		<div id="v1SectionBody" style="display:none;">
-			<p style="padding:12px;color:#888;font-size:13px;">在此浏览参考音频库的完整片段列表。标注和预览请使用上方区域。</p>
-		</div>
-	</div>
+		<div id="buildSectionBody">
+			<div style="padding:10px 12px;">
+				<!-- 顶行：比例 + 按钮 -->
+				<div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;">
+					<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+						<label style="font-size:13px;font-weight:500;color:#333;white-space:nowrap;">训练集:测试集</label>
+						<input type="number" id="buildRatio" value="10" min="1" max="100" style="width:60px;padding:5px 8px;border:1px solid #d9d9d9;border-radius:5px;font-size:13px;text-align:center;">
+						<span style="font-size:13px;color:#888;">: 1</span>
+					</div>
+					<div style="flex:1;"></div>
+					<button class="btn btn-success" onclick="buildDatasetFromAllAnnotated()" style="padding:8px 20px;font-size:13px;flex-shrink:0;">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;">
+							<rect x="3" y="3" width="18" height="18" rx="2"/>
+							<path d="M3 9h18M9 21V9"/>
+						</svg>
+						📦 一键构建数据集
+					</button>
+				</div>
 
-	<!-- 操作日志（全宽） -->
+				<!-- 底行：参考音频 + 提示 -->
+				<div style="display:flex;align-items:center;gap:12px;">
+					<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+						<span style="font-size:12px;font-weight:500;color:#333;">参考音频</span>
+						<button class="btn-sm btn-outline-primary" onclick="selectAllRefAudio(true)" style="font-size:11px;padding:2px 8px;">全选</button>
+						<button class="btn-sm btn-outline-primary" onclick="selectAllRefAudio(false)" style="font-size:11px;padding:2px 8px;">取消</button>
+					</div>
+					<div id="refAudioCheckboxes" style="display:flex;flex-wrap:wrap;gap:4px;flex:1;">
+						<!-- 由 loadReferences 动态填充 -->
+					</div>
+					<span style="font-size:11px;color:#888;flex-shrink:0;white-space:nowrap;" id="buildStatsHint">暂无已标注片段</span>
+				</div>
+			</div>
+		</div>
+
+<!-- 操作日志（全宽） -->
 	<div class="card dataset-section">
 		<h2 class="card-title">
 			<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1962,10 +1979,52 @@
                     categoryTabs.appendChild(btn);
                 });
 
+                // 同步填充数据集构建卡片的参考音频复选框
+                populateRefAudioCheckboxes(references);
                 logMessage('参考音频列表已加载', 'success');
             } catch (error) {
                 logMessage('加载参考音频列表失败: ' + error.message, 'error');
             }
+        }
+
+        // 填充数据集构建卡片的参考音频复选框
+        function populateRefAudioCheckboxes(references) {
+            const container = document.getElementById('refAudioCheckboxes');
+            if (!container) return;
+            container.innerHTML = '';
+            // "全部" 选项
+            const allLabel = document.createElement('label');
+            allLabel.style.cssText = 'display:flex;align-items:center;gap:4px;padding:4px 10px;border:1px solid #d9d9d9;border-radius:4px;cursor:pointer;font-size:12px;background:#667eea;color:white;';
+            allLabel.innerHTML = '<input type="checkbox" id="refAudioAll" checked onchange="toggleAllRefCheckboxes(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:#fff;"> 全部';
+            container.appendChild(allLabel);
+            references.forEach(ref => {
+                const label = document.createElement('label');
+                label.style.cssText = 'display:flex;align-items:center;gap:4px;padding:4px 10px;border:1px solid #d9d9d9;border-radius:4px;cursor:pointer;font-size:12px;transition:all 0.15s;';
+                label.innerHTML = `<input type="checkbox" class="refAudioCheckbox" value="${ref.name}" checked onchange="onRefCheckboxChange()" style="width:14px;height:14px;cursor:pointer;"> ${ref.name}`;
+                container.appendChild(label);
+            });
+        }
+
+        // 全选/取消全选参考音频
+        function selectAllRefAudio(select) {
+            document.querySelectorAll('.refAudioCheckbox').forEach(cb => cb.checked = select);
+            const allCb = document.getElementById('refAudioAll');
+            if (allCb) allCb.checked = select;
+            onRefCheckboxChange();
+        }
+
+        // 单个复选框变化时更新"全部"状态
+        function onRefCheckboxChange() {
+            const allCb = document.getElementById('refAudioAll');
+            if (!allCb) return;
+            const total = document.querySelectorAll('.refAudioCheckbox').length;
+            const checked = document.querySelectorAll('.refAudioCheckbox:checked').length;
+            allCb.checked = (checked === total);
+        }
+
+        // "全部"复选框变化时同步所有子项
+        function toggleAllRefCheckboxes(checked) {
+            document.querySelectorAll('.refAudioCheckbox').forEach(cb => cb.checked = checked);
         }
 
         // 处理文件上传
@@ -3539,6 +3598,40 @@
             }
         }
 
+        function toggleBuildSection() {
+            const body = document.getElementById('buildSectionBody');
+            const icon = document.getElementById('buildToggleIcon');
+            if (!body || !icon) return;
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                icon.textContent = '▼';
+            } else {
+                body.style.display = 'none';
+                icon.textContent = '▶';
+            }
+        }
+
+        function updateBuildStatsHint(count) {
+            const hint = document.getElementById('buildStatsHint');
+            if (!hint) return;
+            if (count > 0) {
+                hint.textContent = `当前有 ${count} 个已标注片段可导入`;
+                hint.style.color = '#52c41a';
+            } else {
+                hint.textContent = '暂无已标注片段';
+                hint.style.color = '#faad14';
+            }
+        }
+
+        function updateBuildHintFromSessions(sessions) {
+            let total = 0;
+            sessions.forEach(s => {
+                // normal_count + anomaly_count 包含人工标注的片段
+                total += (s.normal_count || 0) + (s.anomaly_count || 0);
+            });
+            updateBuildStatsHint(total);
+        }
+
         // ============================================================
         // 离线检测任务列表
         // ============================================================
@@ -3853,6 +3946,8 @@
                 }
 
                 label.textContent = `共 ${sessions.length} 个会话`;
+                // 更新数据集构建卡片提示
+                updateBuildHintFromSessions(sessions);
                 container.innerHTML = '';
                 sessions.forEach(s => {
                     const item = renderV2SessionItem(s);
@@ -4191,37 +4286,19 @@
         // ============================================================
 
         async function buildDatasetFromAllAnnotated() {
-            // 弹窗选择训练:测试比例
-            const ratio = prompt(
-                '【一键构建数据集】\n\n' +
-                '将所有会话中已人工标注(已提交)的音频片段，一次性导入正式数据集。\n\n' +
-                '输入 训练集:测试集 比例（默认 10:1）\n' +
-                '例如：10 表示训练集10份 : 测试集1份',
-                '10'
-            );
-            if (ratio === null) return;  // 用户取消
-            const trainRatio = parseInt(ratio) || 10;
+            // 从 DOM 读取比例
+            const ratioInput = document.getElementById('buildRatio');
+            const trainRatio = parseInt(ratioInput ? ratioInput.value : '10') || 10;
 
-            // 可选：参考音频过滤
+            // 从复选框读取参考音频选择
+            const checkedRefs = document.querySelectorAll('.refAudioCheckbox:checked');
+            const allRefs = document.querySelectorAll('.refAudioCheckbox');
             let selectedRefs = null;
-            const refAudios = [...new Set(currentSegments.map(s => s.reference_audio).filter(Boolean))];
-            if (refAudios.length > 1) {
-                const input = prompt(
-                    `可用参考音频: ${refAudios.join(', ')}\n\n` +
-                    `如需限定特定参考音频，请输入名称（逗号分隔，留空表示全部）`,
-                    ''
-                );
-                if (input === null) return;  // 用户取消
-                if (input.trim()) {
-                    selectedRefs = input.split(',').map(s => s.trim()).filter(s => refAudios.includes(s));
-                    if (selectedRefs.length === 0) {
-                        alert('未选择有效的参考音频');
-                        return;
-                    }
-                }
+            if (checkedRefs.length > 0 && checkedRefs.length < allRefs.length) {
+                selectedRefs = Array.from(checkedRefs).map(cb => cb.value);
             }
 
-            logMessage(`📦 一键构建数据集: 所有已标注样本, 比例 ${trainRatio}:1, 参考音频 ${selectedRefs ? selectedRefs.join(', ') : '全部'}`, 'info');
+            logMessage(`📦 一键构建数据集: 比例 ${trainRatio}:1, 参考音频 ${selectedRefs ? selectedRefs.join(', ') : '全部'}`, 'info');
 
             try {
                 const resp = await apiFetch('/api/dataset/confirm-all-annotated', {
