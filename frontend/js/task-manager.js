@@ -732,7 +732,7 @@ async function retryTask(taskId) {
 
 async function cleanupOldTasks() {
     const confirmed = await showModal(
-        '确定要清理所有已完成/失败/取消的离线任务记录及相关文件吗？\n\n这将删除：\n• 已完成/失败/取消的任务记录\n• 上传的音频文件 (uploads/)\n• 临时切片文件 (output/slices/)\n• 生成的热力图 (output/vis/)\n• 导出的Excel/Zip文件 (output/exports/)\n\n⚠️ 此操作不可恢复！\n\n（注：在线检测结果不受影响）',
+        '确定要清理所有已完成/失败/取消的离线任务记录及相关文件吗？\n\n这将删除：\n• 已完成/失败/取消的任务记录\n• 上传的音频文件 (uploads/)\n• 临时切片文件 (data/output/slices/)\n• 生成的热力图 (data/output/vis/)\n• 导出的Excel/Zip文件 (data/output/exports/)\n\n⚠️ 此操作不可恢复！\n\n（注：在线检测结果不受影响）',
         '确认清理',
         'danger'
     );

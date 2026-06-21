@@ -107,7 +107,7 @@ class DinomalyBaseInferencer(ABC):
         self.model.eval()
         self.batch_size = 8
         self.transform = get_data_transforms(512, 448)
-        self.vis_dir = "output/vis"
+        self.vis_dir = "data/output/vis"
         self.threshold = threshold
 
     @abstractmethod
@@ -201,7 +201,7 @@ class DinomalyBaseInferencer(ABC):
                     if paths.get('heatmap'):
                         save_img_path_list.append(paths['heatmap'])
 
-                print(f"Visualization done!! Saved to output/vis/{visualize_save_dir}")
+                print(f"Visualization done!! Saved to data/output/vis/{visualize_save_dir}")
         pred_res_dict = dict()
         for i in range(len(sp_score_list)):
             score = sp_score_list[i]

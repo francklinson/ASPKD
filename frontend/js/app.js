@@ -173,7 +173,7 @@ async function loadAvailableDevices() {
             // 更新离线检测设备选择框
             const deviceSelect = document.getElementById('device');
             const deviceInfo = document.getElementById('deviceInfo');
-            deviceSelect.innerHTML = '';
+            if (deviceSelect) deviceSelect.innerHTML = '';
 
             // 更新监控设备选择框
             const monitorDeviceSelect = document.getElementById('monitorDevice');
@@ -199,8 +199,8 @@ async function loadAvailableDevices() {
                 option.title = device.info || '';  // 悬停提示
 
                 // 添加到三个选择框
-                deviceSelect.appendChild(option.cloneNode(true));
-                monitorDeviceSelect.appendChild(option.cloneNode(true));
+                if (deviceSelect) deviceSelect.appendChild(option.cloneNode(true));
+                if (monitorDeviceSelect) monitorDeviceSelect.appendChild(option.cloneNode(true));
                 if (clientDeviceSelect) clientDeviceSelect.appendChild(option);
             });
 
@@ -210,24 +210,28 @@ async function loadAvailableDevices() {
                 ? `检测到 ${data.gpu_count} 张GPU计算卡，已按可用显存排序`
                 : '未检测到GPU，将使用CPU运行';
 
-            deviceInfo.textContent = infoText;
-            monitorDeviceInfo.textContent = infoText;
+            if (deviceInfo) deviceInfo.textContent = infoText;
+            if (monitorDeviceInfo) monitorDeviceInfo.textContent = infoText;
             if (clientDeviceInfo) clientDeviceInfo.textContent = infoText;
 
             // 绑定设备选择事件，显示详细信息
-            deviceSelect.addEventListener('change', function() {
-                const selected = data.devices.find(d => d.id === this.value);
-                if (selected && selected.info) {
-                    deviceInfo.textContent = selected.info;
-                }
-            });
+            if (deviceSelect) {
+                deviceSelect.addEventListener('change', function() {
+                    const selected = data.devices.find(d => d.id === this.value);
+                    if (selected && selected.info && deviceInfo) {
+                        deviceInfo.textContent = selected.info;
+                    }
+                });
+            }
 
-            monitorDeviceSelect.addEventListener('change', function() {
-                const selected = data.devices.find(d => d.id === this.value);
-                if (selected && selected.info) {
-                    monitorDeviceInfo.textContent = selected.info;
-                }
-            });
+            if (monitorDeviceSelect) {
+                monitorDeviceSelect.addEventListener('change', function() {
+                    const selected = data.devices.find(d => d.id === this.value);
+                    if (selected && selected.info && monitorDeviceInfo) {
+                        monitorDeviceInfo.textContent = selected.info;
+                    }
+                });
+            }
 
             if (clientDeviceSelect) {
                 clientDeviceSelect.addEventListener('change', function() {

@@ -517,7 +517,7 @@ class Preprocessor:
             connector = InMemoryConnector()
             # 确保内存数据库已从磁盘恢复
             InMemoryDatabaseChecker().check_database()
-            config = SegmentLocatorConfig(threshold=self._shazam_threshold, min_match_ratio=0.0)
+            config = SegmentLocatorConfig(threshold=self._shazam_threshold)
             self._segment_locator = PreciseSegmentLocator(config=config, db_connector=connector)
 
             # 统计数据库中参考音频总数
@@ -1070,6 +1070,13 @@ class Preprocessor:
                                         print(f"[Preprocessor] 跳过不匹配的参考音频: {seg_info.music_name} (选择: {selected_ref_name})")
                                         skipped += 1
                                         continue
+
+                                # 过滤不可靠的低质量匹配（置信度过低）
+                                if not seg_info.is_reliable:
+                                    print(f"[Preprocessor] 跳过不可靠片段 #{seg_idx}: {seg_info.music_name} "
+                                          f"置信度={seg_info.confidence} 匹配率={seg_info.match_ratio:.4f}")
+                                    skipped += 1
+                                    continue
 
                                 print(f"[Preprocessor] 片段 #{seg_idx}: {seg_info.music_name} "
                                       f"位置={seg_info.start_time:.2f}s 置信度={seg_info.confidence} "

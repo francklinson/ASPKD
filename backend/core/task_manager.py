@@ -160,7 +160,7 @@ class TaskManager:
         task_id = str(uuid.uuid4())
         
         # 保存上传的文件
-        upload_dir = os.path.join(self.project_root, "uploads", task_id)
+        upload_dir = os.path.join(self.project_root, "data", "uploads", task_id)
         os.makedirs(upload_dir, exist_ok=True)
         
         file_paths = []
@@ -397,10 +397,7 @@ class TaskManager:
         
         try:
             # 批量预处理（自动使用多线程），传入 original_names 避免 task_id 作为文件名前缀
-            if ref_file:
-                print(f"[TaskManager] 开始预处理，使用指定参考音频: {ref_file}")
-            else:
-                print(f"[TaskManager] 开始预处理，使用 Shazam 自动匹配模式")
+            print(f"[TaskManager] 开始预处理，使用 Shazam 自动匹配模式")
             result = task_preprocessor.process_audio(task.files, save_dir=os.path.join(self.project_root, "data", "output", "slices"), original_names=original_names)
             print(f"[TaskManager] 预处理完成，结果数量: {len(result)}")
             
@@ -502,7 +499,7 @@ class TaskManager:
                     await websocket_manager.send_progress(task.id, {
                         "progress": 25,
                         "status": "preprocessing",
-                        "message": f"⚠️ {os.path.basename(audio_file)}: 未找到指定片段（使用参考音频: {os.path.basename(ref_file)}）"
+                        "message": f"⚠️ {os.path.basename(audio_file)}: 未找到指定片段（Shazam 自动匹配）"
                     })
             
             # 汇总处理结果

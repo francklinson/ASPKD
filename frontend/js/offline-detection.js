@@ -254,7 +254,7 @@ async function loadOfflineResultsFromStorage() {
                     // 从 overlay_path 推断音频路径
                     // 注意：overlay_path 文件名包含 _overlay 后缀，但音频文件没有
                     const baseName = r.overlay_path.replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '').replace(/_overlay$/, '');
-                    r.audio_slice_path = `slice/audio/${baseName}.wav`;
+                    r.audio_slice_path = `data/output/slices/audio/${baseName}.wav`;
                     rebuiltCount++;
                     console.log(`[Offline] 为历史记录重建音频路径: ${r.filename} -> ${r.audio_slice_path}`);
                 }
