@@ -164,63 +164,29 @@
         }
 
         .btn {
-            padding: 8px 16px;
+            padding: 12px 24px;
             border: none;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.3s;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            gap: 8px;
             width: auto;
-            min-width: 80px;
-            white-space: nowrap;
         }
 
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-success {
-            background: #52c41a;
-            color: white;
-        }
-
-        .btn-success:hover:not(:disabled) {
-            background: #73d13d;
-        }
-
-        .btn-danger {
-            background: #ff4d4f;
-            color: white;
-        }
-
-        .btn-danger:hover:not(:disabled) {
-            background: #ff7875;
-        }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #333;
-        }
-
-        .btn-secondary:hover:not(:disabled) {
-            background: #e0e0e0;
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
+        .btn-success { background: #52c41a; color: white; }
+        .btn-success:hover:not(:disabled) { background: #73d13d; }
+        .btn-danger { background: #ff4d4f; color: white; }
+        .btn-danger:hover:not(:disabled) { background: #ff7875; }
+        .btn-secondary { background: #f0f0f0; color: #333; }
+        .btn-secondary:hover:not(:disabled) { background: #e0e0e0; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
         .btn-group {
             display: flex;
@@ -233,14 +199,12 @@
 
         .dropzone {
             border: 2px dashed #d9d9d9;
-            border-radius: 8px;
-            padding: 12px;
+            border-radius: 10px;
+            padding: 20px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
         }
-        .dropzone .icon { width: 32px; height: 32px; margin-bottom: 8px; }
-        .dropzone p { font-size: 13px; margin-bottom: 4px; }
 
         .dropzone:hover {
             border-color: #667eea;
@@ -367,11 +331,11 @@
         .segment-item {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 6px 10px;
+            gap: 12px;
+            padding: 10px 14px;
             border: 1px solid #e8e8e8;
-            border-radius: 6px;
-            margin-bottom: 4px;
+            border-radius: 8px;
+            margin-bottom: 6px;
             cursor: pointer;
             transition: all 0.3s;
         }
@@ -522,12 +486,12 @@
         }
 
         .category-tab {
-            padding: 4px 10px;
+            padding: 8px 16px;
             border: 1px solid #d9d9d9;
             background: white;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 14px;
             transition: all 0.3s;
         }
 
@@ -545,8 +509,8 @@
         /* 筛选标签 */
         .filter-tabs {
             display: flex;
-            gap: 4px;
-            margin-bottom: 8px;
+            gap: 8px;
+            margin-bottom: 12px;
         }
 
         .filter-tab {
@@ -603,17 +567,17 @@
         /* ===== 数据来源选择器 ===== */
         .source-tabs {
             display: flex;
-            gap: 4px;
-            margin-bottom: 8px;
+            gap: 6px;
+            margin-bottom: 12px;
             flex-wrap: wrap;
         }
         .source-tab {
-            padding: 6px 12px;
+            padding: 8px 16px;
             border: 1px solid #d9d9d9;
             background: white;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 13px;
             transition: all 0.3s;
             flex: 1;
             text-align: center;
@@ -784,19 +748,19 @@
 
         /* 音频可视化区域 */
         .audio-visualization {
-            margin-top: 8px;
+            margin-top: 12px;
             background: #f8f9fa;
-            border-radius: 8px;
-            padding: 8px;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.04);
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
         }
 
         .viz-container {
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             background: white;
-            border-radius: 6px;
-            padding: 8px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
 
         .viz-container:last-child {
@@ -958,17 +922,16 @@
         .label-option-btn {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
+            gap: 8px;
+            padding: 10px 20px;
             border: 2px solid #e0e0e0;
             background: white;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 500;
             color: #666;
             transition: all 0.2s;
-            flex: 0 0 auto;
         }
 
         .label-option-btn:hover {
@@ -1009,15 +972,15 @@
         /* 操作按钮 */
         .action-buttons {
             display: flex;
-            gap: 6px;
-            margin-top: 8px;
+            gap: 8px;
+            margin-top: 12px;
         }
 
         .action-buttons .btn {
             flex: 0 1 auto;
-            padding: 7px 12px;
-            font-size: 13px;
-            border-radius: 6px;
+            padding: 12px 20px;
+            font-size: 14px;
+            border-radius: 8px;
         }
 
         .btn-submit {
@@ -1391,65 +1354,157 @@
             to { transform: rotate(360deg); }
         }
 
-        /* ========== 新布局样式 ========== */
+        /* ========== 与主站统一的布局 ========== */
 
-        /* 统计横幅 */
-        .stats-banner {
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        /* 恢复标准卡片间距 */
+        .card { padding: 16px; }
+        .card-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #333; }
+        .form-group { margin-bottom: 12px; }
+        .header { padding: 30px; }
+        .header h1 { font-size: 32px; margin-bottom: 10px; }
+        .header p { font-size: 14px; }
+
+        /* 统计行（白色卡片风格，与主站一致） */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr) auto;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .stat-card-white {
+            background: white;
+            border-radius: 10px;
+            padding: 14px 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stat-card-white .stat-num {
+            font-size: 26px;
+            font-weight: 700;
+            color: #667eea;
+            line-height: 1.2;
+        }
+        .stat-card-white .stat-lbl {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+        .stat-card-white.chart-card {
             display: flex;
             align-items: center;
-            gap: 10px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 8px;
-            padding: 6px 14px;
-            margin-bottom: 8px;
+            padding: 8px 12px;
         }
-        .stat-item {
-            display: flex;
-            align-items: baseline;
-            gap: 4px;
-            color: white;
-            padding: 0 10px 0 6px;
-            border-right: 1px solid rgba(255,255,255,0.2);
+        .stat-card-white.chart-card canvas {
+            width: 56px !important;
+            height: 56px !important;
         }
-        .stat-item:last-of-type { border-right: none; }
-        .stat-num {
-            font-size: 18px;
-            font-weight: 700;
-            line-height: 1;
-        }
-        .stat-lbl {
-            font-size: 11px;
-            opacity: 0.8;
-        }
-        .stat-chart-mini {
-            width: 36px;
-            height: 36px;
-            margin-left: auto;
-        }
-        .stat-refresh {
-            background: rgba(255,255,255,0.15);
+        .stat-card-white .refresh-btn {
+            background: #f0f0f0;
             border: none;
-            border-radius: 4px;
-            color: white;
-            width: 26px;
-            height: 26px;
+            border-radius: 6px;
+            width: 32px;
+            height: 32px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
+            margin-left: 6px;
             flex-shrink: 0;
-            transition: background 0.2s;
         }
-        .stat-refresh:hover { background: rgba(255,255,255,0.25); }
+        .stat-card-white .refresh-btn:hover { background: #e0e0e0; }
 
         /* 中间行：上传 + 会话并排 */
         .mid-row {
             display: flex;
-            gap: 8px;
-            margin-bottom: 8px;
+            gap: 16px;
+            margin-bottom: 16px;
         }
-        .mid-row .upload-card { flex: 1.4; min-width: 0; }
+        .mid-row .upload-card { flex: 1.3; min-width: 0; }
         .mid-row .session-card { flex: 1; min-width: 0; }
+
+        /* 内容主体两栏 */
+        .content-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .player-panel { min-width: 0; display: flex; flex-direction: column; }
+        .segments-panel { min-width: 0; display: flex; flex-direction: column; }
+
+        /* 会话列表 */
+        .session-list {
+            max-height: 240px;
+            overflow-y: auto;
+        }
+        .session-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .session-item:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        .session-item .session-info { flex: 1; min-width: 0; }
+        .session-item .session-name {
+            font-weight: 500;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .session-item .session-meta {
+            font-size: 11px;
+            color: #888;
+            margin-top: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .session-item .session-status-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+        .session-item .session-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .session-item .session-actions button {
+            padding: 3px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            border: 1px solid #d9d9d9;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .session-item .session-actions button:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        @media (max-width: 900px) {
+            .mid-row { flex-direction: column; }
+            .content-row { grid-template-columns: 1fr; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+        }
 
         /* 会话列表 */
         .session-list {
@@ -1543,33 +1598,33 @@
     </div>
 
     <div class="container">
-        <!-- 统计横幅（始终可见） -->
-        <div class="stats-banner" id="statsBanner">
-            <div class="stat-item">
-                <span class="stat-num" id="statTotal">0</span>
-                <span class="stat-lbl">总音频</span>
+        <!-- 统计行（白色卡片，与主站一致） -->
+        <div class="stats-row">
+            <div class="stat-card-white">
+                <div class="stat-num" id="statTotal">0</div>
+                <div class="stat-lbl">总音频数</div>
             </div>
-            <div class="stat-item">
-                <span class="stat-num" id="statCategories">0</span>
-                <span class="stat-lbl">类别</span>
+            <div class="stat-card-white">
+                <div class="stat-num" id="statCategories">0</div>
+                <div class="stat-lbl">类别数</div>
             </div>
-            <div class="stat-item">
-                <span class="stat-num" id="statTrain">0</span>
-                <span class="stat-lbl">训练集</span>
+            <div class="stat-card-white">
+                <div class="stat-num" id="statTrain">0</div>
+                <div class="stat-lbl">训练集</div>
             </div>
-            <div class="stat-item">
-                <span class="stat-num" id="statTest">0</span>
-                <span class="stat-lbl">测试集</span>
+            <div class="stat-card-white">
+                <div class="stat-num" id="statTest">0</div>
+                <div class="stat-lbl">测试集</div>
             </div>
-            <div class="stat-chart-mini">
-                <canvas id="distributionChart"></canvas>
+            <div class="stat-card-white chart-card" style="display:flex;align-items:center;gap:8px;">
+                <canvas id="distributionChart" style="width:56px;height:56px;"></canvas>
+                <button class="refresh-btn" onclick="refreshStats()" title="刷新统计">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                    </svg>
+                </button>
             </div>
-            <button class="stat-refresh" onclick="refreshStats()" title="刷新统计">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="23 4 23 10 17 10"/>
-                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-                </svg>
-            </button>
         </div>
 
         <!-- 中间行：上传 + 数据集构建会话 -->
