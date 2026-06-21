@@ -21,6 +21,8 @@ from pydantic import BaseModel, Field
 import librosa
 import soundfile as sf
 
+from backend.api.dataset_builder import get_url_path  # V1 遗留模块中的路径工具函数，在此复用
+
 router = APIRouter()
 
 # 项目根目录
@@ -397,8 +399,8 @@ async def process_detection_results(
             original_filename=result.get("filename", "unknown"),
             segment_filename=segment_filename,
             duration=round(duration, 2),
-            file_path=target_path,
-            spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+            file_path=get_url_path(target_path),
+            spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
             reference_audio=result.get("music_name", "unknown"),
             start_time=0.0,
             end_time=round(duration, 2),
@@ -579,8 +581,8 @@ async def process_client_detection_results(
             original_filename=result.get("filename", "unknown"),
             segment_filename=segment_filename,
             duration=round(duration, 2),
-            file_path=target_path,
-            spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+            file_path=get_url_path(target_path),
+            spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
             reference_audio=music_name,
             start_time=seg_info.get("start_time", 0.0),
             end_time=seg_info.get("end_time", round(duration, 2)),
@@ -645,34 +647,36 @@ async def process_manual_upload(
     session: DatasetBuildSession,
     files: List[UploadFile],
     auto_predict: bool = False,
-    algorithm: Optional[str] = None
+    algorithm: Optional[str] = None,
+    skip_slicing: bool = False
 ) -> DatasetBuildResponse:
     """
     处理手动上传的文件
     1. 保存文件
-    2. 使用检测算法切分
+    2. 使用检测算法切分（skip_slicing=False 时）或原样保留（skip_slicing=True）
     3. 可选：调用模型进行预测
     """
-    log_operation("PROCESS_MANUAL_START", f"Files: {len(files)}, Auto predict: {auto_predict}")
-    
+    log_operation("PROCESS_MANUAL_START",
+                  f"Files: {len(files)}, Auto predict: {auto_predict}, Skip slicing: {skip_slicing}")
+
     session.status = "processing"
     session.auto_predict = auto_predict
     session.algorithm = algorithm
-    
+
     # 创建会话目录
     session_dir = os.path.join(DATASET_BUILDER_DIR, session.session_id)
     upload_dir = os.path.join(session_dir, "uploads")
     slice_dir = os.path.join(session_dir, "slices")
     os.makedirs(upload_dir, exist_ok=True)
     os.makedirs(slice_dir, exist_ok=True)
-    
+
     # 保存上传的文件
     saved_files = []
     for file in files:
         ext = os.path.splitext(file.filename)[1].lower()
         if ext not in {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a'}:
             continue
-        
+
         file_path = os.path.join(upload_dir, f"{uuid.uuid4().hex}{ext}")
         content = await file.read()
         with open(file_path, "wb") as f:
@@ -681,7 +685,7 @@ async def process_manual_upload(
             "original_name": file.filename,
             "saved_path": file_path
         })
-    
+
     session.source_files = [f["saved_path"] for f in saved_files]
 
     # 记录来源信息
@@ -692,23 +696,55 @@ async def process_manual_upload(
         "filenames": [f["original_name"] for f in saved_files],
         "imported_at": datetime.now().isoformat(),
         "auto_predict": auto_predict,
-        "algorithm": algorithm
+        "algorithm": algorithm,
+        "skip_slicing": skip_slicing
     })
 
-    # 切分音频
-    all_segments = []
-    for file_info in saved_files:
-        segments = await slice_audio_file(
-            file_path=file_info["saved_path"],
-            output_dir=slice_dir,
-            session=session,
-            original_filename=file_info["original_name"]
-        )
-        all_segments.extend(segments)
-    
-    # 如果需要自动预测
-    if auto_predict and algorithm:
-        all_segments = await predict_segments(all_segments, algorithm, session)
+    if skip_slicing:
+        # 跳过 Shazam 切分，将每个文件作为一整段处理
+        all_segments = []
+        for file_info in saved_files:
+            fp = file_info["saved_path"]
+            try:
+                duration = round(librosa.get_duration(path=fp), 2)
+            except Exception:
+                duration = 0.0
+
+            # 生成时频图
+            spectrogram_path = fp.replace('.wav', '.png')
+            generate_spectrogram(fp, spectrogram_path)
+
+            segment_id = f"seg_{hashlib.md5(fp.encode()).hexdigest()[:12]}"
+            segment = AudioSegmentInfo(
+                segment_id=segment_id,
+                source_type=DataSourceType.MANUAL,
+                original_filename=file_info["original_name"],
+                segment_filename=os.path.basename(fp),
+                duration=duration,
+                file_path=get_url_path(fp),
+                spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
+                reference_audio="",
+                start_time=0.0,
+                end_time=duration,
+                status=DatasetItemStatus.SLICED,
+                source_file_path=fp
+            )
+            all_segments.append(segment)
+    else:
+        # 切分音频
+        all_segments = []
+        for file_info in saved_files:
+            segments = await slice_audio_file(
+                file_path=file_info["saved_path"],
+                output_dir=slice_dir,
+                session=session,
+                original_filename=file_info["original_name"]
+            )
+            all_segments.extend(segments)
+
+        # 如果需要自动预测
+        if auto_predict and algorithm:
+            all_segments = await predict_segments(all_segments, algorithm, session)
     
     # 更新会话
     session.segments = all_segments
@@ -815,8 +851,8 @@ async def slice_audio_file(
                 original_filename=original_filename,
                 segment_filename=segment_filename,
                 duration=round(end_time - start_time, 2),
-                file_path=segment_path,
-                spectrogram_path=spectrogram_path if os.path.exists(spectrogram_path) else None,
+                file_path=get_url_path(segment_path),
+                spectrogram_path=get_url_path(spectrogram_path) if os.path.exists(spectrogram_path) else None,
                 reference_audio=matched_name,
                 start_time=round(start_time, 2),
                 end_time=round(end_time, 2),
@@ -1369,22 +1405,25 @@ async def create_from_detection(request: CreateFromDetectionRequest):
 async def create_from_manual(
     files: List[UploadFile] = File(...),
     auto_predict: bool = Form(False),
-    algorithm: Optional[str] = Form("dinomaly_dinov3_small")
+    algorithm: Optional[str] = Form("dinomaly_dinov3_small"),
+    skip_slicing: bool = Form(False)
 ):
     """
     从手动上传的文件创建数据集构建会话
-    
+
     - **files**: 音频文件列表
     - **auto_predict**: 是否自动调用模型预测
-    - **algorithm**: 用于预测的算法（auto_predict为true时有效）
+    - **algorithm**: 用于预测的算法（auto_predict 为 true 时有效）
+    - **skip_slicing**: 是否跳过 Shazam 切分（true=整段保留，false=自动匹配切分）
     """
     session = create_session(source_type=DataSourceType.MANUAL)
-    
+
     result = await process_manual_upload(
         session=session,
         files=files,
         auto_predict=auto_predict,
-        algorithm=algorithm
+        algorithm=algorithm,
+        skip_slicing=skip_slicing
     )
     return result
 

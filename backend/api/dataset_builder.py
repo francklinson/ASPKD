@@ -1,7 +1,23 @@
 """
-数据集构建 API
-用于构建和管理音频异常检测数据集
-支持音频上传、切分、标注、数据集划分和统计
+数据集构建 API V1（遗留模块）
+
+⚠️ 此模块大部分功能已被 V2（dataset_builder_v2.py）替代，
+    前端上传/标注/会话管理已切换到 V2。
+
+仍被使用的部分（保留）：
+  - get_url_path() / get_file_path() — 被 V2 导入用作路径映射工具
+  - GET /references                 — 前端 loadReferences() 使用
+  - GET /stats                      — 前端 refreshStats() 使用
+
+已过时（前端不再调用，仅做兼容保留）：
+  - POST /upload-manual             — 被 V2 from-manual(skip_slicing=true) 替代
+  - POST /upload-and-split          — 被 V2 from-manual(skip_slicing=false) 替代
+  - POST /split-manual              — V2 会话内直接处理
+  - GET /segments                   — V2 会话管理片段
+  - GET /segments/{category}        — 同上
+  - POST /annotate                  — V2 会话管理标注
+  - POST /annotate/batch            — 同上
+  - GET /annotation-stats           — 无引用
 """
 import os
 import shutil
@@ -44,9 +60,32 @@ def get_user_temp_dirs(username: Optional[str] = None) -> tuple:
     return UPLOAD_TEMP_DIR, SLICE_TEMP_DIR
 
 
+def _static_mount_url(disk_relative_dir: str, url_prefix: str,
+                      normalized_path: str, normalized_project_root: str) -> Optional[str]:
+    """
+    如果路径在已知的静态挂载目录下，返回对应的 URL 路径。
+
+    Args:
+        disk_relative_dir: 磁盘上相对于项目根目录的路径，如 "data/spk"
+        url_prefix: URL 前缀，如 "/data/spk/"
+        normalized_path: 规范化的文件系统路径
+        normalized_project_root: 规范化的项目根目录
+
+    Returns:
+        URL 路径或 None
+    """
+    prefix = os.path.join(normalized_project_root, disk_relative_dir).replace("\\", "/") + "/"
+    if normalized_path.startswith(prefix):
+        rel = normalized_path[len(prefix):]
+        return f"{url_prefix}{rel}"
+    return None
+
+
 def get_file_path(url_path: str) -> str:
     """
     将 URL 路径转换为文件系统绝对路径
+
+    仍在被 V2 (dataset_builder_v2.py) 导入使用。
 
     Args:
         url_path: URL 路径 (如 /data/spk/... 或 /uploads/...)
@@ -54,64 +93,84 @@ def get_file_path(url_path: str) -> str:
     Returns:
         文件系统绝对路径
     """
-    if url_path.startswith('/data/spk/'):
-        relative_path = url_path[len('/data/spk/'):]
-        return os.path.join(DATASET_ROOT, relative_path)
-    elif url_path.startswith('/uploads/'):
-        relative_path = url_path[len('/uploads/'):]
-        return os.path.join(PROJECT_ROOT, 'uploads', relative_path)
-    elif url_path.startswith('/'):
-        # 其他以 / 开头的路径，尝试作为项目根目录下的路径
+    # 静态挂载点映射: (URL 前缀, 磁盘相对路径)
+    mount_map = [
+        ("/data/spk/", "data/spk"),
+        ("/data/dataset-builder/", "data/dataset_builder"),
+        ("/uploads/", "data/uploads"),
+        ("/output/", "data/output"),
+        ("/visualize/", "data/output/vis"),
+    ]
+    for url_prefix, disk_rel in mount_map:
+        if url_path.startswith(url_prefix):
+            rel = url_path[len(url_prefix):].lstrip("/")
+            return os.path.join(PROJECT_ROOT, disk_rel, rel)
+
+    # 后备：其他以 / 开头的路径，尝试作为项目根目录下的路径
+    if url_path.startswith('/'):
         return os.path.join(PROJECT_ROOT, url_path.lstrip('/'))
-    else:
-        # 已经是绝对路径或相对路径，直接返回
-        return url_path
+
+    return url_path
 
 
 def get_url_path(file_path: str) -> str:
     """
     将文件系统路径转换为 HTTP 可访问的 URL 路径
-    
+
+    已知静态挂载点:
+      data/spk/          → /data/spk/
+      data/uploads/      → /uploads/
+      data/output/       → /output/
+      data/output/vis/   → /visualize/
+      data/dataset_builder/ → /data/dataset-builder/
+
     Args:
         file_path: 文件系统绝对路径
-        
+
     Returns:
-        URL 路径 (如 /data/spk/... 或 /uploads/...)
+        URL 路径
     """
     if not file_path:
         return file_path
-    
+
     # 如果已经是 URL 路径格式，直接返回
-    if file_path.startswith("/data/spk/") or file_path.startswith("/uploads/"):
-        return file_path
-    
-    # 规范化路径（统一分隔符，移除多余斜杠）
+    for prefix in ("/data/spk/", "/uploads/", "/output/", "/visualize/", "/data/dataset-builder/"):
+        if file_path.startswith(prefix):
+            return file_path
+
+    # 规范化路径
     normalized_path = os.path.normpath(file_path).replace("\\", "/")
-    normalized_dataset_root = os.path.normpath(DATASET_ROOT).replace("\\", "/")
-    normalized_project_root = os.path.normpath(PROJECT_ROOT).replace("\\", "/")
-    
-    # 处理 data/spk 目录下的文件
-    if normalized_path.startswith(normalized_dataset_root):
-        relative_path = normalized_path[len(normalized_dataset_root):]
-        # 移除开头的斜杠
-        relative_path = relative_path.lstrip("/")
-        return f"/data/spk/{relative_path}"
-    
-    # 处理 uploads 目录下的文件
-    if normalized_path.startswith(normalized_project_root):
-        # 获取相对于项目根目录的路径
-        relative_path = normalized_path[len(normalized_project_root):]
-        relative_path = relative_path.lstrip("/")
-        return f"/{relative_path}"
-    
-    # 其他情况，尝试通用处理（作为后备方案）
-    if "/data/spk/" in normalized_path:
-        idx = normalized_path.find("/data/spk/")
-        return normalized_path[idx:]
-    if "/uploads/" in normalized_path:
-        idx = normalized_path.find("/uploads/")
-        return normalized_path[idx:]
-    
+    npr = os.path.normpath(PROJECT_ROOT).replace("\\", "/")
+
+    # 按优先级检查已知的静态挂载目录
+    # (磁盘相对路径, URL 前缀)
+    known_mounts = [
+        ("data/spk", "/data/spk/"),
+        ("data/dataset_builder", "/data/dataset-builder/"),
+        ("data/uploads", "/uploads/"),
+        ("data/output", "/output/"),
+    ]
+    for disk_rel, url_prefix in known_mounts:
+        result = _static_mount_url(disk_rel, url_prefix, normalized_path, npr)
+        if result:
+            return result
+
+    # 通用处理：项目根目录下的其他文件
+    if normalized_path.startswith(npr + "/") or normalized_path == npr:
+        rel = normalized_path[len(npr):].lstrip("/")
+        return f"/{rel}"
+
+    # 后备：从路径中推断已知前缀
+    for marker, url_prefix in [
+        ("/data/spk/", "/data/spk/"),
+        ("/data/uploads/", "/uploads/"),
+        ("/data/output/", "/output/"),
+        ("/uploads/", "/uploads/"),
+    ]:
+        idx = normalized_path.find(marker)
+        if idx != -1:
+            return f"{url_prefix}{normalized_path[idx + len(marker):]}"
+
     return file_path
 
 # 数据集划分随机种子（确保可复现）
@@ -681,8 +740,13 @@ def generate_spectrogram_image(audio_path: str, output_path: str, offset: float 
 
 
 # ========== API 端点 ==========
+# ⚠️ 以下端点大部分为 V1 遗留，前端已切换到 V2 会话系统。
+# 仍在使用的: GET /references, GET /stats
+# 已过时的:   upload / upload-and-split / split-manual / annotate / segments
+#             （保留以兼容外部调用，但前端 dataset.html 不再直接使用）
 
 @router.get("/references", response_model=List[Dict[str, Any]])
+# ✅ 仍被前端 loadReferences() 使用
 async def get_available_references():
     """
     获取所有可用的参考音频列表
@@ -694,6 +758,7 @@ async def get_available_references():
 
 
 @router.post("/upload-and-split")
+# ⚠️ V1 遗留 — 前端已切换到 V2 from-manual(skip_slicing=false)
 async def upload_and_split_audio(
     files: List[UploadFile] = File(..., description="支持批量上传音频文件"),
     username: Optional[str] = Form(None),
@@ -803,72 +868,94 @@ async def upload_and_split_audio(
 
 
 @router.post("/upload-manual", response_model=UploadAndSplitResponse)
+# ⚠️ V1 遗留 — 前端已切换到 V2 from-manual(skip_slicing=true)
 async def upload_manual_audio(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     username: Optional[str] = Form(None)
 ):
     """
-    手动上传音频文件（不上自动切分）
+    批量手动上传音频文件（不自动切分）
     音频将被保存到用户临时目录，用户可后续手动选择参考音频进行切分
 
-    - **file**: 音频文件 (支持 wav, mp3, flac 等格式)
+    - **files**: 音频文件列表 (支持 wav, mp3, flac 等格式)
     - **username**: 可选，用于多用户隔离
     """
     start_time = time.time()
-    log_operation("MANUAL_UPLOAD_START", f"文件: {file.filename}, 用户: {username or '匿名'}")
+    log_operation("MANUAL_UPLOAD_START", f"批量上传 {len(files)} 个文件, 用户: {username or '匿名'}")
 
     allowed_extensions = {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a'}
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in allowed_extensions:
-        raise HTTPException(status_code=400, detail=f"不支持的文件格式，仅支持 {allowed_extensions}")
-
     user_upload_dir, _ = get_user_temp_dirs(username)
 
-    try:
-        temp_filename = f"{int(time.time())}_{file.filename}"
-        temp_file_path = os.path.join(user_upload_dir, temp_filename)
+    all_segment_infos = []
+    success_count = 0
+    failed_files = []
 
-        with open(temp_file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+    for file in files:
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in allowed_extensions:
+            failed_files.append({"file": file.filename, "reason": f"不支持的格式: {ext}"})
+            continue
 
-        # 加载音频获取基本信息
         try:
-            y, sr = librosa.load(temp_file_path, sr=22050)
-            duration = round(librosa.get_duration(y=y, sr=sr), 2)
-        except Exception:
-            duration = 0.0
+            temp_filename = f"{int(time.time())}_{file.filename}"
+            temp_file_path = os.path.join(user_upload_dir, temp_filename)
 
-        segment_info = {
-            "segment_id": f"manual_{hashlib.md5(temp_file_path.encode()).hexdigest()[:12]}",
-            "original_filename": file.filename,
-            "segment_filename": temp_filename,
-            "duration": duration,
-            "sample_rate": 22050,
-            "file_path": get_url_path(temp_file_path),
-            "spectrogram_path": None,
-            "reference_audio": "",
-            "start_time": 0.0,
-            "end_time": duration,
-            "label": None,
-            "annotated_at": None
-        }
+            with open(temp_file_path, "wb") as f:
+                shutil.copyfileobj(file.file, f)
 
-        elapsed_time = (time.time() - start_time) * 1000
-        log_operation("MANUAL_UPLOAD_SUCCESS", f"文件: {temp_filename}, 耗时 {elapsed_time:.2f}ms")
+            # 加载音频获取基本信息
+            try:
+                y, sr = librosa.load(temp_file_path, sr=22050)
+                duration = round(librosa.get_duration(y=y, sr=sr), 2)
+            except Exception:
+                duration = 0.0
 
-        return UploadAndSplitResponse(
-            success=True,
-            message=f"音频上传成功，请在数据集构建页面选择参考音频进行切分",
-            segments=[segment_info],
-            reference_audio=""
-        )
+            segment_info = {
+                "segment_id": f"manual_{hashlib.md5(temp_file_path.encode()).hexdigest()[:12]}",
+                "original_filename": file.filename,
+                "segment_filename": temp_filename,
+                "duration": duration,
+                "sample_rate": 22050,
+                "file_path": get_url_path(temp_file_path),
+                "spectrogram_path": None,
+                "reference_audio": "",
+                "start_time": 0.0,
+                "end_time": duration,
+                "label": None,
+                "annotated_at": None
+            }
 
-    except Exception as e:
-        log_operation("MANUAL_UPLOAD_ERROR", str(e), "ERROR")
-        raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
+            all_segment_infos.append(segment_info)
+            success_count += 1
+            log_operation("MANUAL_UPLOAD_FILE", f"文件: {temp_filename}", "INFO")
+
+        except Exception as e:
+            log_operation("MANUAL_UPLOAD_ERROR", f"文件 {file.filename}: {str(e)}", "ERROR")
+            failed_files.append({"file": file.filename, "reason": str(e)})
+
+    elapsed_time = (time.time() - start_time) * 1000
+
+    detail_parts = []
+    if success_count:
+        detail_parts.append(f"成功 {success_count} 个")
+    if failed_files:
+        detail_parts.append(f"失败 {len(failed_files)} 个")
+
+    log_operation("MANUAL_UPLOAD_COMPLETE",
+                  f"{', '.join(detail_parts)}, 耗时 {elapsed_time:.2f}ms")
+
+    return UploadAndSplitResponse(
+        success=success_count > 0,
+        message=f"上传完成：{'；'.join(detail_parts)}，请在数据集构建页面选择参考音频进行切分"
+                + (f"（失败: {failed_files[0]['file']}: {failed_files[0]['reason']}" if len(failed_files) == 1
+                   else f"（{len(failed_files)} 个文件上传失败）" if failed_files else ""),
+        segments=all_segment_infos,
+        reference_audio=""
+    )
 
 
 @router.post("/split-manual")
+# ⚠️ V1 遗留 — 前端不再调用，V2 会话内直接处理切分
 async def split_manual_audio(
     file_path: str = Form(...),
     reference_audio: str = Form(...),
@@ -976,6 +1063,7 @@ async def split_manual_audio(
 
 
 @router.get("/segments/{reference_audio}", response_model=List[AudioSegmentInfo])
+# ⚠️ V1 遗留 — 前端已切换到 V2 会话管理，不再调用此端点
 async def get_segments_by_reference(
     reference_audio: str,
     label_filter: Optional[str] = Query(None, description="按标签过滤: normal, anomaly, unlabeled")
@@ -1243,6 +1331,7 @@ def _get_segments_for_category(category: str, label_filter: Optional[str] = None
 
 
 @router.get("/segments", response_model=List[AudioSegmentInfo])
+# ⚠️ V1 遗留 — 前端已切换到 V2 会话管理，不再调用此端点
 async def get_all_segments(
     label_filter: Optional[str] = Query(None, description="按标签过滤: normal, anomaly, unlabeled")
 ):
@@ -1308,6 +1397,7 @@ async def get_all_segments(
 
 
 @router.post("/annotate/batch")
+# ⚠️ V1 遗留 — 前端已切换到 V2 会话管理标注
 async def batch_annotate_segments(request: BatchAnnotationRequest):
     """
     批量标注音频片段
@@ -1435,6 +1525,7 @@ async def _annotate_single_segment(
 
 
 @router.get("/annotation-stats", response_model=AnnotationStats)
+# ⚠️ V1 遗留 — 前端不再调用
 async def get_annotation_stats():
     """获取标注统计信息"""
     log_operation("GET_ANNOTATION_STATS", "获取标注统计")
@@ -1528,6 +1619,7 @@ async def get_annotation_stats():
 
 
 @router.post("/annotate", response_model=AnnotationResponse)
+# ⚠️ V1 遗留 — 前端已切换到 V2 会话管理标注
 async def annotate_segment(
     segment_id: str = Form(...),
     label: str = Form(...),
@@ -1688,6 +1780,7 @@ async def delete_segment(
 
 
 @router.get("/stats", response_model=DatasetStats)
+# ✅ 仍被前端 refreshStats() 使用
 async def get_dataset_stats():
     """
     获取数据集统计信息

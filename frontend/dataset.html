@@ -1526,10 +1526,10 @@
                         <polyline points="17 8 12 3 7 8"/>
                         <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
-                    <p style="font-size:13px;margin-bottom:4px;">点击或拖拽音频文件到此处</p>
+                    <p style="font-size:13px;margin-bottom:4px;">点击或拖拽音频文件到此处（支持批量）</p>
                     <span class="hint" id="uploadModeHint">自动匹配参考音频并切分</span>
-                    <span class="hint">WAV/MP3/FLAC/AAC/OGG/M4A</span>
-                    <input type="file" id="audioInput" accept=".wav,.mp3,.flac,.aac,.ogg,.m4a">
+                    <span class="hint">WAV/MP3/FLAC/AAC/OGG/M4A，可多选</span>
+                    <input type="file" id="audioInput" accept=".wav,.mp3,.flac,.aac,.ogg,.m4a" multiple>
                 </div>
 
                 <div style="display: flex; gap: 8px; margin-top: 10px;">
@@ -1930,13 +1930,13 @@
                 dropzone.classList.remove('dragover');
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
-                    handleFileUpload(files[0]);
+                    handleFileUpload(Array.from(files));
                 }
             });
 
             audioInput.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) {
-                    handleFileUpload(e.target.files[0]);
+                    handleFileUpload(Array.from(e.target.files));
                 }
             });
 
@@ -2046,47 +2046,66 @@
                 btnAuto.style.color = 'white';
                 btnManual.style.background = '#f0f0f0';
                 btnManual.style.color = '#333';
-                modeHint.textContent = '模式：自动匹配（系统自动匹配参考音频并切分）';
+                modeHint.textContent = '模式：自动匹配（系统自动匹配参考音频并切分，支持批量）';
             } else {
                 btnManual.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
                 btnManual.style.color = 'white';
                 btnAuto.style.background = '#f0f0f0';
                 btnAuto.style.color = '#333';
-                modeHint.textContent = '模式：手动上传（仅上传音频，后续手动选择参考音频进行切分）';
+                modeHint.textContent = '模式：手动上传（仅上传音频，后续手动选择参考音频进行切分，支持批量）';
             }
         }
 
-        async function handleFileUpload(file) {
+        async function handleFileUpload(files) {
+            const fileList = Array.isArray(files) ? files : [files];
+            if (fileList.length === 0) return;
+
             const progressDiv = document.getElementById('uploadProgress');
             const progressFill = document.getElementById('progressFill');
             const progressText = document.getElementById('progressText');
 
             progressDiv.style.display = 'block';
-            progressFill.style.width = '30%';
-            progressText.textContent = '正在上传...';
+            progressFill.style.width = '20%';
+            progressText.textContent = `正在上传 ${fileList.length} 个文件...`;
 
             const formData = new FormData();
-            formData.append('file', file);
+            const skipSlicing = uploadMode === 'manual';
+            for (const file of fileList) {
+                formData.append('files', file);
+            }
+            formData.append('skip_slicing', skipSlicing ? 'true' : 'false');
+            if (!skipSlicing) {
+                formData.append('auto_predict', 'false');
+                formData.append('algorithm', 'dinomaly_dinov3_small');
+            }
 
             try {
-                const endpoint = uploadMode === 'manual' ? 'upload-manual' : 'upload-and-split';
-                progressFill.style.width = '50%';
-                progressText.textContent = uploadMode === 'auto' ? '正在自动匹配参考音频...' : '正在上传音频...';
+                progressFill.style.width = '40%';
+                progressText.textContent = skipSlicing
+                    ? `正在上传 ${fileList.length} 个文件...`
+                    : `正在自动匹配 ${fileList.length} 个文件...`;
 
-                const response = await apiFetch(`${API_BASE}/${endpoint}`, {
+                const response = await apiFetch(`${API_BASE}/from-manual`, {
                     method: 'POST',
                     body: formData
                 });
+
+                if (!response.ok) {
+                    const errBody = await response.json().catch(() => ({}));
+                    throw new Error(errBody.detail || errBody.message || `HTTP ${response.status}`);
+                }
 
                 const result = await response.json();
 
                 if (result.success) {
                     progressFill.style.width = '100%';
-                    progressText.textContent = '处理完成！';
-                    if (uploadMode === 'auto') {
-                        logMessage(`音频上传并切分成功: ${file.name}，生成 ${result.segments.length} 个片段，匹配参考音频: ${result.reference_audio}`, 'success');
+                    progressText.textContent = `处理完成！共 ${result.segments.length} 个片段`;
+
+                    const fileNames = fileList.map(f => f.name).join('、');
+                    if (skipSlicing) {
+                        logMessage(`批量上传成功: ${fileNames}，已创建会话 ${result.session_id}，请标注后进行数据集构建`, 'success');
                     } else {
-                        logMessage(`音频手动上传成功: ${file.name}，请选择参考音频进行切分`, 'success');
+                        logMessage(`批量上传并切分成功: ${fileNames}，生成 ${result.segments.length} 个片段`, 'success');
                     }
 
                     // 添加到片段列表
@@ -2101,12 +2120,18 @@
                     // 刷新统计
                     refreshStats();
 
+                    // 刷新 V2 会话列表（新会话会出现在右侧面板）
+                    loadV2Sessions();
+
+                    // 重置 file input 以允许重复选择同一文件
+                    document.getElementById('audioInput').value = '';
+
                     // 3秒后隐藏进度条
                     setTimeout(() => {
                         progressDiv.style.display = 'none';
                     }, 3000);
                 } else {
-                    throw new Error(result.message);
+                    throw new Error(result.message || '上传失败');
                 }
             } catch (error) {
                 progressDiv.style.display = 'none';
