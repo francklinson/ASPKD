@@ -12,6 +12,7 @@ import json
 import time
 import uuid
 import hashlib
+import random
 import numpy as np
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Tuple
@@ -183,9 +184,15 @@ class ConfirmToDatasetRequest(BaseModel):
 
 
 class ConfirmAllAnnotatedRequest(BaseModel):
-    """一键确认所有已标注片段导入数据集请求"""
+    """一键确认所有已标注片段导入数据集请求（增量）"""
     reference_audios: Optional[List[str]] = None  # None 表示全部
     train_ratio: int = 10  # 训练集:测试集比例，默认 10:1
+
+
+class RebuildDatasetRequest(BaseModel):
+    """全量重建数据集请求（打乱重分）"""
+    reference_audios: Optional[List[str]] = None
+    train_ratio: int = 10
 
 
 class ImportToSessionRequest(BaseModel):
@@ -1144,6 +1151,197 @@ async def confirm_all_annotated_to_dataset(
     )
 
 
+async def rebuild_dataset_from_all(
+    reference_audios: Optional[List[str]] = None,
+    train_ratio: int = 10
+) -> DatasetBuildResponse:
+    """
+    全量重建数据集：收集所有会话中已人工标注的片段（不限 status），
+    打乱后按比例重新划分训练集/测试集，清空并重建 data/spk/。
+    """
+    log_operation("REBUILD_DATASET",
+                  f"全量重建: 比例 {train_ratio}:1, 参考音频过滤: {reference_audios or '全部'}")
+
+    # 收集所有会话中有人工标注的片段（不论 status）
+    all_annotated = []
+    affected_sessions = set()
+
+    for session in BUILD_SESSIONS.values():
+        annotated = [s for s in session.segments if s.manual_label is not None]
+        if annotated:
+            all_annotated.extend(annotated)
+            affected_sessions.add(session.session_id)
+
+    if not all_annotated:
+        return DatasetBuildResponse(
+            success=False,
+            message="没有找到已标注的片段。请先在会话中完成标注。",
+            stats={"imported": 0, "failed": 0}
+        )
+
+    # 按参考音频过滤
+    if reference_audios:
+        filtered = [s for s in all_annotated if s.reference_audio in reference_audios]
+        if not filtered:
+            return DatasetBuildResponse(
+                success=False,
+                message=f"未找到参考音频: {reference_audios}",
+                stats={"imported": 0, "failed": 0}
+            )
+        all_annotated = filtered
+
+    # 按参考音频分组
+    groups: Dict[str, List] = {}
+    for seg in all_annotated:
+        cat = seg.reference_audio
+        if cat not in groups:
+            groups[cat] = []
+        groups[cat].append(seg)
+
+    # 备份 data/spk/
+    backup_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_root = DATASET_ROOT.rstrip('/') + f"_backup_{backup_timestamp}"
+    try:
+        if os.path.exists(DATASET_ROOT):
+            shutil.copytree(DATASET_ROOT, backup_root)
+            log_operation("BACKUP_DATASET", f"已备份到 {backup_root}")
+    except Exception as e:
+        log_operation("BACKUP_FAILED", f"备份失败: {e}", "WARNING")
+        backup_root = None
+
+    imported_count = 0
+    failed_count = 0
+    split_stats = {}
+
+    try:
+        for cat, segments in groups.items():
+            category_path = os.path.join(DATASET_ROOT, cat)
+            train_good = os.path.join(category_path, "train", "good")
+            test_good = os.path.join(category_path, "test", "good")
+            test_anomaly = os.path.join(category_path, "test", "anomaly")
+
+            # 清空现有文件
+            for d in [train_good, test_good, test_anomaly]:
+                if os.path.exists(d):
+                    for fname in os.listdir(d):
+                        fpath = os.path.join(d, fname)
+                        try:
+                            if os.path.isfile(fpath):
+                                os.remove(fpath)
+                        except OSError:
+                            pass
+
+            # 分离 normal 和 anomaly
+            normal_segs = [s for s in segments if s.manual_label != "anomaly"]
+            anomaly_segs = [s for s in segments if s.manual_label == "anomaly"]
+
+            # 打乱 normal 片段
+            random.shuffle(normal_segs)
+
+            # 按比例分配 normal
+            total_n = len(normal_segs)
+            train_count = int(total_n * train_ratio / (train_ratio + 1))
+            train_segs = normal_segs[:train_count]
+            test_segs = normal_segs[train_count:]
+
+            os.makedirs(train_good, exist_ok=True)
+            os.makedirs(test_good, exist_ok=True)
+            os.makedirs(test_anomaly, exist_ok=True)
+
+            # 复制训练集
+            for seg in train_segs:
+                try:
+                    _copy_segment_file(seg, train_good)
+                    seg.status = DatasetItemStatus.IN_DATASET
+                    imported_count += 1
+                    _increment_split_stat(split_stats, cat, "train")
+                except Exception as e:
+                    log_operation("COPY_ERROR", f"{seg.segment_id}: {e}", "ERROR")
+                    failed_count += 1
+
+            # 复制测试集（normal）
+            for seg in test_segs:
+                try:
+                    _copy_segment_file(seg, test_good)
+                    seg.status = DatasetItemStatus.IN_DATASET
+                    imported_count += 1
+                    _increment_split_stat(split_stats, cat, "test_normal")
+                except Exception as e:
+                    log_operation("COPY_ERROR", f"{seg.segment_id}: {e}", "ERROR")
+                    failed_count += 1
+
+            # 复制异常集
+            for seg in anomaly_segs:
+                try:
+                    _copy_segment_file(seg, test_anomaly)
+                    seg.status = DatasetItemStatus.IN_DATASET
+                    imported_count += 1
+                    _increment_split_stat(split_stats, cat, "test_anomaly")
+                except Exception as e:
+                    log_operation("COPY_ERROR", f"{seg.segment_id}: {e}", "ERROR")
+                    failed_count += 1
+
+        # 保存所有受影响会话
+        for session in BUILD_SESSIONS.values():
+            if session.session_id in affected_sessions:
+                save_session(session)
+
+    except Exception as e:
+        log_operation("REBUILD_FAILED", f"重建失败: {e}", "ERROR")
+        # 尝试恢复备份
+        if backup_root and os.path.exists(backup_root):
+            try:
+                if os.path.exists(DATASET_ROOT):
+                    shutil.rmtree(DATASET_ROOT)
+                shutil.copytree(backup_root, DATASET_ROOT)
+                log_operation("REBUILD_RESTORED", f"已从备份恢复: {backup_root}")
+            except Exception as restore_err:
+                log_operation("RESTORE_FAILED", f"恢复失败: {restore_err}", "ERROR")
+        return DatasetBuildResponse(
+            success=False,
+            message=f"重建失败: {e}，备份位于 {backup_root or '无'}",
+            stats={"imported": 0, "failed": 0}
+        )
+
+    for cat, stats in split_stats.items():
+        log_operation("REBUILD_RESULT",
+                      f"'{cat}': 训练={stats['train']}, 测试正常={stats['test_normal']}, 异常={stats['test_anomaly']}")
+
+    log_operation("REBUILD_COMPLETE",
+                  f"重建完成: 从 {len(affected_sessions)} 个会话处理 {imported_count} 个片段, 失败 {failed_count}")
+
+    return DatasetBuildResponse(
+        success=(failed_count == 0 or imported_count > 0),
+        message=f"重建完成: {imported_count} 个片段（{len(affected_sessions)} 个会话）"
+                + (f"，失败 {failed_count}" if failed_count else "")
+                + (f"，备份: {backup_root}" if backup_root else ""),
+        stats={
+            "imported": imported_count,
+            "failed": failed_count,
+            "session_count": len(affected_sessions),
+            "split_details": split_stats,
+            "backup_path": backup_root or ""
+        }
+    )
+
+
+def _copy_segment_file(segment, target_dir):
+    """复制一个片段的 wav + png 到目标目录"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    new_filename = f"{timestamp}_{segment.segment_filename}"
+    target_path = os.path.join(target_dir, new_filename)
+    shutil.copy2(segment.file_path, target_path)
+    if segment.spectrogram_path and os.path.exists(segment.spectrogram_path):
+        target_spec = target_path.replace('.wav', '.png')
+        shutil.copy2(segment.spectrogram_path, target_spec)
+
+
+def _increment_split_stat(split_stats, category, key):
+    if category not in split_stats:
+        split_stats[category] = {"train": 0, "test_normal": 0, "test_anomaly": 0}
+    split_stats[category][key] += 1
+
+
 # ========== API 端点 ==========
 
 @router.post("/from-detection", response_model=DatasetBuildResponse)
@@ -1359,6 +1557,19 @@ async def confirm_all_annotated_endpoint(request: ConfirmAllAnnotatedRequest):
     无需指定 session_id，自动扫描所有会话中的已标注片段。
     """
     result = await confirm_all_annotated_to_dataset(
+        reference_audios=request.reference_audios,
+        train_ratio=request.train_ratio
+    )
+    return result
+
+
+@router.post("/rebuild-dataset", response_model=DatasetBuildResponse)
+async def rebuild_dataset_endpoint(request: RebuildDatasetRequest):
+    """
+    全量重建数据集：打乱所有已标注片段，按比例重新划分训练集/测试集。
+    收集所有会话中 manual_label 非空的片段（不限 status），先备份后重建。
+    """
+    result = await rebuild_dataset_from_all(
         reference_audios=request.reference_audios,
         train_ratio=request.train_ratio
     )

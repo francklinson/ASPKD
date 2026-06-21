@@ -1800,7 +1800,7 @@
 		</h2>
 		<div id="buildSectionBody">
 			<div style="padding:10px 12px;">
-				<!-- 顶行：比例 + 按钮 -->
+								<!-- 顶行：比例 + 按钮 -->
 				<div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;">
 					<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
 						<label style="font-size:13px;font-weight:500;color:#333;white-space:nowrap;">训练集:测试集</label>
@@ -1808,15 +1808,30 @@
 						<span style="font-size:13px;color:#888;">: 1</span>
 					</div>
 					<div style="flex:1;"></div>
-					<button class="btn btn-success" onclick="buildDatasetFromAllAnnotated()" style="padding:8px 20px;font-size:13px;flex-shrink:0;">
+					<button class="btn btn-success" id="btnBuildDataset" onclick="buildDatasetFromAllAnnotated()" style="padding:8px 20px;font-size:13px;flex-shrink:0;">
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;">
 							<rect x="3" y="3" width="18" height="18" rx="2"/>
 							<path d="M3 9h18M9 21V9"/>
 						</svg>
-						📦 一键构建数据集
+						📦 增量构建数据集
 					</button>
 				</div>
 
+				<!-- 构建模式选择 -->
+				<div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;padding:6px 10px;background:#f8f9ff;border-radius:6px;">
+					<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px;font-weight:500;color:#333;">
+						<input type="radio" name="buildMode" value="incremental" checked onchange="onBuildModeChange()" style="width:16px;height:16px;cursor:pointer;">
+						📥 增量更新
+					</label>
+					<span style="font-size:11px;color:#888;flex:1;">追加新标注的片段到现有数据集，已有数据不动</span>
+				</div>
+				<div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;padding:6px 10px;background:#fff7e6;border-radius:6px;">
+					<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px;font-weight:500;color:#333;">
+						<input type="radio" name="buildMode" value="rebuild" onchange="onBuildModeChange()" style="width:16px;height:16px;cursor:pointer;">
+						🔄 全量重建
+					</label>
+					<span style="font-size:11px;color:#888;flex:1;">收集所有已标注数据打乱重分，清空现有数据集重新构建</span>
+				</div>
 				<!-- 底行：参考音频 + 提示 -->
 				<div style="display:flex;align-items:center;gap:12px;">
 					<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
@@ -4282,6 +4297,25 @@
         }
 
         // ============================================================
+        // 构建模式切换
+        // ============================================================
+
+        function onBuildModeChange() {
+            const btn = document.getElementById('btnBuildDataset');
+            if (!btn) return;
+            const mode = document.querySelector('input[name="buildMode"]:checked');
+            if (mode && mode.value === 'rebuild') {
+                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;">'
+                    + '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>'
+                    + ' 🔄 全量重建数据集';
+            } else {
+                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;">'
+                    + '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>'
+                    + ' 📦 增量构建数据集';
+            }
+        }
+
+        // ============================================================
         // 一键构建数据集（所有已标注样本，跨会话）
         // ============================================================
 
@@ -4289,6 +4323,18 @@
             // 从 DOM 读取比例
             const ratioInput = document.getElementById('buildRatio');
             const trainRatio = parseInt(ratioInput ? ratioInput.value : '10') || 10;
+
+            // 判断构建模式
+            const mode = document.querySelector('input[name="buildMode"]:checked');
+            const isRebuild = mode && mode.value === 'rebuild';
+
+            // 全量重建前确认
+            if (isRebuild) {
+                if (!confirm('⚠️ 全量重建将清空现有数据集并重新打乱划分，确认继续？\n\n'
+                    + '系统会在重建前自动备份 data/spk/ 目录。')) {
+                    return;
+                }
+            }
 
             // 从复选框读取参考音频选择
             const checkedRefs = document.querySelectorAll('.refAudioCheckbox:checked');
@@ -4298,10 +4344,12 @@
                 selectedRefs = Array.from(checkedRefs).map(cb => cb.value);
             }
 
-            logMessage(`📦 一键构建数据集: 比例 ${trainRatio}:1, 参考音频 ${selectedRefs ? selectedRefs.join(', ') : '全部'}`, 'info');
+            const endpoint = isRebuild ? '/api/dataset/rebuild-dataset' : '/api/dataset/confirm-all-annotated';
+            const actionLabel = isRebuild ? '全量重建' : '增量构建';
+            logMessage(`📦 ${actionLabel}数据集: 比例 ${trainRatio}:1, 参考音频 ${selectedRefs ? selectedRefs.join(', ') : '全部'}`, 'info');
 
             try {
-                const resp = await apiFetch('/api/dataset/confirm-all-annotated', {
+                const resp = await apiFetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -4313,12 +4361,15 @@
 
                 if (result.success || (result.stats && result.stats.imported > 0)) {
                     const stats = result.stats || {};
-                    let summary = `✅ 成功导入 ${stats.imported || 0} 个片段`;
+                    let summary = `✅ ${isRebuild ? '重建' : '导入'}完成: ${stats.imported || 0} 个片段`;
                     if (stats.session_count) {
                         summary += `（来自 ${stats.session_count} 个会话）`;
                     }
                     if (stats.failed > 0) {
                         summary += `，${stats.failed} 个失败`;
+                    }
+                    if (isRebuild && stats.backup_path) {
+                        summary += `\n备份: ${stats.backup_path}`;
                     }
 
                     // 显示划分详情
@@ -4331,17 +4382,17 @@
                     }
 
                     logMessage(`✅ ${summary.replace('\n\n', ' — ')}`, 'success');
-                    alert(`导入成功！\n\n${summary}`);
+                    alert(summary);
 
                     refreshStats();
                     loadV2Sessions();
                 } else {
-                    alert(result.message || '导入失败');
-                    logMessage('❌ ' + (result.message || '导入失败'), 'error');
+                    alert(result.message || (isRebuild ? '重建失败' : '导入失败'));
+                    logMessage('❌ ' + (result.message || '失败'), 'error');
                 }
             } catch (err) {
-                alert('导入请求失败: ' + err.message);
-                logMessage('❌ 导入请求失败: ' + err.message, 'error');
+                alert('请求失败: ' + err.message);
+                logMessage('❌ 请求失败: ' + err.message, 'error');
             }
         }
 
