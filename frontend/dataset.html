@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>数据集构建 - 音频异常检测系统</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- wavesurfer.js 音频可视化库 (本地加载) -->
     <script src="/static/js/wavesurfer.min.js"></script>
     <script src="/static/js/wavesurfer.spectrogram.min.js"></script>
@@ -34,90 +33,25 @@
             min-height: 100vh;
         }
 
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-
-        .header p {
-            opacity: 0.9;
-        }
+        .header { display: none; }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 16px;
         }
 
-        .header { padding: 30px; }
-        .header h1 { font-size: 32px; margin-bottom: 10px; }
-        .header p { font-size: 14px; }
-
-        /* 顶部横条：上传 + 统计 */
-        .top-bar {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 16px;
-            align-items: stretch;
-        }
-
-        .upload-card {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .stats-card {
-            flex: 1;
-            min-width: 0;
-        }
-
-        /* 主体两栏 */
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-
-        .player-panel {
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .segments-panel {
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-        }
-
-        @media (max-width: 1000px) {
-            .top-bar {
-                flex-direction: column;
-            }
-            .main-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
         .card {
             background: white;
-            border-radius: 10px;
-            padding: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.08);
         }
 
         .card-title {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             color: #333;
             display: flex;
             align-items: center;
@@ -130,7 +64,7 @@
         }
 
         .form-group {
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
         .form-group label {
@@ -159,10 +93,10 @@
         }
 
         .btn {
-            padding: 12px 24px;
+            padding: 8px 16px;
             border: none;
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.3s;
@@ -194,8 +128,8 @@
 
         .dropzone {
             border: 2px dashed #d9d9d9;
-            border-radius: 10px;
-            padding: 20px;
+            border-radius: 8px;
+            padding: 8px 12px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
@@ -212,9 +146,9 @@
         }
 
         .dropzone .icon {
-            width: 48px;
-            height: 48px;
-            margin-bottom: 16px;
+            width: 32px;
+            height: 32px;
+            margin-bottom: 6px;
             color: #999;
         }
 
@@ -293,32 +227,32 @@
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 8px;
         }
 
         .stat-card {
             background: #f8f9fa;
-            border-radius: 8px;
-            padding: 10px;
+            border-radius: 6px;
+            padding: 8px;
             text-align: center;
         }
 
         .stat-value {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 600;
             color: #667eea;
-            margin-bottom: 2px;
+            margin-bottom: 1px;
         }
 
         .stat-label {
-            font-size: 12px;
+            font-size: 11px;
             color: #666;
         }
 
         /* 音频片段列表 */
         .segments-list {
-            max-height: 360px;
+            max-height: 300px;
             overflow-y: auto;
             flex: 1;
         }
@@ -326,13 +260,13 @@
         .segment-item {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 10px 14px;
+            gap: 8px;
+            padding: 7px 10px;
             border: 1px solid #e8e8e8;
-            border-radius: 8px;
-            margin-bottom: 6px;
+            border-radius: 6px;
+            margin-bottom: 4px;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.15s;
         }
 
         .segment-item:hover {
@@ -347,24 +281,29 @@
 
         .segment-item .segment-info {
             flex: 1;
+            min-width: 0;
         }
 
         .segment-item .segment-name {
             font-weight: 500;
-            margin-bottom: 4px;
-            word-break: break-all;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .segment-item .segment-meta {
-            font-size: 12px;
-            color: #666;
+            font-size: 11px;
+            color: #888;
+            margin-top: 1px;
         }
 
         .segment-item .segment-status {
-            padding: 4px 12px;
+            padding: 3px 10px;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 500;
+            flex-shrink: 0;
         }
 
         .segment-status.unlabeled {
@@ -384,12 +323,13 @@
 
         .segment-item .segment-actions {
             display: flex;
-            gap: 8px;
+            gap: 4px;
+            flex-shrink: 0;
         }
 
         .segment-item .segment-actions button {
-            padding: 6px 12px;
-            font-size: 12px;
+            padding: 4px 8px;
+            font-size: 11px;
         }
 
         /* 图表容器 */
@@ -461,14 +401,14 @@
         /* 空状态 */
         .empty-state {
             text-align: center;
-            padding: 40px;
+            padding: 20px;
             color: #999;
         }
 
         .empty-state .icon {
-            width: 64px;
-            height: 64px;
-            margin-bottom: 16px;
+            width: 48px;
+            height: 48px;
+            margin-bottom: 8px;
             opacity: 0.5;
         }
 
@@ -476,18 +416,18 @@
         .category-tabs {
             display: flex;
             gap: 4px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             flex-wrap: wrap;
         }
 
         .category-tab {
-            padding: 8px 16px;
+            padding: 5px 12px;
             border: 1px solid #d9d9d9;
             background: white;
-            border-radius: 6px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s;
+            font-size: 12px;
+            transition: all 0.2s;
         }
 
         .category-tab:hover {
@@ -504,18 +444,18 @@
         /* 筛选标签 */
         .filter-tabs {
             display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
+            gap: 6px;
+            margin-bottom: 8px;
         }
 
         .filter-tab {
-            padding: 6px 12px;
+            padding: 4px 10px;
             border: none;
             background: #f0f0f0;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 13px;
-            transition: all 0.3s;
+            font-size: 12px;
+            transition: all 0.2s;
         }
 
         .filter-tab:hover {
@@ -562,20 +502,20 @@
         /* ===== 数据来源选择器 ===== */
         .source-tabs {
             display: flex;
-            gap: 6px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 8px;
         }
         .source-tab {
-            padding: 8px 16px;
+            padding: 6px 12px;
             border: 1px solid #d9d9d9;
             background: white;
-            border-radius: 6px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 13px;
-            transition: all 0.3s;
+            font-size: 12px;
+            transition: all 0.2s;
             flex: 1;
             text-align: center;
+            font-weight: 500;
         }
         .source-tab:hover {
             border-color: #667eea;
@@ -595,21 +535,21 @@
 
         /* ===== 源列表（离线任务/在线结果） ===== */
         .source-list {
-            max-height: 220px;
+            max-height: 180px;
             overflow-y: auto;
             border: 1px solid #e8e8e8;
-            border-radius: 6px;
-            margin-top: 8px;
+            border-radius: 5px;
+            margin-top: 6px;
         }
         .source-item {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
+            gap: 8px;
+            padding: 6px 10px;
             border-bottom: 1px solid #f0f0f0;
             cursor: pointer;
-            transition: background 0.2s;
-            font-size: 13px;
+            transition: background 0.15s;
+            font-size: 12px;
         }
         .source-item:hover {
             background: #f8f9ff;
@@ -649,7 +589,7 @@
 
         /* ===== 构建会话面板 ===== */
         .session-card {
-            margin-bottom: 16px;
+            margin-bottom: 0;
         }
         .session-list {
             max-height: 200px;
@@ -658,60 +598,67 @@
         .session-item {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 10px 14px;
+            gap: 8px;
+            padding: 7px 10px;
             border: 1px solid #e8e8e8;
-            border-radius: 8px;
-            margin-bottom: 8px;
+            border-radius: 6px;
+            margin-bottom: 4px;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.15s;
         }
         .session-item:hover {
             border-color: #667eea;
+            background: #f8f9ff;
         }
         .session-item .session-info {
             flex: 1;
+            min-width: 0;
         }
         .session-item .session-name {
             font-weight: 500;
-            font-size: 14px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
         .session-item .session-meta {
-            font-size: 12px;
+            font-size: 11px;
             color: #888;
-            margin-top: 2px;
+            margin-top: 1px;
         }
         .session-item .session-status-badge {
-            padding: 3px 10px;
+            padding: 2px 8px;
             border-radius: 4px;
             font-size: 11px;
             font-weight: 500;
+            flex-shrink: 0;
         }
         .session-status-badge.completed { background: #f6ffed; color: #52c41a; }
         .session-status-badge.processing { background: #fff7e6; color: #fa8c16; }
         .session-status-badge.pending { background: #f0f0f0; color: #666; }
         .session-actions {
             display: flex;
-            gap: 6px;
+            gap: 4px;
+            flex-shrink: 0;
         }
         .session-actions button {
-            padding: 4px 10px;
-            font-size: 12px;
+            padding: 3px 8px;
+            font-size: 11px;
             border-radius: 4px;
             border: 1px solid #d9d9d9;
             background: white;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.15s;
         }
         .session-actions button:hover {
             border-color: #667eea;
             color: #667eea;
         }
 
-        /* ===== V2 标注流程按钮 ===== */
+        /* ===== 标注流程按钮 ===== */
         .btn-sm {
-            padding: 6px 12px;
-            font-size: 12px;
+            padding: 4px 10px;
+            font-size: 11px;
             border-radius: 4px;
             border: none;
             cursor: pointer;
@@ -725,37 +672,39 @@
             background: #667eea;
             color: white;
         }
-        .badge-v2 { background: #e6f7ff; color: #1890ff; }
-        .badge-v1 { background: #f0f0f0; color: #666; }
 
         /* 导入按钮 */
         .import-bar {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             align-items: center;
-            margin-top: 8px;
-            padding: 8px 0;
+            margin-top: 6px;
+            padding: 4px 0;
         }
         .import-bar .btn {
             width: auto;
-            padding: 8px 20px;
+            padding: 6px 14px;
+            font-size: 12px;
         }
 
         /* 音频可视化区域 */
         .audio-visualization {
-            margin-top: 12px;
+            margin-top: 8px;
             background: #f8f9fa;
-            border-radius: 10px;
-            padding: 12px;
+            border-radius: 8px;
+            padding: 8px;
             box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
         }
 
         .viz-container {
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             background: white;
             border-radius: 8px;
-            padding: 12px;
+            padding: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .viz-container:last-child {
+            margin-bottom: 0;
         }
 
         .viz-container:last-child {
@@ -838,24 +787,24 @@
         .play-control-bar {
             display: flex;
             align-items: center;
-            gap: 16px;
-            margin-bottom: 16px;
-            padding: 0 8px;
+            gap: 12px;
+            margin-bottom: 8px;
+            padding: 0 4px;
         }
 
         .play-btn {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 8px 14px;
+            gap: 4px;
+            padding: 6px 12px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.15s;
         }
 
         .play-btn:hover {
@@ -892,41 +841,40 @@
 
 
 
-        /* 标注区域 - Label Studio 风格 */
+        /* 标注区域 */
         .annotation-section {
-            margin-top: 8px;
-            padding: 10px;
-            background: linear-gradient(135deg, #f8f9ff 0%, #fff 100%);
-            border: 2px solid #e8e8e8;
+            margin-top: 6px;
+            padding: 8px 10px;
+            background: #f8f9ff;
+            border: 1px solid #e8e8e8;
             border-radius: 8px;
         }
 
         .annotation-label-title {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             color: #333;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .label-options {
             display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
+            gap: 8px;
         }
 
         .label-option-btn {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
+            gap: 6px;
+            padding: 7px 16px;
             border: 2px solid #e0e0e0;
             background: white;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             color: #666;
-            transition: all 0.2s;
+            transition: all 0.15s;
         }
 
         .label-option-btn:hover {
@@ -967,15 +915,15 @@
         /* 操作按钮 */
         .action-buttons {
             display: flex;
-            gap: 8px;
-            margin-top: 12px;
+            gap: 6px;
+            margin-top: 8px;
         }
 
         .action-buttons .btn {
             flex: 0 1 auto;
-            padding: 12px 20px;
-            font-size: 14px;
-            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+            border-radius: 6px;
         }
 
         .btn-submit {
@@ -1220,13 +1168,12 @@
         .spectrogram-controls {
             display: flex;
             align-items: center;
-            gap: 16px;
-            padding: 8px 12px;
-            background: #1a1a2e;
+            gap: 12px;
+            padding: 6px 10px;
             background: linear-gradient(to right, #0f0f1a, #1a1a2e);
             border-bottom: 1px solid #2a2a3e;
             border-radius: 8px 8px 0 0;
-            font-size: 13px;
+            font-size: 12px;
             color: #aaa;
         }
 
@@ -1236,10 +1183,10 @@
         }
 
         .spectrogram-controls select {
-            padding: 4px 8px;
+            padding: 3px 6px;
             border: 1px solid #3a3a5c;
-            border-radius: 4px;
-            font-size: 13px;
+            border-radius: 3px;
+            font-size: 12px;
             background: #12121e;
             color: #ccc;
             cursor: pointer;
@@ -1351,30 +1298,24 @@
 
         /* ========== 与主站统一的布局 ========== */
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 16px;
-        }
-
-        /* 卡片间距统一（保持在标准卡片基础值之上覆盖） */
-        .card { padding: 16px; }
-        .card-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #333; }
-        .form-group { margin-bottom: 12px; }
-
-        /* 统计行（白色卡片风格，与主站一致） */
+        /* 统计行：5 个控件均匀分布 */
         .stats-row {
             display: grid;
-            grid-template-columns: repeat(4, 1fr) auto;
-            gap: 12px;
-            margin-bottom: 16px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
         }
         .stat-card-white {
             background: white;
-            border-radius: 10px;
-            padding: 14px 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            padding: 12px 10px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.08);
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80px;
         }
         .stat-card-white .stat-num {
             font-size: 26px;
@@ -1389,116 +1330,52 @@
         }
         .stat-card-white.chart-card {
             display: flex;
+            flex-direction: row;
             align-items: center;
-            padding: 8px 12px;
-        }
-        .stat-card-white.chart-card canvas {
-            width: 56px !important;
-            height: 56px !important;
+            justify-content: center;
+            gap: 6px;
+            padding: 6px 10px;
+            min-height: 80px;
         }
         .stat-card-white .refresh-btn {
             background: #f0f0f0;
             border: none;
             border-radius: 6px;
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-left: 6px;
             flex-shrink: 0;
         }
         .stat-card-white .refresh-btn:hover { background: #e0e0e0; }
+        .stat-card-white .refresh-btn svg { width: 12px; height: 12px; }
 
         /* 中间行：上传 + 会话并排 */
         .mid-row {
             display: flex;
-            gap: 16px;
-            margin-bottom: 16px;
+            gap: 10px;
+            margin-bottom: 10px;
         }
         .mid-row .upload-card { flex: 1.3; min-width: 0; }
         .mid-row .session-card { flex: 1; min-width: 0; }
 
-        /* 内容主体两栏 */
+        /* 内容主体两栏，与上方比例一致，保证左右列宽度对齐 */
         .content-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-        .player-panel { min-width: 0; display: flex; flex-direction: column; }
-        .segments-panel { min-width: 0; display: flex; flex-direction: column; }
-
-        /* 会话列表 */
-        .session-list {
-            max-height: 240px;
-            overflow-y: auto;
-        }
-        .session-item {
             display: flex;
-            align-items: center;
             gap: 10px;
-            padding: 8px 12px;
-            border: 1px solid #e8e8e8;
-            border-radius: 8px;
-            margin-bottom: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
+            margin-bottom: 10px;
         }
-        .session-item:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
-        }
-        .session-item .session-info { flex: 1; min-width: 0; }
-        .session-item .session-name {
-            font-weight: 500;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .session-item .session-meta {
-            font-size: 11px;
-            color: #888;
-            margin-top: 1px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .session-item .session-status-badge {
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 500;
-            flex-shrink: 0;
-        }
-        .session-item .session-actions {
-            display: flex;
-            gap: 4px;
-            flex-shrink: 0;
-        }
-        .session-item .session-actions button {
-            padding: 3px 8px;
-            font-size: 11px;
-            border-radius: 4px;
-            border: 1px solid #d9d9d9;
-            background: white;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .session-item .session-actions button:hover {
-            border-color: #667eea;
-            color: #667eea;
+        .player-panel { flex: 1.3; min-width: 0; display: flex; flex-direction: column; }
+        .segments-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+        /* 底部卡片（与上方平齐） */
+        .dataset-section {
+            width: 100%;
         }
 
-        @media (max-width: 900px) {
-            .mid-row { flex-direction: column; }
-            .content-row { grid-template-columns: 1fr; }
-            .stats-row { grid-template-columns: repeat(2, 1fr); }
-        }
-
-        /* 会话列表 */
+        /* 会话列表 - 紧凑样式 */
         .session-list {
             max-height: 220px;
             overflow-y: auto;
@@ -1560,25 +1437,16 @@
             color: #667eea;
         }
 
-        /* 紧凑主内容区 */
-        .content-row {
-            display: grid;
-            grid-template-columns: 3fr 2fr;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-        .player-panel { min-width: 0; display: flex; flex-direction: column; }
-        .segments-panel { min-width: 0; display: flex; flex-direction: column; }
-
         @media (max-width: 1000px) {
             .mid-row { flex-direction: column; }
             .content-row { grid-template-columns: 1fr; }
-            .stats-banner { flex-wrap: wrap; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .stat-card-white.chart-card { grid-column: 1 / -1; }
         }
     </style>
 </head>
 <body>
-    <div class="header">
+    <div class="header" style="display:none">
         <a href="/main" class="back-link">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -1589,8 +1457,8 @@
         <p>上传音频、自动切分、标注标签、构建训练数据集</p>
     </div>
 
-    <div class="container">
-        <!-- 统计行（白色卡片，与主站一致） -->
+    <div class="container" style="min-height: 100%;">
+        <!-- 统计行：4 个统计卡片 + 分布图 -->
         <div class="stats-row">
             <div class="stat-card-white">
                 <div class="stat-num" id="statTotal">0</div>
@@ -1608,8 +1476,14 @@
                 <div class="stat-num" id="statTest">0</div>
                 <div class="stat-lbl">测试集</div>
             </div>
-            <div class="stat-card-white chart-card" style="display:flex;align-items:center;gap:8px;">
-                <canvas id="distributionChart" style="width:56px;height:56px;"></canvas>
+            <div class="stat-card-white chart-card">
+                <div id="distributionChart" style="width:48px;height:48px;border-radius:50%;position:relative;flex-shrink:0;background:#f0f0f0;overflow:hidden;">
+                    <div style="position:absolute;top:6px;left:6px;width:36px;height:36px;border-radius:50%;background:white;z-index:1;"></div>
+                </div>
+                <div style="font-size:11px;line-height:1.3;">
+                    <div style="font-weight:600;color:#333;">数据集分布</div>
+                    <div style="color:#888;">正常/异常</div>
+                </div>
                 <button class="refresh-btn" onclick="refreshStats()" title="刷新统计">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="23 4 23 10 17 10"/>
@@ -1647,9 +1521,9 @@
                         <polyline points="17 8 12 3 7 8"/>
                         <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
-                    <p>点击或拖拽音频文件到此处</p>
-                    <span class="hint" id="uploadModeHint">模式：自动匹配（系统自动匹配参考音频并切分）</span>
-                    <span class="hint">支持 WAV, MP3, FLAC, AAC, OGG, M4A 格式</span>
+                    <p style="font-size:13px;margin-bottom:4px;">点击或拖拽音频文件到此处</p>
+                    <span class="hint" id="uploadModeHint">自动匹配参考音频并切分</span>
+                    <span class="hint">WAV/MP3/FLAC/AAC/OGG/M4A</span>
                     <input type="file" id="audioInput" accept=".wav,.mp3,.flac,.aac,.ogg,.m4a">
                 </div>
 
@@ -1705,31 +1579,30 @@
             </div>
 
         </div>
-        </div><!-- 关闭 upload-card -->
 
         <!-- 数据集构建会话管理 -->
         <div class="card session-card">
-            <h2 class="card-title" style="cursor:pointer;" onclick="toggleSessionPanel()">
+            <h2 class="card-title" style="cursor:pointer;padding:8px 12px;" onclick="toggleSessionPanel()">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                     <line x1="3" y1="9" x2="21" y2="9"/>
                     <line x1="9" y1="21" x2="9" y2="9"/>
                 </svg>
                 数据集构建会话
-                <span style="font-size:12px;font-weight:400;color:#888;margin-left:6px;">（支持手动/离线/在线三种来源）</span>
+                <span style="font-size:11px;font-weight:400;color:#888;margin-left:6px;">手动上传 · 离线检测 · 在线检测</span>
                 <span id="sessionToggleIcon" style="margin-left:auto;font-size:16px;">▼</span>
             </h2>
             <div id="sessionPanelBody">
-                <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
-                    <button class="btn btn-secondary" onclick="loadV2Sessions()" style="width:auto;padding:6px 14px;font-size:13px;">
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                    <button class="btn btn-secondary" onclick="loadV2Sessions()" style="width:auto;padding:4px 12px;font-size:12px;">
                         🔄 刷新
                     </button>
-                    <span style="font-size:13px;color:#888;" id="sessionCountLabel">共 0 个会话</span>
+                    <span style="font-size:12px;color:#888;" id="sessionCountLabel">共 0 个会话</span>
                 </div>
                 <div class="session-list" id="sessionListContainer">
-                    <div class="empty-state" style="padding:20px;">
-                        <p>暂无数据集构建会话</p>
-                        <p style="font-size:13px;margin-top:8px;">请通过"手动上传"、"离线检测"或"在线检测"导入数据</p>
+                    <div class="empty-state" style="padding:12px;">
+                        <p style="font-size:13px;">暂无数据集构建会话</p>
+                        <p style="font-size:12px;margin-top:6px;">请通过「手动上传」「离线检测」或「在线检测」导入数据</p>
                     </div>
                 </div>
             </div>
@@ -1816,7 +1689,12 @@
 
 				<!-- 标注输入区域 -->
 				<div class="annotation-section">
-					<div class="annotation-label-title">标注结果</div>
+					<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+						<div class="annotation-label-title" style="margin-bottom:0;">标注结果</div>
+						<div id="segmentInfoBar" style="font-size:10px;color:#888;display:none;">
+							<span id="segmentInfoPath"></span>
+						</div>
+					</div>
 					<div class="label-options">
 						<button class="label-option-btn" id="btnNormal" onclick="selectLabel('normal')">
 							<span class="label-dot normal"></span>
@@ -1903,39 +1781,39 @@
 		</div>
 	</div>
 
-	<!-- 已有数据集（可折叠，保留原有数据浏览功能） -->
-	<div class="card" style="margin-bottom:16px;">
-		<h2 class="card-title" style="cursor:pointer;" onclick="toggleV1Section()">
+	<!-- 参考音频库（全宽，可折叠） -->
+	<div class="card dataset-section" style="margin-bottom:12px;">
+		<h2 class="card-title" style="cursor:pointer;padding:8px 12px;" onclick="toggleV1Section()">
 			<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
 			</svg>
-			已有数据集
-			<span style="font-size:12px;font-weight:400;color:#888;margin-left:6px;">参考音频、片段列表</span>
+			参考音频库
+			<span style="font-size:12px;font-weight:400;color:#888;margin-left:6px;">参考音频、已标注片段</span>
 			<span id="v1ToggleIcon" style="margin-left:auto;font-size:16px;">▶</span>
 		</h2>
 		<div id="v1SectionBody" style="display:none;">
-			<p style="padding:12px;color:#888;font-size:13px;">在此浏览已有数据集的完整片段列表。标注和预览请使用上方区域。</p>
+			<p style="padding:12px;color:#888;font-size:13px;">在此浏览参考音频库的完整片段列表。标注和预览请使用上方区域。</p>
 		</div>
 	</div>
 
-        <!-- 底部：操作日志 -->
-        <div class="card">
-            <h2 class="card-title">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                    <polyline points="10 9 9 9 8 9"/>
-                </svg>
-                操作日志
-            </h2>
-            <div class="status-log" id="statusLog">
-                <div class="log-entry">
-                    <span class="timestamp">[系统]</span> 数据集构建页面已加载
-                </div>
-            </div>
-        </div>
+	<!-- 操作日志（全宽） -->
+	<div class="card dataset-section">
+		<h2 class="card-title">
+			<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+				<polyline points="14 2 14 8 20 8"/>
+				<line x1="16" y1="13" x2="8" y2="13"/>
+				<line x1="16" y1="17" x2="8" y2="17"/>
+				<polyline points="10 9 9 9 8 9"/>
+			</svg>
+			操作日志
+		</h2>
+		<div class="status-log" id="statusLog">
+			<div class="log-entry">
+				<span class="timestamp">[系统]</span> 数据集构建页面已加载
+			</div>
+		</div>
+	</div>
     </div>
 
     <script>
@@ -1945,7 +1823,6 @@
         let currentCategory = 'all';
         let currentFilter = 'all';
         let uploadMode = 'auto'; // 'auto' or 'manual'
-        let distributionChart = null;
 
         // API 基础 URL
         const API_BASE = '/api/dataset';
@@ -1983,7 +1860,7 @@
             refreshStats();
             loadSegments();
             setupEventListeners();
-            // 延迟加载 V2 会话
+            // 延迟加载会话列表
             setTimeout(loadV2Sessions, 500);
         });
 
@@ -2154,7 +2031,7 @@
 
         // 加载音频片段列表
         async function loadSegments() {
-            // 如果当前正在预览 V2 会话，不重新加载
+            // 如果当前正在预览会话，不重新加载
             if (currentV2SessionId) {
                 logMessage('当前在会话浏览模式', 'info');
                 return;
@@ -3329,6 +3206,32 @@
                 selectLabel(segment.label);
             }
 
+            // 显示片段详情（文件路径、标注时间等）
+            const infoBar = document.getElementById('segmentInfoBar');
+            const infoPath = document.getElementById('segmentInfoPath');
+            if (infoBar && infoPath) {
+                let infoParts = [];
+                if (segment.file_path) {
+                    const shortPath = segment.file_path.split('/').slice(-2).join('/');
+                    infoParts.push(`📂 ${shortPath}`);
+                }
+                if (segment.annotated_at) {
+                    try {
+                        const d = new Date(segment.annotated_at);
+                        infoParts.push(`🕐 ${d.toLocaleString()}`);
+                    } catch(e) {}
+                }
+                if (segment.duration) {
+                    infoParts.push(`⏱ ${Number(segment.duration).toFixed(1)}s`);
+                }
+                if (infoParts.length > 0) {
+                    infoPath.textContent = infoParts.join(' | ');
+                    infoBar.style.display = 'block';
+                } else {
+                    infoBar.style.display = 'none';
+                }
+            }
+
             // 启用/禁用标注按钮和导航按钮
             updateAnnotateButton();
             updateNavButtons();
@@ -3477,39 +3380,35 @@
             }
         }
 
-        // 更新图表
+        // 更新图表（CSS conic-gradient，不依赖外部库）
         function updateChart(stats) {
-            const ctx = document.getElementById('distributionChart').getContext('2d');
+            const el = document.getElementById('distributionChart');
+            if (!el) return;
 
-            if (distributionChart) {
-                distributionChart.destroy();
+            const values = [
+                stats.train_normal || 0,
+                stats.test_normal || 0,
+                stats.test_anomaly || 0
+            ];
+            const colors = ['#52c41a', '#1890ff', '#ff4d4f'];
+            const total = values.reduce((a, b) => a + b, 0);
+
+            if (total === 0) {
+                el.style.background = '#f0f0f0';
+                return;
             }
 
-            distributionChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['训练集(正常)', '测试集(正常)', '测试集(异常)'],
-                    datasets: [{
-                        data: [stats.train_normal, stats.test_normal, stats.test_anomaly],
-                        backgroundColor: ['#52c41a', '#1890ff', '#ff4d4f'],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                boxWidth: 12,
-                                padding: 10,
-                                font: { size: 11 }
-                            }
-                        }
-                    }
-                }
+            let gradient = 'conic-gradient(';
+            let cumulative = 0;
+            values.forEach((val, i) => {
+                if (val === 0) return;
+                const pct = (val / total) * 100;
+                const start = cumulative;
+                cumulative += pct;
+                gradient += `${colors[i]} ${start}% ${cumulative}%, `;
             });
+            gradient = gradient.replace(/, $/, '') + ')';
+            el.style.background = gradient;
         }
 
         // 添加日志
@@ -3904,7 +3803,6 @@
             div.className = 'session-item';
             div.dataset.sessionId = session.session_id;
 
-            const sourceLabel = session.source_type === 'detection' ? '检测' : '手动';
             const statusMap = { 'completed': '已完成', 'processing': '处理中', 'pending': '待处理', 'failed': '失败' };
             const statusText = statusMap[session.status] || session.status;
 
@@ -3912,24 +3810,22 @@
             let sourceDetailHtml = '';
             if (session.source_details && session.source_details.length > 0) {
                 const details = session.source_details.map(d => {
-                    if (d.source === '离线检测') return `📋 离线 #${(d.task_id || '').slice(0,8)} (${d.segment_count || '?'}段)`;
-                    if (d.source === '在线检测') return `🌐 在线 (${d.segment_count || '?'}段)`;
-                    if (d.source === '手动上传') return `📤 手动 (${d.file_count || '?'}文件)`;
+                    if (d.source === '离线检测') return `📋 离线 #${(d.task_id || '').slice(0,8)}`;
+                    if (d.source === '在线检测') return `🌐 在线`;
+                    if (d.source === '手动上传') return `📤 手动上传`;
                     return d.source || '未知';
                 });
-                sourceDetailHtml = `<span style="font-size:11px;color:#888;display:block;margin-top:1px;">${details.join(' → ')}</span>`;
+                const totalSegs = session.total_segments || 0;
+                sourceDetailHtml = `<span style="font-size:11px;color:#888;display:block;margin-top:1px;">${details.join(' · ')} · ${totalSegs}段 (正常:${session.normal_count || 0} 异常:${session.anomaly_count || 0})</span>`;
+            } else {
+                sourceDetailHtml = `<span style="font-size:11px;color:#888;display:block;margin-top:1px;">${session.total_segments || 0} 个片段</span>`;
             }
 
             div.innerHTML = `
                 <div class="session-info">
                     <div class="session-name">
-                        ${sourceLabel} · ${session.total_segments || 0} 个片段
-                        <span style="font-size:11px;color:#888;margin-left:8px;">
-                            正常:${session.normal_count || 0} 异常:${session.anomaly_count || 0}
-                        </span>
-                    </div>
-                    <div class="session-meta">
-                        ${session.created_at ? new Date(session.created_at).toLocaleString() : ''}
+                        数据集构建会话
+                        <span style="font-size:10px;color:#999;margin-left:6px;">${session.created_at ? new Date(session.created_at).toLocaleString() : ''}</span>
                     </div>
                     ${sourceDetailHtml}
                 </div>
@@ -3959,7 +3855,7 @@
 
                 // 将会话中的片段加载到右侧片段列表
                 if (data.segments && data.segments.length > 0) {
-                    // 转换为与 V1 兼容的格式
+                    // 转换为兼容格式
                     const v1Segments = data.segments.map(s => {
                         // 转换 file_path 为前端可访问的 URL
                         let filePath = s.file_path || '';
@@ -4027,8 +3923,12 @@
 
                 // 显示预标注信息
                 let predictedHtml = '';
-                if (seg._v2session && seg.predicted_score !== undefined) {
-                    predictedHtml = `<span style="font-size:11px;color:#888;margin-left:6px;">预测:${(seg.predicted_score).toFixed(3)}</span>`;
+                if (seg.predicted_score !== undefined && seg.predicted_score !== null) {
+                    predictedHtml = `<span style="font-size:11px;color:#888;"> 预测:${Number(seg.predicted_score).toFixed(3)}</span>`;
+                    if (seg.predicted_label && !seg.label) {
+                        const plabel = seg.predicted_label === 'normal' ? '正常' : '异常';
+                        predictedHtml += `<span class="item-badge ${seg.predicted_label === 'normal' ? 'badge-normal' : 'badge-anomaly'}" style="margin-left:4px;font-size:10px;">预${plabel}</span>`;
+                    }
                 }
 
                 // 标注时间信息
@@ -4036,17 +3936,20 @@
                 if (seg.annotated_at) {
                     try {
                         const d = new Date(seg.annotated_at);
-                        annotationTimeHtml = `<span style="font-size:10px;color:#999;display:block;">标注于: ${d.toLocaleString()}</span>`;
+                        const timeStr = d.toLocaleString();
+                        annotationTimeHtml = `<span style="font-size:10px;color:#999;display:block;margin-top:1px;">🕐 ${timeStr}</span>`;
                     } catch(e) { }
                 }
 
-                // 文件路径信息（显示文件名）
+                // 文件路径信息（显示文件名 + 来源）
                 const fileName = seg.segment_filename || seg.original_filename || '未知';
+                const sourceIcon = seg.source_type === 'client_detection' ? '🌐' : seg.source_type === 'detection' ? '📋' : '📤';
+                const sourceInfo = seg.source_type ? `<span style="font-size:10px;color:#aaa;margin-left:4px;">${sourceIcon}</span>` : '';
 
                 div.innerHTML = `
                     <div class="segment-info">
-                        <div class="segment-name">${fileName} ${predictedHtml}</div>
-                        <div class="segment-meta">${seg.duration ? seg.duration.toFixed(1) + 's' : ''} · ${seg.reference_audio || ''} ${annotationTimeHtml}</div>
+                        <div class="segment-name">${fileName} ${predictedHtml} ${sourceInfo}</div>
+                        <div class="segment-meta">${seg.duration ? Number(seg.duration).toFixed(1) + 's' : ''}${seg.reference_audio ? ' · ' + seg.reference_audio : ''}${annotationTimeHtml}</div>
                     </div>
                     ${statusHtml}
                 `;
@@ -4059,7 +3962,7 @@
             });
         }
 
-        // 重写 submitAnnotation 以支持 V2 会话
+        // 重写 submitAnnotation 以支持会话标注
         const originalSubmitAnnotation = submitAnnotation;
         submitAnnotation = function() {
             if (!selectedSegment) {
@@ -4073,9 +3976,9 @@
                 return;
             }
 
-            // 判断是否为 V2 会话中的片段
+            // 判断是否为会话中的片段
             if (selectedSegment._v2session && selectedSegment._v2segment_id) {
-                // 使用 V2 标注端点
+                // 使用会话标注端点
                 const formData = new FormData();
                 formData.append('segment_id', selectedSegment._v2segment_id);
                 formData.append('label', label);
@@ -4088,9 +3991,11 @@
                 .then(r => r.json())
                 .then(result => {
                     if (result.success) {
-                        logMessage(`✅ V2 标注成功: ${selectedSegment.segment_filename} -> ${label === 'normal' ? '正常' : '异常'}`, 'success');
-                        // 更新本地状态
+                        const now = new Date().toLocaleString();
+                        logMessage(`✅ 标注成功: ${selectedSegment.segment_filename || '未知'} → ${label === 'normal' ? '正常' : '异常'} (${now})`, 'success');
+                        // 更新本地状态（保留标注时间）
                         selectedSegment.label = label;
+                        selectedSegment.annotated_at = new Date().toISOString();
                         renderV2SegmentsList(currentSegments);
                         // 自动选择下一个
                         goToNext();
@@ -4104,7 +4009,7 @@
                     logMessage('标注请求失败: ' + err.message, 'error');
                 });
             } else {
-                // 使用原有的 V1 标注流程
+                // 使用原有的标注流程
                 if (typeof originalSubmitAnnotation === 'function') {
                     originalSubmitAnnotation();
                 }
@@ -4137,39 +4042,34 @@
 
             // 收集可用的参考音频列表
             const refAudios = [...new Set(currentSegments.map(s => s.reference_audio).filter(Boolean))];
-            const refOptions = refAudios.map(r =>
-                `<label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:13px;cursor:pointer;">
-                    <input type="checkbox" class="split-ref-cb" value="${r}" checked> ${r}
-                </label>`
-            ).join('');
+            const totalSegments = currentSegments.length;
 
             // 弹窗选择配置
             const ratio = prompt(
-                `请输入训练集:测试集比例（默认 10:1）\n例如：10 表示训练集:测试集 = 10:1\n\n当前会话包含 ${currentSegments.length} 个片段`,
+                `【划分配置】\n当前会话: ${totalSegments} 个片段, ${refAudios.length} 个参考音频\n\n输入训练集:测试集比例（默认 10:1）\n例如 10 表示 训练集:测试集 = 10:1\n\n参考音频: ${refAudios.join(', ')}`,
                 '10'
             );
-            if (ratio === null) return; // 取消
-
+            if (ratio === null) return;
             const trainRatio = parseInt(ratio) || 10;
 
-            // 选择参考音频（简化版：全部或选择）
-            let selectedRefs = null; // null = 全部
+            // 参考音频选择
+            let selectedRefs = null;
             if (refAudios.length > 1) {
-                const useAll = confirm(`是否使用全部 ${refAudios.length} 个参考音频？\n\n点击"确定"使用全部\n点击"取消"选择部分参考音频`);
-                if (!useAll) {
-                    // 用户选择部分参考音频 - 用逗号分隔输入
-                    const input = prompt(`可用参考音频:\n${refAudios.join(', ')}\n\n请输入要使用的参考音频名称（用逗号分隔，留空=全部）`);
-                    if (input !== null && input.trim()) {
-                        selectedRefs = input.split(',').map(s => s.trim()).filter(s => refAudios.includes(s));
-                        if (selectedRefs.length === 0) {
-                            alert('未选择有效的参考音频');
-                            return;
-                        }
+                const input = prompt(
+                    `可用参考音频: ${refAudios.join(', ')}\n\n使用全部请留空\n或输入要使用的名称（用逗号分隔）`,
+                    refAudios.join(', ')
+                );
+                if (input === null) return;
+                if (input.trim()) {
+                    selectedRefs = input.split(',').map(s => s.trim()).filter(s => refAudios.includes(s));
+                    if (selectedRefs.length === 0) {
+                        alert('未选择有效的参考音频');
+                        return;
                     }
                 }
             }
 
-            if (!confirm(`确定要将当前会话的数据导入正式数据集？\n\n训练:测试比例 = ${trainRatio}:1\n参考音频: ${selectedRefs ? selectedRefs.join(', ') : '全部'}`)) return;
+            logMessage(`📋 开始导入: 会话 ${currentV2SessionId.slice(-8)}, 比例 ${trainRatio}:1, 参考音频 ${selectedRefs ? selectedRefs.join(', ') : '全部'}`, 'info');
 
             fetch('/api/dataset/confirm-to-dataset', {
                 method: 'POST',
@@ -4183,25 +4083,28 @@
             .then(r => r.json())
             .then(result => {
                 if (result.success || result.stats?.imported > 0) {
-                    const details = result.stats?.split_details;
-                    let detailMsg = `${result.stats?.imported || 0} 个片段已加入数据集`;
+                    const stats = result.stats || {};
+                    const details = stats.split_details;
+                    let summary = `${stats.imported || 0} 个片段已加入数据集`;
                     if (details) {
                         const lines = Object.entries(details).map(([cat, st]) =>
                             `${cat}: 训练${st.train} 测试正常${st.test_normal} 异常${st.test_anomaly}`
                         );
-                        detailMsg += '\n' + lines.join('\n');
-                        lines.forEach(l => logMessage(`📊 划分结果 - ${l}`, 'success'));
+                        lines.forEach(l => logMessage(`📊 ${l}`, 'success'));
+                        summary += '\n' + lines.join('\n');
                     }
-                    logMessage(`✅ 已确认导入正式数据集: ${result.stats?.imported || 0} 个`, 'success');
-                    alert(`导入成功！\n${detailMsg}`);
+                    logMessage(`✅ 导入完成: ${stats.imported || 0} 个片段已加入数据集`, 'success');
+                    alert(`导入成功！\n${summary}`);
                     refreshStats();
                     loadV2Sessions();
                 } else {
                     alert('导入失败: ' + (result.message || ''));
+                    logMessage('❌ 导入失败: ' + (result.message || ''), 'error');
                 }
             })
             .catch(err => {
                 alert('导入请求失败: ' + err.message);
+                logMessage('❌ 导入请求失败: ' + err.message, 'error');
             });
         }
 

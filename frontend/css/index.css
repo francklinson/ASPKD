@@ -831,7 +831,7 @@ body {
 
 .embedded-panel {
     width: 100%;
-    min-height: calc(100vh - 140px);
+    height: 100%;
     border: none;
     border-radius: 0;
     background: #f0f2f5;
@@ -841,6 +841,8 @@ body {
 #training.content {
     padding: 0;
     margin: -20px;
+    overflow: hidden;
+    height: calc(100vh - 140px);
 }
 
 #dataset-builder.content.active,
