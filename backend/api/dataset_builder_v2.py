@@ -101,22 +101,27 @@ class DatasetBuildSession(BaseModel):
     status: str  # pending, processing, completed, failed
     created_at: str
     completed_at: Optional[str] = None
-    
+
     # 源数据信息
     source_files: List[str] = []
     detection_task_id: Optional[str] = None
-    
+
+    # 详细来源记录（支持多数据源合并）
+    source_details: List[Dict[str, Any]] = []
+    # 导入历史（用于去重，记录已导入的 task_id / result_id）
+    import_history: List[str] = []
+
     # 处理结果
     segments: List[AudioSegmentInfo] = []
     total_segments: int = 0
     normal_count: int = 0
     anomaly_count: int = 0
     unlabeled_count: int = 0
-    
+
     # 处理配置
     auto_predict: bool = False  # 是否自动预测（手动上传时）
     algorithm: Optional[str] = None  # 用于预测的算法
-    
+
     # 统计信息
     processing_stats: Dict[str, Any] = {}
 
@@ -173,6 +178,36 @@ class ConfirmToDatasetRequest(BaseModel):
     session_id: str
     segment_ids: Optional[List[str]] = None  # None表示全部导入
     target_category: Optional[str] = None  # 指定目标类别
+    reference_audios: Optional[List[str]] = None  # 指定参考音频列表（None表示全部）
+    train_ratio: int = 10  # 训练集:测试集比例，默认 10:1
+
+
+class ImportToSessionRequest(BaseModel):
+    """追加导入到已有会话请求"""
+    session_id: str
+    source_type: str  # "detection" 或 "client_detection"
+    # 当 source_type 为 "detection" 时
+    detection_task_id: Optional[str] = None
+    # 当 source_type 为 "client_detection" 时
+    result_ids: Optional[List[int]] = None
+    auto_annotate_threshold: float = 0.8
+    include_normal: bool = True
+    include_anomaly: bool = True
+
+
+class SplitPreviewRequest(BaseModel):
+    """划分预览请求"""
+    session_id: str
+    reference_audios: Optional[List[str]] = None  # None表示全部
+    train_ratio: int = 10
+
+
+class SplitImportRequest(BaseModel):
+    """划分导入请求"""
+    session_id: str
+    reference_audios: Optional[List[str]] = None  # None表示全部
+    train_ratio: int = 10
+    target_category: Optional[str] = None
 
 
 # ========== 会话管理 ==========
@@ -237,32 +272,52 @@ async def process_detection_results(
     处理在线检测结果，提取音频片段并保留预测值作为预标注
     """
     log_operation("PROCESS_DETECTION_START", f"Task: {request.detection_task_id}")
-    
+
+    # 去重检查
+    if request.detection_task_id in session.import_history:
+        return DatasetBuildResponse(
+            success=False,
+            message=f"检测任务 {request.detection_task_id} 已导入过，请勿重复导入"
+        )
+
     # 获取检测结果
     from backend.core.task_manager import task_manager
     task_result = task_manager.get_task_result(request.detection_task_id)
-    
+
     if not task_result:
         return DatasetBuildResponse(
             success=False,
             message=f"检测任务不存在: {request.detection_task_id}"
         )
-    
+
     if task_result["status"] != "completed":
         return DatasetBuildResponse(
             success=False,
             message=f"检测任务尚未完成，当前状态: {task_result['status']}"
         )
-    
+
     results = task_result.get("results", [])
     if not results:
         return DatasetBuildResponse(
             success=False,
             message="检测任务没有结果"
         )
-    
+
     session.status = "processing"
     session.source_files = [r.get("filepath") for r in results if r.get("filepath")]
+
+    # 记录导入历史
+    session.import_history.append(request.detection_task_id)
+    session.source_details.append({
+        "type": "detection",
+        "task_id": request.detection_task_id,
+        "source": "离线检测",
+        "file_count": len(results),
+        "imported_at": datetime.now().isoformat(),
+        "auto_annotate_threshold": request.auto_annotate_threshold,
+        "include_normal": request.include_normal,
+        "include_anomaly": request.include_anomaly
+    })
     
     segments = []
     processed_count = 0
@@ -348,14 +403,19 @@ async def process_detection_results(
     session.normal_count = sum(1 for s in segments if s.predicted_label == "normal")
     session.anomaly_count = sum(1 for s in segments if s.predicted_label == "anomaly")
     session.unlabeled_count = sum(1 for s in segments if s.status == DatasetItemStatus.PREDICTED)
+
+    # 更新来源信息中的段数
+    if session.source_details:
+        session.source_details[-1]["segment_count"] = len(segments)
+
     session.status = "completed"
     session.completed_at = datetime.now().isoformat()
-    
+
     save_session(session)
-    
-    log_operation("PROCESS_DETECTION_COMPLETE", 
+
+    log_operation("PROCESS_DETECTION_COMPLETE",
                   f"Processed: {processed_count}, Total segments: {len(segments)}")
-    
+
     return DatasetBuildResponse(
         success=True,
         message=f"成功处理 {processed_count} 个检测文件，生成 {len(segments)} 个片段",
@@ -422,9 +482,20 @@ async def process_client_detection_results(
 
     from backend.core.client_monitor_service import client_detection_service
 
+    # 去重检查：过滤已导入的结果 ID
+    new_ids = [rid for rid in request.result_ids if str(rid) not in session.import_history]
+    if not new_ids:
+        return DatasetBuildResponse(
+            success=False,
+            message=f"所有选中的检测结果均已导入过，请选择其他结果"
+        )
+    skipped = len(request.result_ids) - len(new_ids)
+    if skipped > 0:
+        log_operation("DEDUP_SKIP", f"{skipped} 条结果已存在，跳过", "WARNING")
+
     # 按 result_id 查找结果
     all_results = list(client_detection_service.detection_results)
-    matched_results = [r for r in all_results if r.get("result_id") in request.result_ids]
+    matched_results = [r for r in all_results if r.get("result_id") in new_ids]
 
     if not matched_results:
         return DatasetBuildResponse(
@@ -503,12 +574,31 @@ async def process_client_detection_results(
         )
         segments.append(segment)
 
+    # 记录导入历史
+    for rid in request.result_ids:
+        if str(rid) not in session.import_history:
+            session.import_history.append(str(rid))
+
     # 更新会话
     session.segments = segments
     session.total_segments = len(segments)
     session.normal_count = sum(1 for s in segments if s.predicted_label == "normal")
     session.anomaly_count = sum(1 for s in segments if s.predicted_label == "anomaly")
     session.unlabeled_count = sum(1 for s in segments if s.status == DatasetItemStatus.PREDICTED)
+
+    # 记录来源信息
+    matched_filenames = list(set(r.get("filename", "unknown") for r in matched_results))
+    session.source_details.append({
+        "type": "client_detection",
+        "result_ids": request.result_ids,
+        "source": "在线检测",
+        "file_count": len(matched_results),
+        "filenames": matched_filenames[:10],  # 最多记录 10 个文件名
+        "segment_count": len(segments),
+        "imported_at": datetime.now().isoformat(),
+        "auto_annotate_threshold": request.auto_annotate_threshold
+    })
+
     session.status = "completed"
     session.completed_at = datetime.now().isoformat()
 
@@ -574,7 +664,18 @@ async def process_manual_upload(
         })
     
     session.source_files = [f["saved_path"] for f in saved_files]
-    
+
+    # 记录来源信息
+    session.source_details.append({
+        "type": "manual",
+        "source": "手动上传",
+        "file_count": len(saved_files),
+        "filenames": [f["original_name"] for f in saved_files],
+        "imported_at": datetime.now().isoformat(),
+        "auto_predict": auto_predict,
+        "algorithm": algorithm
+    })
+
     # 切分音频
     all_segments = []
     for file_info in saved_files:
@@ -803,88 +904,131 @@ def generate_spectrogram(audio_path: str, output_path: str) -> bool:
 async def confirm_to_dataset(
     session: DatasetBuildSession,
     segment_ids: Optional[List[str]] = None,
-    target_category: Optional[str] = None
+    target_category: Optional[str] = None,
+    reference_audios: Optional[List[str]] = None,
+    train_ratio: int = 10
 ) -> DatasetBuildResponse:
     """
     确认将片段导入正式数据集
+    支持按参考音频过滤和自定义训练:测试比例
     """
-    log_operation("CONFIRM_TO_DATASET", f"Session: {session.session_id}, Segments: {len(segment_ids) if segment_ids else 'all'}")
-    
+    ref_filter_desc = f", 参考音频: {reference_audios}" if reference_audios else ", 全部参考音频"
+    log_operation("CONFIRM_TO_DATASET",
+                  f"Session: {session.session_id}, Segments: {len(segment_ids) if segment_ids else 'all'}{ref_filter_desc}, 比例: {train_ratio}:1")
+
     segments_to_import = []
-    
+
     if segment_ids:
         segments_to_import = [s for s in session.segments if s.segment_id in segment_ids]
     else:
         segments_to_import = session.segments
-    
+
+    # 按参考音频过滤
+    if reference_audios:
+        segments_to_import = [s for s in segments_to_import if s.reference_audio in reference_audios]
+        log_operation("FILTER_REFERENCE",
+                      f"按参考音频过滤后: {len(segments_to_import)} 个片段 (条件: {reference_audios})")
+
+    if not segments_to_import:
+        return DatasetBuildResponse(
+            success=False,
+            message="没有符合条件的片段可以导入",
+            session_id=session.session_id,
+            stats={"imported": 0, "failed": 0}
+        )
+
     imported_count = 0
     failed_count = 0
-    
+    split_stats = {}  # 按参考音频统计划分结果
+
     for segment in segments_to_import:
         try:
             # 确定类别
             category = target_category or segment.reference_audio
-            
+
             # 确定标签
             label = segment.manual_label or segment.predicted_label
             if not label:
                 label = "normal"  # 默认标签
-            
+
             # 确定划分（train/test）
             category_path = os.path.join(DATASET_ROOT, category)
             train_good = os.path.join(category_path, "train", "good")
             test_good = os.path.join(category_path, "test", "good")
             test_anomaly = os.path.join(category_path, "test", "anomaly")
-            
+
             os.makedirs(train_good, exist_ok=True)
             os.makedirs(test_good, exist_ok=True)
             os.makedirs(test_anomaly, exist_ok=True)
-            
+
             # 统计现有数据
             train_count = len([f for f in os.listdir(train_good) if f.endswith('.wav')])
             test_count = len([f for f in os.listdir(test_good) if f.endswith('.wav')])
-            
-            # 决定划分
+
+            # 决定划分（使用自定义比例）
             if label == "anomaly":
                 target_dir = test_anomaly
+                split_type = "test"
             else:
-                # 正常数据按 10:1 比例划分
+                # 正常数据按 train_ratio:1 比例划分
                 total = train_count + test_count
-                if total == 0 or train_count / (total + 1) < 10/11:
+                target_ratio = train_ratio / (train_ratio + 1)
+                if total == 0 or train_count / (total + 1) < target_ratio:
                     target_dir = train_good
+                    split_type = "train"
                 else:
                     target_dir = test_good
-            
+                    split_type = "test"
+
             # 复制文件
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             new_filename = f"{timestamp}_{segment.segment_filename}"
             target_path = os.path.join(target_dir, new_filename)
-            
+
             shutil.copy2(segment.file_path, target_path)
-            
+
             # 复制时频图
             if segment.spectrogram_path and os.path.exists(segment.spectrogram_path):
                 target_spec = target_path.replace('.wav', '.png')
                 shutil.copy2(segment.spectrogram_path, target_spec)
-            
+
             # 更新状态
             segment.status = DatasetItemStatus.IN_DATASET
             imported_count += 1
-            
+
+            # 记录划分统计
+            if category not in split_stats:
+                split_stats[category] = {"train": 0, "test_normal": 0, "test_anomaly": 0}
+            if split_type == "train":
+                split_stats[category]["train"] += 1
+            elif label == "anomaly":
+                split_stats[category]["test_anomaly"] += 1
+            else:
+                split_stats[category]["test_normal"] += 1
+
         except Exception as e:
             log_operation("IMPORT_ERROR", f"Segment: {segment.segment_id}, Error: {str(e)}", "ERROR")
             failed_count += 1
-    
+
+    # 输出详细的划分日志
+    for cat, stats in split_stats.items():
+        log_operation("SPLIT_RESULT",
+                      f"类别 '{cat}': 训练集={stats['train']}, 测试集(正常)={stats['test_normal']}, 测试集(异常)={stats['test_anomaly']}")
+
     # 保存会话更新
     save_session(session)
-    
+
+    log_operation("CONFIRM_COMPLETE",
+                  f"成功导入 {imported_count} 个片段到 {len(split_stats)} 个类别，失败 {failed_count} 个")
+
     return DatasetBuildResponse(
-        success=failed_count == 0,
+        success=failed_count == 0 or imported_count > 0,
         message=f"成功导入 {imported_count} 个片段，失败 {failed_count} 个",
         session_id=session.session_id,
         stats={
             "imported": imported_count,
-            "failed": failed_count
+            "failed": failed_count,
+            "split_details": split_stats
         }
     )
 
@@ -1080,17 +1224,168 @@ async def annotate_batch(session_id: str, request: BatchAnnotateRequest):
 async def confirm_to_dataset_endpoint(request: ConfirmToDatasetRequest):
     """
     确认将会话中的数据导入正式数据集
+    支持指定参考音频和自定义训练:测试比例
     """
     session = get_session(request.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
-    
+
     result = await confirm_to_dataset(
         session=session,
         segment_ids=request.segment_ids,
-        target_category=request.target_category
+        target_category=request.target_category,
+        reference_audios=request.reference_audios,
+        train_ratio=request.train_ratio
     )
-    
+
+    return result
+
+
+@router.post("/import-to-session")
+async def import_to_session(request: ImportToSessionRequest):
+    """
+    将检测结果追加导入到已有会话中（支持合并多个数据源到一个会话）
+    """
+    session = get_session(request.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    if session.status == "pending":
+        session.status = "processing"
+
+    if request.source_type == "detection":
+        # 复用检测结果处理逻辑
+        from backend.core.task_manager import task_manager
+
+        # 去重检查
+        if request.detection_task_id and request.detection_task_id in session.import_history:
+            raise HTTPException(status_code=400, detail=f"检测任务 {request.detection_task_id} 已导入过")
+
+        # 模拟 CreateFromDetectionRequest
+        det_req = CreateFromDetectionRequest(
+            detection_task_id=request.detection_task_id or "",
+            auto_annotate_threshold=request.auto_annotate_threshold,
+            include_normal=request.include_normal,
+            include_anomaly=request.include_anomaly
+        )
+        result = await process_detection_results(session, det_req)
+        return result
+
+    elif request.source_type == "client_detection":
+        # 复用客户端检测结果处理逻辑
+        from backend.core.client_monitor_service import client_detection_service
+
+        # 去重检查
+        new_ids = [rid for rid in (request.result_ids or []) if str(rid) not in session.import_history]
+        if not new_ids:
+            raise HTTPException(status_code=400, detail="所有选中的检测结果均已导入过")
+        skipped_req = list(request.result_ids or [])
+        for rid in skipped_req:
+            if rid not in new_ids:
+                log_operation("DEDUP_SKIP", f"结果 {rid} 已存在，跳过", "WARNING")
+
+        # 模拟 CreateFromClientDetectionRequest
+        client_req = CreateFromClientDetectionRequest(
+            result_ids=new_ids,
+            auto_annotate_threshold=request.auto_annotate_threshold
+        )
+        result = await process_client_detection_results(session, client_req)
+        return result
+
+    else:
+        raise HTTPException(status_code=400, detail=f"不支持的数据源类型: {request.source_type}")
+
+
+@router.post("/session/{session_id}/split-preview")
+async def preview_session_split(session_id: str, request: SplitPreviewRequest):
+    """
+    预览会话中的片段按参考音频和比例划分的结果
+    """
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    segments = session.segments
+    # 按参考音频过滤
+    if request.reference_audios:
+        segments = [s for s in segments if s.reference_audio in request.reference_audios]
+
+    if not segments:
+        return {"session_id": session_id, "total": 0, "by_reference": {}}
+
+    # 统计各参考音频在不同标签下的数量
+    by_reference = {}
+    for seg in segments:
+        ref = seg.reference_audio
+        if ref not in by_reference:
+            by_reference[ref] = {
+                "total": 0,
+                "normal": 0,
+                "anomaly": 0,
+                "unlabeled": 0,
+                "predicted_train": 0,
+                "predicted_test": 0
+            }
+        by_reference[ref]["total"] += 1
+
+        label = seg.manual_label or seg.predicted_label
+        if label == "normal":
+            by_reference[ref]["normal"] += 1
+        elif label == "anomaly":
+            by_reference[ref]["anomaly"] += 1
+        else:
+            by_reference[ref]["unlabeled"] += 1
+
+        # 预估划分（正常数据按 train_ratio:1）
+        if label == "anomaly":
+            by_reference[ref]["predicted_test"] += 1
+        elif label == "normal":
+            # 使用简单比例预估
+            ratio = request.train_ratio / (request.train_ratio + 1)
+            by_reference[ref]["predicted_train"] += ratio
+            by_reference[ref]["predicted_test"] += (1 - ratio)
+
+    # 转换为整数
+    for ref in by_reference:
+        by_reference[ref]["predicted_train"] = round(by_reference[ref]["predicted_train"])
+        by_reference[ref]["predicted_test"] = round(by_reference[ref]["predicted_test"])
+        # 修正舍入误差
+        total_normal = by_reference[ref]["normal"]
+        if by_reference[ref]["predicted_train"] + by_reference[ref]["predicted_test"] != total_normal:
+            by_reference[ref]["predicted_train"] = total_normal - by_reference[ref]["predicted_test"]
+
+    return {
+        "session_id": session_id,
+        "total": len(segments),
+        "train_ratio": request.train_ratio,
+        "by_reference": by_reference
+    }
+
+
+@router.post("/session/{session_id}/split-and-import")
+async def split_and_import(request: SplitImportRequest):
+    """
+    按参考音频和比例划分后导入正式数据集
+    """
+    session = get_session(request.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    # 检查是否有未标注的片段
+    unlabeled = [s for s in session.segments if s.status == DatasetItemStatus.PREDICTED or s.status == DatasetItemStatus.SLICED]
+    if unlabeled:
+        log_operation("SPLIT_WARNING",
+                      f"会话中有 {len(unlabeled)} 个未人工标注的片段，将使用预标注或默认标签",
+                      "WARNING")
+
+    result = await confirm_to_dataset(
+        session=session,
+        segment_ids=None,
+        target_category=request.target_category,
+        reference_audios=request.reference_audios,
+        train_ratio=request.train_ratio
+    )
+
     return result
 
 
@@ -1109,9 +1404,11 @@ async def list_sessions():
             "completed_at": session.completed_at,
             "total_segments": session.total_segments,
             "normal_count": session.normal_count,
-            "anomaly_count": session.anomaly_count
+            "anomaly_count": session.anomaly_count,
+            "source_details": session.source_details,  # 返回详细来源信息
+            "import_history": session.import_history  # 返回导入历史（去重用）
         })
-    
+
     # 按时间倒序
     sessions.sort(key=lambda x: x["created_at"], reverse=True)
     return sessions

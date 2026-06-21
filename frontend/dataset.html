@@ -53,8 +53,13 @@
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 16px;
+            padding: 10px;
         }
+
+        /* 整体紧凑化 */
+        .card { padding: 12px; }
+        .card-title { margin-bottom: 8px; font-size: 15px; }
+        .form-group { margin-bottom: 8px; }
 
         /* 顶部横条：上传 + 统计 */
         .top-bar {
@@ -1377,6 +1382,145 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* ========== 新布局样式 ========== */
+
+        /* 统计横幅 */
+        .stats-banner {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            padding: 10px 20px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        .stat-item {
+            text-align: center;
+            color: white;
+            padding: 0 8px;
+            border-right: 1px solid rgba(255,255,255,0.2);
+        }
+        .stat-item:last-of-type { border-right: none; }
+        .stat-num {
+            font-size: 20px;
+            font-weight: 700;
+            display: block;
+            line-height: 1.2;
+        }
+        .stat-lbl {
+            font-size: 11px;
+            opacity: 0.85;
+            display: block;
+        }
+        .stat-chart-mini {
+            width: 48px;
+            height: 48px;
+            margin-left: auto;
+        }
+        .stat-refresh {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .stat-refresh:hover { background: rgba(255,255,255,0.25); }
+
+        /* 中间行：上传 + 会话并排 */
+        .mid-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .mid-row .upload-card { flex: 1.2; min-width: 0; }
+        .mid-row .session-card { flex: 1; min-width: 0; }
+
+        /* 会话列表 */
+        .session-list {
+            max-height: 240px;
+            overflow-y: auto;
+        }
+        .session-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .session-item:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        .session-item .session-info { flex: 1; min-width: 0; }
+        .session-item .session-name {
+            font-weight: 500;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .session-item .session-meta {
+            font-size: 11px;
+            color: #888;
+            margin-top: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .session-item .session-status-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+        .session-item .session-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .session-item .session-actions button {
+            padding: 3px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            border: 1px solid #d9d9d9;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .session-item .session-actions button:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        /* 紧凑主内容区 */
+        .content-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .player-panel { min-width: 0; display: flex; flex-direction: column; }
+        .segments-panel { min-width: 0; display: flex; flex-direction: column; }
+
+        @media (max-width: 1000px) {
+            .mid-row { flex-direction: column; }
+            .content-row { grid-template-columns: 1fr; }
+            .stats-banner { flex-wrap: wrap; }
+        }
     </style>
 </head>
 <body>
@@ -1392,8 +1536,37 @@
     </div>
 
     <div class="container">
-        <!-- 顶部横条：上传 + 统计 -->
-        <div class="top-bar">
+        <!-- 统计横幅（始终可见） -->
+        <div class="stats-banner" id="statsBanner">
+            <div class="stat-item">
+                <span class="stat-num" id="statTotal">0</span>
+                <span class="stat-lbl">总音频</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-num" id="statCategories">0</span>
+                <span class="stat-lbl">类别</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-num" id="statTrain">0</span>
+                <span class="stat-lbl">训练集</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-num" id="statTest">0</span>
+                <span class="stat-lbl">测试集</span>
+            </div>
+            <div class="stat-chart-mini">
+                <canvas id="distributionChart"></canvas>
+            </div>
+            <button class="stat-refresh" onclick="refreshStats()" title="刷新统计">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- 中间行：上传 + 数据集构建会话 -->
+        <div class="mid-row">
             <!-- 上传音频 -->
             <div class="card upload-card">
                 <h2 class="card-title">
@@ -1477,45 +1650,8 @@
                 </div>
             </div>
 
-            <!-- 数据集统计 -->
-            <div class="card stats-card">
-                <h2 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M18 20V10M12 20V4M6 20v-6"/>
-                    </svg>
-                    数据集统计
-                    <button class="btn btn-secondary" onclick="refreshStats()" style="margin-left: auto; padding: 4px 10px; font-size: 12px; width: auto;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="23 4 23 10 17 10"/>
-                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-                        </svg>
-                    </button>
-                </h2>
-
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-value" id="statTotal">0</div>
-                        <div class="stat-label">总音频数</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="statCategories">0</div>
-                        <div class="stat-label">类别数</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="statTrain">0</div>
-                        <div class="stat-label">训练集</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="statTest">0</div>
-                        <div class="stat-label">测试集</div>
-                    </div>
-                </div>
-
-                <div class="chart-container">
-                    <canvas id="distributionChart"></canvas>
-                </div>
-            </div>
         </div>
+        </div><!-- 关闭 upload-card -->
 
         <!-- 数据集构建会话管理 -->
         <div class="card session-card">
@@ -1526,13 +1662,13 @@
                     <line x1="9" y1="21" x2="9" y2="9"/>
                 </svg>
                 数据集构建会话
-                <span style="font-size:12px;font-weight:400;color:#888;margin-left:8px;">（V2 会话式构建，支持手动/离线/在线三种来源）</span>
+                <span style="font-size:12px;font-weight:400;color:#888;margin-left:6px;">（支持手动/离线/在线三种来源）</span>
                 <span id="sessionToggleIcon" style="margin-left:auto;font-size:16px;">▼</span>
             </h2>
             <div id="sessionPanelBody">
                 <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
                     <button class="btn btn-secondary" onclick="loadV2Sessions()" style="width:auto;padding:6px 14px;font-size:13px;">
-                        🔄 刷新会话列表
+                        🔄 刷新
                     </button>
                     <span style="font-size:13px;color:#888;" id="sessionCountLabel">共 0 个会话</span>
                 </div>
@@ -1544,174 +1680,189 @@
                 </div>
             </div>
         </div>
+        </div><!-- 关闭 mid-row -->
+	<!-- 内容主体：音频标注 + 片段列表（始终可见） -->
+	<div class="content-row">
+		<!-- 左侧：音频标注 -->
+		<div class="card player-panel">
+			<h2 class="card-title">
+				<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+					<path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+				</svg>
+				音频标注
+			</h2>
 
-        <!-- 主体两栏：音频可视化 + 片段列表 -->
-        <div class="main-grid">
-            <!-- 左侧：音频试听与标注 -->
-            <div class="card player-panel">
-                <h2 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
-                    </svg>
-                    音频试听与标注
-                </h2>
+			<div id="playerSection" style="display: none;">
+				<div class="audio-visualization">
+					<div class="viz-container">
+						<!-- 播放控制按钮 -->
+						<div class="play-control-bar">
+							<button class="play-btn" id="playBtn" onclick="togglePlay()">
+								<svg id="playIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+									<path d="M8 5v14l11-7z"/>
+								</svg>
+								<svg id="pauseIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+									<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+								</svg>
+								<span id="playBtnText">播放</span>
+							</button>
+							<div class="audio-time-display">
+								<span id="currentTime">0.00</span> / <span id="totalTime">0.00</span> s
+							</div>
+						</div>
 
-                <div id="playerSection" style="display: none;">
-                    <div class="audio-visualization">
-                        <div class="viz-container">
-                            <!-- 播放控制按钮 -->
-                            <div class="play-control-bar">
-                                <button class="play-btn" id="playBtn" onclick="togglePlay()">
-                                    <svg id="playIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M8 5v14l11-7z"/>
-                                    </svg>
-                                    <svg id="pauseIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
-                                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-                                    </svg>
-                                    <span id="playBtnText">播放</span>
-                                </button>
-                                <div class="audio-time-display">
-                                    <span id="currentTime">0.00</span> / <span id="totalTime">0.00</span> s
-                                </div>
-                            </div>
+						<!-- 波形图区域 -->
+						<div class="waveform-section">
+							<div class="wavesurfer-wrapper" id="wavesurferWrapper">
+								<div id="waveformContainer"></div>
+								<div class="selection-overlay" id="selectionOverlay">
+									<div class="selection-label">选区</div>
+									<div class="selection-time" id="selectionTime">0.00s - 0.00s</div>
+								</div>
+							</div>
+							<div id="timelineContainer"></div>
+						</div>
 
-                            <!-- 波形图区域 -->
-                            <div class="waveform-section">
-                                <div class="wavesurfer-wrapper" id="wavesurferWrapper">
-                                    <div id="waveformContainer"></div>
-                                    <div class="selection-overlay" id="selectionOverlay">
-                                        <div class="selection-label">选区</div>
-                                        <div class="selection-time" id="selectionTime">0.00s - 0.00s</div>
-                                    </div>
-                                </div>
-                                <div id="timelineContainer"></div>
-                            </div>
+						<!-- 时频图 -->
+						<div id="spectrogramContainer">
+							<div class="spectrogram-controls">
+								<span id="freqRangeDisplay" style="color: #999;">频率范围: 自动检测中...</span>
+								<div class="scheme-select">
+									<label>配色</label>
+									<select id="colorSchemeSelect" onchange="switchColorScheme(this.value)">
+										<option value="bluepurple">蓝紫</option>
+										<option value="audition">Audition</option>
+										<option value="sox">SoX</option>
+										<option value="praat">Praat</option>
+										<option value="coolwarm">冷暖</option>
+										<option value="rainbow">彩虹</option>
+										<option value="copper">铜色</option>
+										<option value="bone">骨色</option>
+										<option value="thermal">热力</option>
+										<option value="grayscale">灰阶</option>
+									</select>
+								</div>
+								<div class="color-legend">
+									<span style="color:#999">低</span>
+									<div class="color-bar"></div>
+									<span style="color:#999">高</span>
+								</div>
+							</div>
+							<div class="spectrogram-scroll-wrapper">
+								<div class="spectrogram-content" id="spectrogramContent">
+									<div class="spectrogram-labels" id="spectrogramLabels"></div>
+									<canvas id="spectrogramCanvas"></canvas>
+									<div class="spectrogram-cursor" id="spectrogramCursor" style="display: none;"></div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
 
-                            <!-- 时频图 -->
-                            <div id="spectrogramContainer">
-                                <div class="spectrogram-controls">
-                                    <span id="freqRangeDisplay" style="color: #999;">频率范围: 自动检测中...</span>
-                                    <div class="scheme-select">
-                                        <label>配色</label>
-                                        <select id="colorSchemeSelect" onchange="switchColorScheme(this.value)">
-                                            <option value="bluepurple">蓝紫</option>
-                                            <option value="audition">Audition</option>
-                                            <option value="sox">SoX</option>
-                                            <option value="praat">Praat</option>
-                                            <option value="coolwarm">冷暖</option>
-                                            <option value="rainbow">彩虹</option>
-                                            <option value="copper">铜色</option>
-                                            <option value="bone">骨色</option>
-                                            <option value="thermal">热力</option>
-                                            <option value="grayscale">灰阶</option>
-                                        </select>
-                                    </div>
-                                    <div class="color-legend">
-                                        <span style="color:#999">低</span>
-                                        <div class="color-bar"></div>
-                                        <span style="color:#999">高</span>
-                                    </div>
-                                </div>
-                                <div class="spectrogram-scroll-wrapper">
-                                    <div class="spectrogram-content" id="spectrogramContent">
-                                        <div class="spectrogram-labels" id="spectrogramLabels"></div>
-                                        <canvas id="spectrogramCanvas"></canvas>
-                                        <div class="spectrogram-cursor" id="spectrogramCursor" style="display: none;"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+				<!-- 标注输入区域 -->
+				<div class="annotation-section">
+					<div class="annotation-label-title">标注结果</div>
+					<div class="label-options">
+						<button class="label-option-btn" id="btnNormal" onclick="selectLabel('normal')">
+							<span class="label-dot normal"></span>
+							正常
+						</button>
+						<button class="label-option-btn" id="btnAnomaly" onclick="selectLabel('anomaly')">
+							<span class="label-dot anomaly"></span>
+							异常
+						</button>
+					</div>
+					<input type="hidden" name="label" id="labelInput">
+				</div>
 
-                    <!-- 标注输入区域 -->
-                    <div class="annotation-section">
-                        <div class="annotation-label-title">标注结果</div>
-                        <div class="label-options">
-                            <button class="label-option-btn" id="btnNormal" onclick="selectLabel('normal')">
-                                <span class="label-dot normal"></span>
-                                正常
-                            </button>
-                            <button class="label-option-btn" id="btnAnomaly" onclick="selectLabel('anomaly')">
-                                <span class="label-dot anomaly"></span>
-                                异常
-                            </button>
-                        </div>
-                        <input type="hidden" name="label" id="labelInput">
-                    </div>
+				<div class="action-buttons">
+					<button class="btn btn-secondary" id="btnPrev" onclick="goToPrevious()" disabled>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<polyline points="15 18 9 12 15 6"/>
+						</svg>
+						上一个
+					</button>
+					<button class="btn btn-primary btn-submit" id="btnAnnotate" onclick="submitAnnotation()" disabled>
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<polyline points="20 6 9 17 4 12"/>
+						</svg>
+						提交标注
+					</button>
+					<button class="btn btn-secondary" id="btnNext" onclick="goToNext()" disabled>
+						下一个
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<polyline points="9 18 15 12 9 6"/>
+						</svg>
+					</button>
+					<button class="btn btn-success" id="btnConfirmDataset" onclick="confirmV2SessionToDataset()" style="display:none;flex:0.8;">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<polyline points="20 6 9 17 4 12"/>
+						</svg>
+						✅ 确认导入正式数据集
+					</button>
+				</div>
+			</div>
 
-                    <div class="action-buttons">
-                        <button class="btn btn-secondary" id="btnPrev" onclick="goToPrevious()" disabled>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="15 18 9 12 15 6"/>
-                            </svg>
-                            上一个
-                        </button>
-                        <button class="btn btn-primary btn-submit" id="btnAnnotate" onclick="submitAnnotation()" disabled>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="20 6 9 17 4 12"/>
-                            </svg>
-                            提交标注
-                        </button>
-                        <button class="btn btn-secondary" id="btnNext" onclick="goToNext()" disabled>
-                            下一个
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="9 18 15 12 9 6"/>
-                            </svg>
-                        </button>
-                        <button class="btn btn-success" id="btnConfirmDataset" onclick="confirmV2SessionToDataset()" style="display:none;flex:0.8;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="20 6 9 17 4 12"/>
-                            </svg>
-                            ✅ 确认导入正式数据集
-                        </button>
-                    </div>
-                </div>
+			<div id="emptyPlayer" class="empty-state">
+				<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+					<path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+				</svg>
+				<p>请从右侧列表选择一个音频片段进行标注</p>
+			</div>
+		</div>
 
-                <div id="emptyPlayer" class="empty-state">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
-                    </svg>
-                    <p>请从右侧列表选择一个音频片段进行标注</p>
-                </div>
-            </div>
+		<!-- 右侧：音频片段列表 -->
+		<div class="card segments-panel">
+			<h2 class="card-title">
+				<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+					<circle cx="12" cy="12" r="3"/>
+					<path d="M12 8v8"/>
+					<path d="M8 12h8"/>
+				</svg>
+				音频片段列表
+			</h2>
 
-            <!-- 右侧：音频片段列表 -->
-            <div class="card segments-panel">
-                <h2 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M12 8v8"/>
-                        <path d="M8 12h8"/>
-                    </svg>
-                    音频片段列表
-                </h2>
+			<div class="category-tabs" id="categoryTabs">
+				<button class="category-tab active" data-category="all">全部</button>
+			</div>
 
-                <div class="category-tabs" id="categoryTabs">
-                    <button class="category-tab active" data-category="all">全部</button>
-                </div>
+			<div class="filter-tabs">
+				<button class="filter-tab active" data-filter="all">全部</button>
+				<button class="filter-tab" data-filter="unlabeled">未标注</button>
+				<button class="filter-tab" data-filter="normal">正常</button>
+				<button class="filter-tab" data-filter="anomaly">异常</button>
+			</div>
 
-                <div class="filter-tabs">
-                    <button class="filter-tab active" data-filter="all">全部</button>
-                    <button class="filter-tab" data-filter="unlabeled">未标注</button>
-                    <button class="filter-tab" data-filter="normal">正常</button>
-                    <button class="filter-tab" data-filter="anomaly">异常</button>
-                </div>
+			<div class="segments-list" id="segmentsList">
+				<div class="empty-state">
+					<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+						<circle cx="12" cy="12" r="3"/>
+					</svg>
+					<p>暂无音频片段</p>
+					<p style="font-size: 13px; margin-top: 8px;">请先导入数据或点击会话预览</p>
+				</div>
+			</div>
+		</div>
+	</div>
 
-                <div class="segments-list" id="segmentsList">
-                    <div class="empty-state">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
-                            <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                        <p>暂无音频片段</p>
-                        <p style="font-size: 13px; margin-top: 8px;">请先上传音频文件</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+	<!-- 已有数据集（可折叠，保留原有数据浏览功能） -->
+	<div class="card" style="margin-bottom:16px;">
+		<h2 class="card-title" style="cursor:pointer;" onclick="toggleV1Section()">
+			<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+			</svg>
+			已有数据集
+			<span style="font-size:12px;font-weight:400;color:#888;margin-left:6px;">参考音频、片段列表</span>
+			<span id="v1ToggleIcon" style="margin-left:auto;font-size:16px;">▶</span>
+		</h2>
+		<div id="v1SectionBody" style="display:none;">
+			<p style="padding:12px;color:#888;font-size:13px;">在此浏览已有数据集的完整片段列表。标注和预览请使用上方区域。</p>
+		</div>
+	</div>
 
         <!-- 底部：操作日志 -->
         <div class="card">
@@ -1778,6 +1929,8 @@
             refreshStats();
             loadSegments();
             setupEventListeners();
+            // 延迟加载 V2 会话
+            setTimeout(loadV2Sessions, 500);
         });
 
         // 设置事件监听器
@@ -1947,6 +2100,12 @@
 
         // 加载音频片段列表
         async function loadSegments() {
+            // 如果当前正在预览 V2 会话，不重新加载
+            if (currentV2SessionId) {
+                logMessage('当前在会话浏览模式', 'info');
+                return;
+            }
+
             const listContainer = document.getElementById('segmentsList');
 
             // 从服务器获取片段
@@ -1996,7 +2155,7 @@
 
             listContainer.innerHTML = filteredSegments.map(segment => `
                 <div class="segment-item ${selectedSegment && selectedSegment.segment_id === segment.segment_id ? 'selected' : ''}"
-                     onclick="selectSegment(${JSON.stringify(segment).replace(/"/g, '&quot;')})">
+                     onclick="selectSegment(${JSON.stringify(segment).replace(/"/g, '&quot;')}, event)">
                     <div class="segment-info">
                         <div class="segment-name">${segment.segment_filename}</div>
                         <div class="segment-meta">
@@ -3045,15 +3204,24 @@
         }
 
         // 选择音频片段
-        function selectSegment(segment) {
+        function selectSegment(segment, clickEvent) {
             selectedSegment = segment;
-            
+
             // 取消正在进行的时频图计算
             isComputingSpectrogram = false;
 
             // 更新UI
             document.querySelectorAll('.segment-item').forEach(item => item.classList.remove('selected'));
-            event && event.currentTarget && event.currentTarget.classList.add('selected');
+            if (clickEvent && clickEvent.currentTarget) {
+                clickEvent.currentTarget.classList.add('selected');
+            } else {
+                // 通过 segment_id 匹配高亮
+                document.querySelectorAll('.segment-item').forEach(item => {
+                    if (item.dataset.segmentId === segment.segment_id) {
+                        item.classList.add('selected');
+                    }
+                });
+            }
 
             // 显示播放器
             document.getElementById('emptyPlayer').style.display = 'none';
@@ -3341,6 +3509,18 @@
             }
         }
 
+        function toggleV1Section() {
+            const body = document.getElementById('v1SectionBody');
+            const icon = document.getElementById('v1ToggleIcon');
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                icon.textContent = '▼';
+            } else {
+                body.style.display = 'none';
+                icon.textContent = '▶';
+            }
+        }
+
         // ============================================================
         // 离线检测任务列表
         // ============================================================
@@ -3360,19 +3540,33 @@
                     return;
                 }
 
-                container.innerHTML = '';
+                // 收集已导入的任务 ID
+            const importedTaskIds = new Set();
+            v2SessionCache.forEach(s => {
+                if (s.import_history) {
+                    s.import_history.forEach(hid => importedTaskIds.add(hid));
+                }
+            });
+
+            container.innerHTML = '';
                 offlineTasksCache.forEach(task => {
                     const div = document.createElement('div');
                     div.className = 'source-item';
                     div.dataset.taskId = task.task_id;
+                    const isImported = importedTaskIds.has(task.task_id);
                     div.innerHTML = `
                         <div class="item-info">
-                            <div class="item-name">${task.task_id.slice(0,8)}... | ${task.algorithm}</div>
+                            <div class="item-name">${isImported ? '✅ ' : ''}${task.task_id.slice(0,8)}... | ${task.algorithm}</div>
                             <div class="item-meta">${task.file_count || 0} 个文件 · ${task.result_count || 0} 条结果 · ${task.completed_at ? new Date(task.completed_at).toLocaleString() : ''}</div>
                         </div>
-                        <span class="item-badge badge-default">${task.result_count || 0} 片段</span>
+                        <span class="item-badge ${isImported ? 'badge-normal' : 'badge-default'}">${isImported ? '已导入' : (task.result_count || 0) + ' 片段'}</span>
                     `;
-                    div.onclick = () => selectOfflineTask(task.task_id, div);
+                    div.onclick = () => {
+                        if (isImported) {
+                            if (!confirm('该任务已导入过，是否仍要导入？')) return;
+                        }
+                        selectOfflineTask(task.task_id, div);
+                    };
                     container.appendChild(div);
                 });
                 logMessage(`已加载 ${offlineTasksCache.length} 个已完成的任务`, 'success');
@@ -3396,28 +3590,64 @@
                 return;
             }
 
+            // 检查是否已导入（去重）
+            const existingSession = v2SessionCache.find(s =>
+                s.import_history && s.import_history.includes(selectedOfflineTaskId)
+            );
+            if (existingSession) {
+                if (!confirm(`该任务已在会话 "${existingSession.session_id.slice(0,12)}..." 中导入过，是否仍要导入？`)) {
+                    return;
+                }
+            }
+
+            // 提供合并到已有会话的选项
+            let targetSessionId = null;
+            if (v2SessionCache.length > 0) {
+                const mergeChoice = confirm(`是否将数据追加到已有的会话中？\n\n点击"确定"追加到最新会话\n点击"取消"创建新会话`);
+                if (mergeChoice) {
+                    targetSessionId = v2SessionCache[0].session_id;
+                }
+            }
+
             const btn = document.querySelector('#offlineImportBar .btn');
             btn.disabled = true;
             btn.textContent = '导入中...';
 
             try {
-                const resp = await fetch('/api/dataset/from-detection', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+                let endpoint, body;
+                if (targetSessionId) {
+                    // 追加到已有会话
+                    endpoint = '/api/dataset/import-to-session';
+                    body = JSON.stringify({
+                        session_id: targetSessionId,
+                        source_type: 'detection',
                         detection_task_id: selectedOfflineTaskId,
                         auto_annotate_threshold: 0.8,
                         include_normal: true,
                         include_anomaly: true
-                    })
+                    });
+                } else {
+                    // 创建新会话
+                    endpoint = '/api/dataset/from-detection';
+                    body = JSON.stringify({
+                        detection_task_id: selectedOfflineTaskId,
+                        auto_annotate_threshold: 0.8,
+                        include_normal: true,
+                        include_anomaly: true
+                    });
+                }
+
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body
                 });
                 const result = await resp.json();
 
                 if (result.success) {
-                    logMessage(`✅ 成功导入离线检测任务到数据集构建: ${result.stats?.total || 0} 个片段, 会话ID: ${result.session_id}`, 'success');
-                    alert(`导入成功！生成 ${result.stats?.total || 0} 个片段。\n请在下方"数据集构建会话"面板中预览和标注。`);
+                    logMessage(`✅ 成功导入离线检测任务: ${result.stats?.total || 0} 个片段, 会话ID: ${result.session_id}`, 'success');
+                    alert(`导入成功！生成 ${result.stats?.total || 0} 个片段。`);
                     loadV2Sessions();
-                    // 预览此会话
                     if (result.session_id) {
                         previewV2Session(result.session_id);
                     }
@@ -3453,20 +3683,29 @@
                     return;
                 }
 
-                container.innerHTML = '';
+            // 收集已导入的结果 ID
+            const importedResultIds = new Set();
+            v2SessionCache.forEach(s => {
+                if (s.import_history) {
+                    s.import_history.forEach(hid => importedResultIds.add(hid));
+                }
+            });
+
+            container.innerHTML = '';
                 onlineResultsCache.forEach(r => {
                     const div = document.createElement('div');
                     div.className = 'source-item';
                     div.dataset.resultId = r.result_id;
+                    const isImported = importedResultIds.has(String(r.result_id));
                     const badgeClass = r.is_anomaly ? 'badge-anomaly' : 'badge-normal';
                     const badgeText = r.is_anomaly ? '异常' : '正常';
                     div.innerHTML = `
-                        <input type="checkbox" style="width:16px;height:16px;cursor:pointer;" onchange="toggleOnlineResult(${r.result_id}, this.checked)">
+                        <input type="checkbox" style="width:16px;height:16px;cursor:pointer;" onchange="toggleOnlineResult(${r.result_id}, this.checked)" ${isImported ? 'disabled' : ''}>
                         <div class="item-info">
-                            <div class="item-name">${r.filename || '未知文件'}</div>
+                            <div class="item-name">${isImported ? '✅ ' : ''}${r.filename || '未知文件'}</div>
                             <div class="item-meta">${r.client_name || '未知客户端'} · 分数: ${(r.anomaly_score || 0).toFixed(4)} · ${r.timestamp ? new Date(r.timestamp).toLocaleString() : ''}</div>
                         </div>
-                        <span class="item-badge ${badgeClass}">${badgeText}</span>
+                        <span class="item-badge ${isImported ? 'badge-normal' : badgeClass}">${isImported ? '已导入' : badgeText}</span>
                         <span style="font-size:11px;color:#888;">${r.music_name || ''}</span>
                     `;
                     container.appendChild(div);
@@ -3496,24 +3735,65 @@
                 return;
             }
 
+            // 去重检查：过滤已导入的结果
+            const existingImportedIds = new Set();
+            v2SessionCache.forEach(s => {
+                if (s.import_history) {
+                    s.import_history.forEach(hid => existingImportedIds.add(hid));
+                }
+            });
+            const newIds = ids.filter(id => !existingImportedIds.has(String(id)));
+            const skippedCount = ids.length - newIds.length;
+
+            if (skippedCount > 0) {
+                logMessage(`${skippedCount} 条结果已导入过，自动跳过`, 'warning');
+            }
+            if (newIds.length === 0) {
+                alert('所有选中的结果均已导入过，请选择其他结果');
+                return;
+            }
+
+            // 提供合并到已有会话的选项
+            let targetSessionId = null;
+            if (v2SessionCache.length > 0) {
+                const mergeChoice = confirm(`是否将数据追加到已有的会话 "${v2SessionCache[0].session_id.slice(0,12)}..."？\n\n点击"确定"追加\n点击"取消"创建新会话`);
+                if (mergeChoice) {
+                    targetSessionId = v2SessionCache[0].session_id;
+                }
+            }
+
             const btn = document.querySelector('#onlineImportBar .btn');
             btn.disabled = true;
             btn.textContent = '导入中...';
 
             try {
-                const resp = await fetch('/api/dataset/from-client-detection', {
+                let endpoint, body;
+                if (targetSessionId) {
+                    endpoint = '/api/dataset/import-to-session';
+                    body = JSON.stringify({
+                        session_id: targetSessionId,
+                        source_type: 'client_detection',
+                        result_ids: newIds,
+                        auto_annotate_threshold: 0.8
+                    });
+                } else {
+                    endpoint = '/api/dataset/from-client-detection';
+                    body = JSON.stringify({
+                        result_ids: newIds,
+                        auto_annotate_threshold: 0.8
+                    });
+                }
+
+                const resp = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        result_ids: ids,
-                        auto_annotate_threshold: 0.8
-                    })
+                    body: body
                 });
                 const result = await resp.json();
 
                 if (result.success) {
-                    logMessage(`✅ 成功导入在线检测结果到数据集构建: ${result.stats?.total || 0} 个片段, 会话ID: ${result.session_id}`, 'success');
-                    alert(`导入成功！生成 ${result.stats?.total || 0} 个片段。\n请在下方"数据集构建会话"面板中预览和标注。`);
+                    logMessage(`✅ 成功导入在线检测结果: ${result.stats?.total || 0} 个片段, 会话ID: ${result.session_id}`, 'success');
+                    alert(`导入成功！生成 ${result.stats?.total || 0} 个片段。`);
                     // 清除选择
                     selectedOnlineResultIds.clear();
                     document.getElementById('onlineSelectedCount').textContent = '0';
@@ -3574,6 +3854,18 @@
             const statusMap = { 'completed': '已完成', 'processing': '处理中', 'pending': '待处理', 'failed': '失败' };
             const statusText = statusMap[session.status] || session.status;
 
+            // 构建来源详情描述
+            let sourceDetailHtml = '';
+            if (session.source_details && session.source_details.length > 0) {
+                const details = session.source_details.map(d => {
+                    if (d.source === '离线检测') return `📋 离线 #${(d.task_id || '').slice(0,8)} (${d.segment_count || '?'}段)`;
+                    if (d.source === '在线检测') return `🌐 在线 (${d.segment_count || '?'}段)`;
+                    if (d.source === '手动上传') return `📤 手动 (${d.file_count || '?'}文件)`;
+                    return d.source || '未知';
+                });
+                sourceDetailHtml = `<span style="font-size:11px;color:#888;display:block;margin-top:1px;">${details.join(' → ')}</span>`;
+            }
+
             div.innerHTML = `
                 <div class="session-info">
                     <div class="session-name">
@@ -3583,8 +3875,9 @@
                         </span>
                     </div>
                     <div class="session-meta">
-                        ID: ${session.session_id} · ${session.created_at ? new Date(session.created_at).toLocaleString() : ''}
+                        ${session.created_at ? new Date(session.created_at).toLocaleString() : ''}
                     </div>
+                    ${sourceDetailHtml}
                 </div>
                 <span class="session-status-badge ${session.status}">${statusText}</span>
                 <div class="session-actions">
@@ -3643,23 +3936,6 @@
                         _v2session: sessionId,
                         _v2segment_id: s.segment_id
                     });});
-                        segment_id: s.segment_id,
-                        original_filename: s.original_filename,
-                        segment_filename: s.segment_filename,
-                        duration: s.duration,
-                        sample_rate: s.sample_rate || 22050,
-                        file_path: s.file_path,
-                        spectrogram_path: s.spectrogram_path,
-                        reference_audio: s.reference_audio,
-                        start_time: s.start_time || 0,
-                        end_time: s.end_time || 0,
-                        label: s.manual_label || s.predicted_label,
-                        annotated_at: s.annotated_at,
-                        source_type: s.source_type,
-                        predicted_score: s.predicted_score,
-                        _v2session: sessionId,
-                        _v2segment_id: s.segment_id
-                    }));
 
                     currentSegments = v1Segments;
                     renderV2SegmentsList(v1Segments);
@@ -3695,23 +3971,35 @@
                 if (label === 'normal') statusHtml = '<span class="segment-status normal">正常</span>';
                 else if (label === 'anomaly') statusHtml = '<span class="segment-status anomaly">异常</span>';
 
-                // 如果来自 V2 会话，显示预标注信息
+                // 显示预标注信息
                 let predictedHtml = '';
                 if (seg._v2session && seg.predicted_score !== undefined) {
                     predictedHtml = `<span style="font-size:11px;color:#888;margin-left:6px;">预测:${(seg.predicted_score).toFixed(3)}</span>`;
                 }
 
+                // 标注时间信息
+                let annotationTimeHtml = '';
+                if (seg.annotated_at) {
+                    try {
+                        const d = new Date(seg.annotated_at);
+                        annotationTimeHtml = `<span style="font-size:10px;color:#999;display:block;">标注于: ${d.toLocaleString()}</span>`;
+                    } catch(e) { }
+                }
+
+                // 文件路径信息（显示文件名）
+                const fileName = seg.segment_filename || seg.original_filename || '未知';
+
                 div.innerHTML = `
                     <div class="segment-info">
-                        <div class="segment-name">${seg.segment_filename || seg.original_filename || '未知'}</div>
-                        <div class="segment-meta">${seg.duration ? seg.duration.toFixed(1) + 's' : ''} · ${seg.reference_audio || ''} ${predictedHtml}</div>
+                        <div class="segment-name">${fileName} ${predictedHtml}</div>
+                        <div class="segment-meta">${seg.duration ? seg.duration.toFixed(1) + 's' : ''} · ${seg.reference_audio || ''} ${annotationTimeHtml}</div>
                     </div>
                     ${statusHtml}
                 `;
-                div.onclick = () => {
+                div.onclick = (evt) => {
                     document.querySelectorAll('.segment-item').forEach(el => el.classList.remove('selected'));
                     div.classList.add('selected');
-                    selectSegment(seg);
+                    selectSegment(seg, evt);
                 };
                 container.appendChild(div);
             });
@@ -3786,24 +4074,72 @@
             }
         }
 
-        // 确认导入到正式数据集
+        // 配置划分并导入到正式数据集
         function confirmV2SessionToDataset() {
             if (!currentV2SessionId) {
                 alert('请先预览一个数据集构建会话');
                 return;
             }
-            if (!confirm('确定要将当前会话中的数据导入正式数据集（data/spk/）吗？')) return;
+
+            // 收集可用的参考音频列表
+            const refAudios = [...new Set(currentSegments.map(s => s.reference_audio).filter(Boolean))];
+            const refOptions = refAudios.map(r =>
+                `<label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:13px;cursor:pointer;">
+                    <input type="checkbox" class="split-ref-cb" value="${r}" checked> ${r}
+                </label>`
+            ).join('');
+
+            // 弹窗选择配置
+            const ratio = prompt(
+                `请输入训练集:测试集比例（默认 10:1）\n例如：10 表示训练集:测试集 = 10:1\n\n当前会话包含 ${currentSegments.length} 个片段`,
+                '10'
+            );
+            if (ratio === null) return; // 取消
+
+            const trainRatio = parseInt(ratio) || 10;
+
+            // 选择参考音频（简化版：全部或选择）
+            let selectedRefs = null; // null = 全部
+            if (refAudios.length > 1) {
+                const useAll = confirm(`是否使用全部 ${refAudios.length} 个参考音频？\n\n点击"确定"使用全部\n点击"取消"选择部分参考音频`);
+                if (!useAll) {
+                    // 用户选择部分参考音频 - 用逗号分隔输入
+                    const input = prompt(`可用参考音频:\n${refAudios.join(', ')}\n\n请输入要使用的参考音频名称（用逗号分隔，留空=全部）`);
+                    if (input !== null && input.trim()) {
+                        selectedRefs = input.split(',').map(s => s.trim()).filter(s => refAudios.includes(s));
+                        if (selectedRefs.length === 0) {
+                            alert('未选择有效的参考音频');
+                            return;
+                        }
+                    }
+                }
+            }
+
+            if (!confirm(`确定要将当前会话的数据导入正式数据集？\n\n训练:测试比例 = ${trainRatio}:1\n参考音频: ${selectedRefs ? selectedRefs.join(', ') : '全部'}`)) return;
 
             fetch('/api/dataset/confirm-to-dataset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session_id: currentV2SessionId })
+                body: JSON.stringify({
+                    session_id: currentV2SessionId,
+                    reference_audios: selectedRefs,
+                    train_ratio: trainRatio
+                })
             })
             .then(r => r.json())
             .then(result => {
-                if (result.success) {
+                if (result.success || result.stats?.imported > 0) {
+                    const details = result.stats?.split_details;
+                    let detailMsg = `${result.stats?.imported || 0} 个片段已加入数据集`;
+                    if (details) {
+                        const lines = Object.entries(details).map(([cat, st]) =>
+                            `${cat}: 训练${st.train} 测试正常${st.test_normal} 异常${st.test_anomaly}`
+                        );
+                        detailMsg += '\n' + lines.join('\n');
+                        lines.forEach(l => logMessage(`📊 划分结果 - ${l}`, 'success'));
+                    }
                     logMessage(`✅ 已确认导入正式数据集: ${result.stats?.imported || 0} 个`, 'success');
-                    alert(`导入成功！${result.stats?.imported || 0} 个片段已加入数据集。`);
+                    alert(`导入成功！\n${detailMsg}`);
                     refreshStats();
                     loadV2Sessions();
                 } else {
@@ -3815,11 +4151,7 @@
             });
         }
 
-        // 页面加载时初始化 V2 会话
-        document.addEventListener('DOMContentLoaded', function() {
-            // 延迟加载 V2 会话
-            setTimeout(loadV2Sessions, 500);
-        });
+        // (已合并到主 DOMContentLoaded 中)
     </script>
 </body>
 </html>
