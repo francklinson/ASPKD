@@ -2102,19 +2102,24 @@
                     progressText.textContent = `处理完成！共 ${result.segments.length} 个片段`;
 
                     const fileNames = fileList.map(f => f.name).join('、');
+                    const sessionId = result.session_id;
                     if (skipSlicing) {
-                        logMessage(`批量上传成功: ${fileNames}，已创建会话 ${result.session_id}，请标注后进行数据集构建`, 'success');
+                        logMessage(`批量上传成功: ${fileNames}，已创建会话 ${sessionId}，请标注后进行数据集构建`, 'success');
                     } else {
                         logMessage(`批量上传并切分成功: ${fileNames}，生成 ${result.segments.length} 个片段`, 'success');
                     }
 
-                    // 添加到片段列表
-                    currentSegments = [...currentSegments, ...result.segments];
-                    loadSegments();
-
-                    // 如果这是第一个片段，自动选择
-                    if (result.segments.length > 0 && !selectedSegment) {
-                        selectSegment(result.segments[0]);
+                    // 切换到 V2 会话预览模式——让标注走 V2 端点，确保 "一键构建数据集" 能识别
+                    if (sessionId) {
+                        currentV2SessionId = sessionId;
+                        await previewV2Session(sessionId);
+                    } else {
+                        // 兼容旧 V1 响应（无 session_id）
+                        currentSegments = [...currentSegments, ...result.segments];
+                        loadSegments();
+                        if (result.segments.length > 0 && !selectedSegment) {
+                            selectSegment(result.segments[0]);
+                        }
                     }
 
                     // 刷新统计
@@ -4054,27 +4059,14 @@
 
                 // 将会话中的片段加载到右侧片段列表
                 if (data.segments && data.segments.length > 0) {
-                    // 转换为兼容格式
-                    const v1Segments = data.segments.map(s => {
-                        // 转换 file_path 为前端可访问的 URL
-                        let filePath = s.file_path || '';
-                        if (filePath && filePath.includes('/data/dataset_builder/')) {
-                            const parts = filePath.split('/data/dataset_builder/');
-                            filePath = '/data/dataset-builder/' + parts[1];
-                        }
-                        let specPath = s.spectrogram_path || '';
-                        if (specPath && specPath.includes('/data/dataset_builder/')) {
-                            const parts = specPath.split('/data/dataset_builder/');
-                            specPath = '/data/dataset-builder/' + parts[1];
-                        }
-                        return ({
+                    const v1Segments = data.segments.map(s => ({
                         segment_id: s.segment_id,
                         original_filename: s.original_filename,
                         segment_filename: s.segment_filename,
                         duration: s.duration,
                         sample_rate: s.sample_rate || 22050,
-                        file_path: filePath,
-                        spectrogram_path: specPath,
+                        file_path: s.file_path || '',
+                        spectrogram_path: s.spectrogram_path || '',
                         reference_audio: s.reference_audio,
                         start_time: s.start_time || 0,
                         end_time: s.end_time || 0,

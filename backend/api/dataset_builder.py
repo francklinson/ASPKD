@@ -44,6 +44,9 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 DATASET_ROOT = os.path.join(PROJECT_ROOT, "data", "spk")
 os.makedirs(DATASET_ROOT, exist_ok=True)
 
+# 参考音频目录
+REF_AUDIO_DIR = os.path.join(PROJECT_ROOT, "data", "ref")
+
 # 临时上传目录（默认，用于未登录场景）
 UPLOAD_TEMP_DIR = os.path.join(PROJECT_ROOT, "data", "uploads", "dataset_temp")
 os.makedirs(UPLOAD_TEMP_DIR, exist_ok=True)
@@ -294,6 +297,21 @@ def get_reference_audios() -> List[Dict[str, Any]]:
         return []
 
 
+def _get_ref_audio_duration(music_name: str) -> Optional[float]:
+    """在 data/ref/ 中查找参考音频文件，返回其时长（秒）"""
+    if not os.path.exists(REF_AUDIO_DIR):
+        return None
+    for fname in os.listdir(REF_AUDIO_DIR):
+        name_no_ext = os.path.splitext(fname)[0]
+        if name_no_ext == music_name or music_name in fname:
+            fpath = os.path.join(REF_AUDIO_DIR, fname)
+            try:
+                return round(librosa.get_duration(path=fpath), 2)
+            except Exception:
+                continue
+    return None
+
+
 def split_audio_auto_match_v2(
     audio_path: str,
     output_dir: str,
@@ -367,13 +385,14 @@ def split_audio_auto_match_v2(
 
         # 根据分析结果切分音频
         for idx, segment_match in enumerate(result.segment_matches):
-            # 计算切分位置
-            start_time = segment_match.start_time
-            end_time = segment_match.end_time
+            start_time = max(0, segment_match.start_time)
 
-            # 确保不超出音频边界
-            start_time = max(0, start_time)
-            end_time = min(audio_total_duration, end_time)
+            # 以参考音频的实际时长为准计算结束时间，使切分出的片段长度与参考音频一致
+            ref_duration = _get_ref_audio_duration(segment_match.music_name)
+            if ref_duration and ref_duration > 0:
+                end_time = min(start_time + ref_duration, audio_total_duration)
+            else:
+                end_time = min(audio_total_duration, segment_match.end_time)
 
             # 如果片段太短，跳过
             if end_time - start_time < min_segment_duration:

@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 import librosa
 import soundfile as sf
 
-from backend.api.dataset_builder import get_url_path  # V1 遗留模块中的路径工具函数，在此复用
+from backend.api.dataset_builder import get_url_path, get_file_path  # V1 遗留模块中的路径工具函数，在此复用
 
 router = APIRouter()
 
@@ -35,6 +35,9 @@ os.makedirs(DATASET_ROOT, exist_ok=True)
 # 数据集构建工作区
 DATASET_BUILDER_DIR = os.path.join(PROJECT_ROOT, "data", "dataset_builder")
 os.makedirs(DATASET_BUILDER_DIR, exist_ok=True)
+
+# 参考音频目录
+REF_AUDIO_DIR = os.path.join(PROJECT_ROOT, "data", "ref")
 
 # 可视化输出目录（兼容旧路径转换）
 VIS_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "data", "output", "vis")
@@ -246,6 +249,8 @@ def create_session(source_type: str, detection_task_id: Optional[str] = None) ->
         detection_task_id=detection_task_id
     )
     BUILD_SESSIONS[session_id] = session
+    log_operation("SESSION_CREATED",
+                  f"session_id={session_id}, source_type={source_type}, task_id={detection_task_id}")
     return session
 
 
@@ -259,6 +264,7 @@ def save_session(session: DatasetBuildSession):
     session_file = os.path.join(DATASET_BUILDER_DIR, f"{session.session_id}.json")
     with open(session_file, 'w', encoding='utf-8') as f:
         json.dump(session.model_dump(), f, ensure_ascii=False, indent=2)
+    log_operation("SESSION_SAVED", f"session_id={session.session_id}, segments={session.total_segments}")
 
 
 def _load_sessions_from_disk():
@@ -773,6 +779,24 @@ async def process_manual_upload(
     )
 
 
+def _get_ref_audio_duration(music_name: str) -> Optional[float]:
+    """
+    在 data/ref/ 中查找参考音频文件，返回其时长（秒）。
+    匹配策略：文件名（不含扩展名）与 music_name 精确匹配，或 music_name 包含在文件名中。
+    """
+    if not os.path.exists(REF_AUDIO_DIR):
+        return None
+    for fname in os.listdir(REF_AUDIO_DIR):
+        name_no_ext = os.path.splitext(fname)[0]
+        if name_no_ext == music_name or music_name in fname:
+            fpath = os.path.join(REF_AUDIO_DIR, fname)
+            try:
+                return round(librosa.get_duration(path=fpath), 2)
+            except Exception:
+                continue
+    return None
+
+
 async def slice_audio_file(
     file_path: str,
     output_dir: str,
@@ -820,11 +844,17 @@ async def slice_audio_file(
         
         for idx, segment_match in enumerate(result.segment_matches):
             start_time = max(0, segment_match.start_time)
-            end_time = min(audio_total_duration, segment_match.end_time)
-            
+
+            # 以参考音频的实际时长为准计算结束时间，使切分出的片段长度与参考音频一致
+            ref_duration = _get_ref_audio_duration(segment_match.music_name)
+            if ref_duration and ref_duration > 0:
+                end_time = min(start_time + ref_duration, audio_total_duration)
+            else:
+                end_time = min(audio_total_duration, segment_match.end_time)
+
             if end_time - start_time < 3.0:
                 continue
-            
+
             start_sample = int(start_time * sr)
             end_sample = int(end_time * sr)
             segment_audio = y[start_sample:end_sample]
@@ -1000,11 +1030,14 @@ def _import_single_segment(
         new_filename = f"{timestamp}_{segment.segment_filename}"
         target_path = os.path.join(target_dir, new_filename)
 
-        shutil.copy2(segment.file_path, target_path)
+        # 将 URL 路径（如 /data/dataset-builder/...）转回文件系统绝对路径
+        src_path = get_file_path(segment.file_path) if segment.file_path.startswith('/') else segment.file_path
+        shutil.copy2(src_path, target_path)
 
-        if segment.spectrogram_path and os.path.exists(segment.spectrogram_path):
+        spec_src = get_file_path(segment.spectrogram_path) if (segment.spectrogram_path and segment.spectrogram_path.startswith('/')) else (segment.spectrogram_path or '')
+        if spec_src and os.path.exists(spec_src):
             target_spec = target_path.replace('.wav', '.png')
-            shutil.copy2(segment.spectrogram_path, target_spec)
+            shutil.copy2(spec_src, target_spec)
 
         segment.status = DatasetItemStatus.IN_DATASET
 
@@ -1392,12 +1425,16 @@ async def create_from_detection(request: CreateFromDetectionRequest):
     从在线检测结果创建数据集构建会话
     保留模型预测值作为预标注
     """
+    log_operation("ENDPOINT_FROM_DETECTION",
+                  f"task_id={request.detection_task_id}, include_normal={request.include_normal}, include_anomaly={request.include_anomaly}")
     session = create_session(
         source_type=DataSourceType.DETECTION,
         detection_task_id=request.detection_task_id
     )
-    
+
     result = await process_detection_results(session, request)
+    log_operation("ENDPOINT_FROM_DETECTION_DONE",
+                  f"success={result.success}, segments={len(result.segments)}")
     return result
 
 
@@ -1416,6 +1453,8 @@ async def create_from_manual(
     - **algorithm**: 用于预测的算法（auto_predict 为 true 时有效）
     - **skip_slicing**: 是否跳过 Shazam 切分（true=整段保留，false=自动匹配切分）
     """
+    log_operation("ENDPOINT_FROM_MANUAL",
+                  f"files={len(files)}, auto_predict={auto_predict}, skip_slicing={skip_slicing}")
     session = create_session(source_type=DataSourceType.MANUAL)
 
     result = await process_manual_upload(
@@ -1425,6 +1464,8 @@ async def create_from_manual(
         algorithm=algorithm,
         skip_slicing=skip_slicing
     )
+    log_operation("ENDPOINT_FROM_MANUAL_DONE",
+                  f"success={result.success}, segments={len(result.segments)}, session_id={result.session_id}")
     return result
 
 
@@ -1437,12 +1478,16 @@ async def create_from_client_detection(request: CreateFromClientDetectionRequest
     - **result_ids**: 客户端检测结果的 ID 列表（从 /api/client/results 获取）
     - **auto_annotate_threshold**: 自动标注置信度阈值（0-1），默认 0.8
     """
+    log_operation("ENDPOINT_FROM_CLIENT",
+                  f"result_ids={request.result_ids}, threshold={request.auto_annotate_threshold}")
     session = create_session(
         source_type=DataSourceType.DETECTION,
         detection_task_id=None
     )
 
     result = await process_client_detection_results(session, request)
+    log_operation("ENDPOINT_FROM_CLIENT_DONE",
+                  f"success={result.success}, segments={len(result.segments)}")
     return result
 
 
@@ -1451,16 +1496,20 @@ async def preview_session(session_id: str):
     """
     预览会话中的数据
     """
+    log_operation("ENDPOINT_PREVIEW", f"session_id={session_id}")
     session = get_session(session_id)
     if not session:
+        log_operation("ENDPOINT_PREVIEW_FAIL", f"session_id={session_id} 不存在", "WARNING")
         raise HTTPException(status_code=404, detail="会话不存在")
-    
+
     # 按参考音频分组统计
     by_reference = {}
     for segment in session.segments:
         ref = segment.reference_audio
         by_reference[ref] = by_reference.get(ref, 0) + 1
-    
+
+    log_operation("ENDPOINT_PREVIEW_DONE",
+                  f"session_id={session_id}, segments={session.total_segments}")
     return DatasetPreviewResponse(
         session_id=session_id,
         segments=session.segments,
@@ -1482,38 +1531,43 @@ async def annotate_segment(
     """
     为单个片段添加人工标注
     """
+    log_operation("ENDPOINT_ANNOTATE", f"session_id={session_id}, segment_id={segment_id}, label={label}")
     session = get_session(session_id)
     if not session:
+        log_operation("ENDPOINT_ANNOTATE_FAIL", f"会话不存在: {session_id}", "WARNING")
         raise HTTPException(status_code=404, detail="会话不存在")
-    
+
     # 查找片段
     segment = None
     for s in session.segments:
         if s.segment_id == segment_id:
             segment = s
             break
-    
+
     if not segment:
+        log_operation("ENDPOINT_ANNOTATE_FAIL", f"片段不存在: {segment_id}", "WARNING")
         raise HTTPException(status_code=404, detail="片段不存在")
-    
+
     if label not in ("normal", "anomaly"):
         raise HTTPException(status_code=400, detail="标签必须是 normal 或 anomaly")
-    
+
     # 更新标注
     segment.manual_label = label
     segment.annotated_by = annotator
     segment.annotated_at = datetime.now().isoformat()
     segment.status = DatasetItemStatus.ANNOTATED
-    
+
     # 更新统计
-    session.normal_count = sum(1 for s in session.segments if s.manual_label == "normal" or 
+    session.normal_count = sum(1 for s in session.segments if s.manual_label == "normal" or
                                (s.manual_label is None and s.predicted_label == "normal"))
-    session.anomaly_count = sum(1 for s in session.segments if s.manual_label == "anomaly" or 
+    session.anomaly_count = sum(1 for s in session.segments if s.manual_label == "anomaly" or
                                 (s.manual_label is None and s.predicted_label == "anomaly"))
     session.unlabeled_count = sum(1 for s in session.segments if s.manual_label is None and s.predicted_label is None)
-    
+
     save_session(session)
-    
+
+    log_operation("ENDPOINT_ANNOTATE_DONE",
+                  f"session_id={session_id}, segment_id={segment_id}, label={label}")
     return {
         "success": True,
         "message": f"标注成功：{segment_id} -> {label}",
@@ -1526,11 +1580,15 @@ async def annotate_batch(session_id: str, request: BatchAnnotateRequest):
     """
     批量标注片段
     """
+    log_operation("ENDPOINT_ANNOTATE_BATCH",
+                  f"session_id={session_id}, annotations={len(request.annotations)}")
     if session_id != request.session_id:
+        log_operation("ENDPOINT_ANNOTATE_BATCH_FAIL", "会话ID不匹配", "WARNING")
         raise HTTPException(status_code=400, detail="会话ID不匹配")
-    
+
     session = get_session(session_id)
     if not session:
+        log_operation("ENDPOINT_ANNOTATE_BATCH_FAIL", f"会话不存在: {session_id}", "WARNING")
         raise HTTPException(status_code=404, detail="会话不存在")
     
     success_count = 0
@@ -1565,6 +1623,8 @@ async def annotate_batch(session_id: str, request: BatchAnnotateRequest):
     
     save_session(session)
     
+    log_operation("ENDPOINT_ANNOTATE_BATCH_DONE",
+                  f"session_id={session_id}, success={success_count}, failed={len(failed_items)}")
     return {
         "success": True,
         "message": f"批量标注完成：成功 {success_count} 个，失败 {len(failed_items)} 个",
@@ -1580,8 +1640,11 @@ async def confirm_to_dataset_endpoint(request: ConfirmToDatasetRequest):
     确认将会话中的数据导入正式数据集
     支持指定参考音频和自定义训练:测试比例
     """
+    log_operation("ENDPOINT_CONFIRM_TO_DATASET",
+                  f"session_id={request.session_id}, train_ratio={request.train_ratio}")
     session = get_session(request.session_id)
     if not session:
+        log_operation("ENDPOINT_CONFIRM_TO_DATASET_FAIL", f"会话不存在: {request.session_id}", "WARNING")
         raise HTTPException(status_code=404, detail="会话不存在")
 
     result = await confirm_to_dataset(
@@ -1592,6 +1655,8 @@ async def confirm_to_dataset_endpoint(request: ConfirmToDatasetRequest):
         train_ratio=request.train_ratio
     )
 
+    log_operation("ENDPOINT_CONFIRM_TO_DATASET_DONE",
+                  f"success={result.success}, imported={result.stats.get('imported')}")
     return result
 
 
@@ -1601,10 +1666,14 @@ async def confirm_all_annotated_endpoint(request: ConfirmAllAnnotatedRequest):
     一键将所有会话中已人工标注的片段导入正式数据集。
     无需指定 session_id，自动扫描所有会话中的已标注片段。
     """
+    log_operation("ENDPOINT_CONFIRM_ALL",
+                  f"train_ratio={request.train_ratio}, refs={request.reference_audios}")
     result = await confirm_all_annotated_to_dataset(
         reference_audios=request.reference_audios,
         train_ratio=request.train_ratio
     )
+    log_operation("ENDPOINT_CONFIRM_ALL_DONE",
+                  f"success={result.success}, imported={result.stats.get('imported')}, sessions={result.stats.get('session_count')}")
     return result
 
 
@@ -1614,10 +1683,14 @@ async def rebuild_dataset_endpoint(request: RebuildDatasetRequest):
     全量重建数据集：打乱所有已标注片段，按比例重新划分训练集/测试集。
     收集所有会话中 manual_label 非空的片段（不限 status），先备份后重建。
     """
+    log_operation("ENDPOINT_REBUILD",
+                  f"train_ratio={request.train_ratio}, refs={request.reference_audios}")
     result = await rebuild_dataset_from_all(
         reference_audios=request.reference_audios,
         train_ratio=request.train_ratio
     )
+    log_operation("ENDPOINT_REBUILD_DONE",
+                  f"success={result.success}, imported={result.stats.get('imported')}")
     return result
 
 
@@ -1626,8 +1699,11 @@ async def import_to_session(request: ImportToSessionRequest):
     """
     将检测结果追加导入到已有会话中（支持合并多个数据源到一个会话）
     """
+    log_operation("ENDPOINT_IMPORT_TO_SESSION",
+                  f"session_id={request.session_id}, source_type={request.source_type}")
     session = get_session(request.session_id)
     if not session:
+        log_operation("ENDPOINT_IMPORT_TO_SESSION_FAIL", f"会话不存在: {request.session_id}", "WARNING")
         raise HTTPException(status_code=404, detail="会话不存在")
 
     if session.status == "pending":
@@ -1639,6 +1715,8 @@ async def import_to_session(request: ImportToSessionRequest):
 
         # 去重检查
         if request.detection_task_id and request.detection_task_id in session.import_history:
+            log_operation("ENDPOINT_IMPORT_TO_SESSION_FAIL",
+                          f"检测任务 {request.detection_task_id} 已导入过", "WARNING")
             raise HTTPException(status_code=400, detail=f"检测任务 {request.detection_task_id} 已导入过")
 
         # 模拟 CreateFromDetectionRequest
@@ -1649,6 +1727,8 @@ async def import_to_session(request: ImportToSessionRequest):
             include_anomaly=request.include_anomaly
         )
         result = await process_detection_results(session, det_req)
+        log_operation("ENDPOINT_IMPORT_TO_SESSION_DONE",
+                      f"source_type=detection, segments={len(result.segments)}")
         return result
 
     elif request.source_type == "client_detection":
@@ -1670,9 +1750,12 @@ async def import_to_session(request: ImportToSessionRequest):
             auto_annotate_threshold=request.auto_annotate_threshold
         )
         result = await process_client_detection_results(session, client_req)
+        log_operation("ENDPOINT_IMPORT_TO_SESSION_DONE",
+                      f"source_type=client_detection, segments={len(result.segments)}")
         return result
 
     else:
+        log_operation("ENDPOINT_IMPORT_TO_SESSION_FAIL", f"不支持的数据源: {request.source_type}", "WARNING")
         raise HTTPException(status_code=400, detail=f"不支持的数据源类型: {request.source_type}")
 
 
@@ -1681,8 +1764,10 @@ async def preview_session_split(session_id: str, request: SplitPreviewRequest):
     """
     预览会话中的片段按参考音频和比例划分的结果
     """
+    log_operation("ENDPOINT_SPLIT_PREVIEW", f"session_id={session_id}, train_ratio={request.train_ratio}")
     session = get_session(session_id)
     if not session:
+        log_operation("ENDPOINT_SPLIT_PREVIEW_FAIL", f"会话不存在: {session_id}", "WARNING")
         raise HTTPException(status_code=404, detail="会话不存在")
 
     segments = session.segments
@@ -1747,8 +1832,11 @@ async def split_and_import(request: SplitImportRequest):
     """
     按参考音频和比例划分后导入正式数据集
     """
+    log_operation("ENDPOINT_SPLIT_AND_IMPORT",
+                  f"session_id={request.session_id}, train_ratio={request.train_ratio}")
     session = get_session(request.session_id)
     if not session:
+        log_operation("ENDPOINT_SPLIT_AND_IMPORT_FAIL", f"会话不存在: {request.session_id}", "WARNING")
         raise HTTPException(status_code=404, detail="会话不存在")
 
     # 检查是否有未标注的片段
@@ -1766,6 +1854,8 @@ async def split_and_import(request: SplitImportRequest):
         train_ratio=request.train_ratio
     )
 
+    log_operation("ENDPOINT_SPLIT_AND_IMPORT_DONE",
+                  f"success={result.success}, imported={result.stats.get('imported')}")
     return result
 
 
@@ -1791,6 +1881,8 @@ async def list_sessions():
 
     # 按时间倒序
     sessions.sort(key=lambda x: x["created_at"], reverse=True)
+    log_operation("ENDPOINT_LIST_SESSIONS",
+                  f"total_sessions={len(sessions)}, cached={len(BUILD_SESSIONS)}")
     return sessions
 
 
@@ -1799,10 +1891,12 @@ async def get_session_detail(session_id: str):
     """
     获取会话详细信息
     """
+    log_operation("ENDPOINT_GET_SESSION", f"session_id={session_id}")
     session = get_session(session_id)
     if not session:
+        log_operation("ENDPOINT_GET_SESSION_FAIL", f"会话不存在: {session_id}", "WARNING")
         raise HTTPException(status_code=404, detail="会话不存在")
-    
+
     return session
 
 
@@ -1811,23 +1905,26 @@ async def delete_session(session_id: str):
     """
     删除会话及其数据
     """
+    log_operation("ENDPOINT_DELETE_SESSION", f"session_id={session_id}")
     session = get_session(session_id)
     if not session:
+        log_operation("ENDPOINT_DELETE_SESSION_FAIL", f"会话不存在: {session_id}", "WARNING")
         raise HTTPException(status_code=404, detail="会话不存在")
-    
+
     # 删除会话目录
     session_dir = os.path.join(DATASET_BUILDER_DIR, session_id)
     if os.path.exists(session_dir):
         shutil.rmtree(session_dir)
-    
+
     # 删除会话文件
     session_file = os.path.join(DATASET_BUILDER_DIR, f"{session_id}.json")
     if os.path.exists(session_file):
         os.remove(session_file)
-    
+
     # 从内存中移除
     del BUILD_SESSIONS[session_id]
 
+    log_operation("ENDPOINT_DELETE_SESSION_DONE", f"session_id={session_id}")
     return {"success": True, "message": f"会话 {session_id} 已删除"}
 
 
@@ -1836,6 +1933,7 @@ async def get_available_tasks(limit: int = 50, offset: int = 0):
     """
     获取可用于数据集构建的已完成离线检测任务列表
     """
+    log_operation("ENDPOINT_AVAILABLE_TASKS", f"limit={limit}, offset={offset}")
     from backend.core.task_manager import task_manager
 
     all_tasks = list(task_manager.tasks.values())
@@ -1857,6 +1955,7 @@ async def get_available_tasks(limit: int = 50, offset: int = 0):
     total = len(completed)
     paged = completed[offset:offset + limit]
 
+    log_operation("ENDPOINT_AVAILABLE_TASKS_DONE", f"total={total}, returned={len(paged)}")
     return {"total": total, "tasks": paged, "limit": limit, "offset": offset}
 
 
@@ -1865,6 +1964,7 @@ async def get_available_client_results(limit: int = 50, offset: int = 0):
     """
     获取可用于数据集构建的客户端（在线）检测结果列表
     """
+    log_operation("ENDPOINT_AVAILABLE_CLIENT_RESULTS", f"limit={limit}, offset={offset}")
     from backend.core.client_monitor_service import client_detection_service
 
     total = client_detection_service.get_results_count()
@@ -1885,6 +1985,7 @@ async def get_available_client_results(limit: int = 50, offset: int = 0):
             "music_name": (r.get("segment_info") or {}).get("music_name") or r.get("music_name")
         })
 
+    log_operation("ENDPOINT_AVAILABLE_CLIENT_RESULTS_DONE", f"total={total}, returned={len(results)}")
     return {"total": total, "results": simplified, "limit": limit, "offset": offset}
 
 
