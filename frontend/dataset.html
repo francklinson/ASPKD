@@ -1732,12 +1732,6 @@
 							<polyline points="9 18 15 12 9 6"/>
 						</svg>
 					</button>
-					<button class="btn btn-success" id="btnConfirmDataset" onclick="confirmV2SessionToDataset()" style="display:none;flex:0.8;">
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<polyline points="20 6 9 17 4 12"/>
-						</svg>
-						✅ 确认导入正式数据集
-					</button>
 				</div>
 
 			</div>
@@ -4049,9 +4043,6 @@
             const allFilterTab = document.querySelector('.filter-tab[data-filter="all"]');
             if (allFilterTab) allFilterTab.classList.add('active');
 
-            // 显示"确认导入正式数据集"按钮
-            const confirmBtn = document.getElementById('btnConfirmDataset');
-            if (confirmBtn) confirmBtn.style.display = 'inline-flex';
 
             try {
                 const resp = await fetch(`/api/dataset/preview/${sessionId}`);
@@ -4077,7 +4068,7 @@
                         status: s.status,  // 片段状态（用于展示已导入标记）
                         _v2session: sessionId,
                         _v2segment_id: s.segment_id
-                    });});
+                    }));
 
                     currentSegments = v1Segments;
                     renderV2SegmentsList(v1Segments);
@@ -4244,79 +4235,6 @@
             }
         }
         // 配置划分并导入到正式数据集
-        function confirmV2SessionToDataset() {
-            if (!currentV2SessionId) {
-                alert('请先预览一个数据集构建会话');
-                return;
-            }
-
-            // 收集可用的参考音频列表
-            const refAudios = [...new Set(currentSegments.map(s => s.reference_audio).filter(Boolean))];
-            const totalSegments = currentSegments.length;
-
-            // 弹窗选择配置
-            const ratio = prompt(
-                `【划分配置】\n当前会话: ${totalSegments} 个片段, ${refAudios.length} 个参考音频\n\n输入训练集:测试集比例（默认 10:1）\n例如 10 表示 训练集:测试集 = 10:1\n\n参考音频: ${refAudios.join(', ')}`,
-                '10'
-            );
-            if (ratio === null) return;
-            const trainRatio = parseInt(ratio) || 10;
-
-            // 参考音频选择
-            let selectedRefs = null;
-            if (refAudios.length > 1) {
-                const input = prompt(
-                    `可用参考音频: ${refAudios.join(', ')}\n\n使用全部请留空\n或输入要使用的名称（用逗号分隔）`,
-                    refAudios.join(', ')
-                );
-                if (input === null) return;
-                if (input.trim()) {
-                    selectedRefs = input.split(',').map(s => s.trim()).filter(s => refAudios.includes(s));
-                    if (selectedRefs.length === 0) {
-                        alert('未选择有效的参考音频');
-                        return;
-                    }
-                }
-            }
-
-            logMessage(`📋 开始导入: 会话 ${currentV2SessionId.slice(-8)}, 比例 ${trainRatio}:1, 参考音频 ${selectedRefs ? selectedRefs.join(', ') : '全部'}`, 'info');
-
-            fetch('/api/dataset/confirm-to-dataset', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    session_id: currentV2SessionId,
-                    reference_audios: selectedRefs,
-                    train_ratio: trainRatio
-                })
-            })
-            .then(r => r.json())
-            .then(result => {
-                if (result.success || result.stats?.imported > 0) {
-                    const stats = result.stats || {};
-                    const details = stats.split_details;
-                    let summary = `${stats.imported || 0} 个片段已加入数据集`;
-                    if (details) {
-                        const lines = Object.entries(details).map(([cat, st]) =>
-                            `${cat}: 训练${st.train} 测试正常${st.test_normal} 异常${st.test_anomaly}`
-                        );
-                        lines.forEach(l => logMessage(`📊 ${l}`, 'success'));
-                        summary += '\n' + lines.join('\n');
-                    }
-                    logMessage(`✅ 导入完成: ${stats.imported || 0} 个片段已加入数据集`, 'success');
-                    alert(`导入成功！\n${summary}`);
-                    refreshStats();
-                    loadV2Sessions();
-                } else {
-                    alert('导入失败: ' + (result.message || ''));
-                    logMessage('❌ 导入失败: ' + (result.message || ''), 'error');
-                }
-            })
-            .catch(err => {
-                alert('导入请求失败: ' + err.message);
-                logMessage('❌ 导入请求失败: ' + err.message, 'error');
-            });
-        }
 
         // ============================================================
         // 构建模式切换

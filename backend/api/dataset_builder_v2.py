@@ -183,15 +183,6 @@ class DatasetPreviewResponse(BaseModel):
     by_reference: Dict[str, int]
 
 
-class ConfirmToDatasetRequest(BaseModel):
-    """确认导入数据集请求"""
-    session_id: str
-    segment_ids: Optional[List[str]] = None  # None表示全部导入
-    target_category: Optional[str] = None  # 指定目标类别
-    reference_audios: Optional[List[str]] = None  # 指定参考音频列表（None表示全部）
-    train_ratio: int = 10  # 训练集:测试集比例，默认 10:1
-
-
 class ConfirmAllAnnotatedRequest(BaseModel):
     """一键确认所有已标注片段导入数据集请求（增量）"""
     reference_audios: Optional[List[str]] = None  # None 表示全部
@@ -1632,32 +1623,6 @@ async def annotate_batch(session_id: str, request: BatchAnnotateRequest):
         "failed_count": len(failed_items),
         "failed_items": failed_items
     }
-
-
-@router.post("/confirm-to-dataset")
-async def confirm_to_dataset_endpoint(request: ConfirmToDatasetRequest):
-    """
-    确认将会话中的数据导入正式数据集
-    支持指定参考音频和自定义训练:测试比例
-    """
-    log_operation("ENDPOINT_CONFIRM_TO_DATASET",
-                  f"session_id={request.session_id}, train_ratio={request.train_ratio}")
-    session = get_session(request.session_id)
-    if not session:
-        log_operation("ENDPOINT_CONFIRM_TO_DATASET_FAIL", f"会话不存在: {request.session_id}", "WARNING")
-        raise HTTPException(status_code=404, detail="会话不存在")
-
-    result = await confirm_to_dataset(
-        session=session,
-        segment_ids=request.segment_ids,
-        target_category=request.target_category,
-        reference_audios=request.reference_audios,
-        train_ratio=request.train_ratio
-    )
-
-    log_operation("ENDPOINT_CONFIRM_TO_DATASET_DONE",
-                  f"success={result.success}, imported={result.stats.get('imported')}")
-    return result
 
 
 @router.post("/confirm-all-annotated", response_model=DatasetBuildResponse)
