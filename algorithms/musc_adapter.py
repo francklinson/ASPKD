@@ -94,7 +94,7 @@ class MuScBaseAdapter(BaseDetector):
         pretrained_models_dir = 'models/pre_trained'
         feature_layers = [5, 11, 17, 23]
         pretrained = 'openai' if not self.backbone.startswith('dino') else 'laion400m_e31'
-        
+
         # 尝试从配置读取
         try:
             if hasattr(config_manager, 'config') and 'models' in config_manager.config:
@@ -112,7 +112,12 @@ class MuScBaseAdapter(BaseDetector):
                                 pretrained = backbone_config['pretrained']
         except Exception as e:
             print(f"[MuSc] Warning: Failed to load config, using defaults: {e}")
-        
+
+        # 确保 pretrained_models_dir 为绝对路径（防止 CWD 非项目根目录时出错）
+        if not os.path.isabs(pretrained_models_dir):
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            pretrained_models_dir = os.path.normpath(os.path.join(project_root, pretrained_models_dir))
+
         print(f"[MuSc] Model configuration:")
         print(f"[MuSc]   - Pretrained models dir: {pretrained_models_dir}")
         print(f"[MuSc]   - Feature layers: {feature_layers}")

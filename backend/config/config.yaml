@@ -163,6 +163,43 @@ algorithms:
     thresholds:
       default: 0.5
 
+  # SubspaceAD系列 (少样本检测)
+  subspacead_dinov2_large_672:
+    name: "SubspaceAD DINOv2-Large@672px"
+    type: "few_shot"
+    thresholds:
+      default: 0.5
+
+  subspacead_dinov2_large_518:
+    name: "SubspaceAD DINOv2-Large@518px"
+    type: "few_shot"
+    thresholds:
+      default: 0.5
+
+  subspacead_dinov2_large_336:
+    name: "SubspaceAD DINOv2-Large@336px"
+    type: "few_shot"
+    thresholds:
+      default: 0.5
+
+  subspacead_dinov2_base_672:
+    name: "SubspaceAD DINOv2-Base@672px"
+    type: "few_shot"
+    thresholds:
+      default: 0.5
+
+  subspacead_dinov2_base_518:
+    name: "SubspaceAD DINOv2-Base@518px"
+    type: "few_shot"
+    thresholds:
+      default: 0.5
+
+  subspacead_dinov2_small_672:
+    name: "SubspaceAD DINOv2-Small@672px"
+    type: "few_shot"
+    thresholds:
+      default: 0.5
+
 # 模型权重路径配置 - 统一从 pre_trained 目录读取
 models:
   # 预训练模型根目录
@@ -272,6 +309,17 @@ models:
   resnet:
     resnet18: "models/pre_trained/resnet18-f37072fd.pth"
     wide_resnet50_2: "models/pre_trained/wide_resnet50_2-95faca4d.pth"
+
+  # SubspaceAD 少样本检测系列
+  # 使用 HuggingFace 的 DINOv2-with-registers 模型
+  # 首次运行时自动下载并缓存到 models/pre_trained/huggingface/
+  subspacead:
+    dinov2-large-672: "models/pre_trained/dinov2_vitl14_reg4_pretrain.pth"
+    dinov2-large-518: "models/pre_trained/dinov2_vitl14_reg4_pretrain.pth"
+    dinov2-large-336: "models/pre_trained/dinov2_vitl14_reg4_pretrain.pth"
+    dinov2-base-672: "models/pre_trained/dinov2_vitb14_reg4_pretrain.pth"
+    dinov2-base-518: "models/pre_trained/dinov2_vitb14_reg4_pretrain.pth"
+    dinov2-small-672: "models/pre_trained/dinov2_vits14_reg4_pretrain.pth"
 
 # 推理配置
 inference:

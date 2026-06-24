@@ -247,83 +247,194 @@ except Exception as e:
 # 检查模型文件
 check_models() {
     print_step 5 6 "检查模型文件"
-    
-    local model_dirs=("$PROJECT_DIR/models/pre_trained" "$PROJECT_DIR/models/saved")
-    
-    for model_dir in "${model_dirs[@]}"; do
+
+    local PRETRAINED_DIR="$PROJECT_DIR/models/pre_trained"
+    local SAVED_DIR="$PROJECT_DIR/models/saved"
+
+    # ── 辅助函数：计算相对路径 ──
+    _rel_path() {
+        local full="$1"
+        echo "${full#$PROJECT_DIR/}"
+    }
+
+    # ── 辅助函数：打印单行模型信息（路径/大小/类型） ──
+    _model_line() {
+        # $1: 文件完整路径  $2: 描述标签
+        local f="$1" tag="$2"
+        local rp=$(_rel_path "$f")
+        if [ ! -e "$f" ]; then
+            echo -e "  ${YELLOW}⚠${NC} ${tag}  ${YELLOW}[缺失]  ${rp}${NC}"
+            return 1
+        fi
+        local sz=$(du -h "$f" 2>/dev/null | cut -f1)
+        local icon="📄"
+        local link=""
+        if [ -L "$f" ]; then
+            icon="🔗"
+            local target
+            target=$(readlink "$f")
+            link=" → ${target##*/}"
+        fi
+        echo -e "  ${GREEN}✓${NC} ${icon} ${BLUE}${rp}${NC}  ${sz}${link}"
+        return 0
+    }
+
+    _ls_model() {
+        # 列出单个文件（缩进版）
+        local f="$1"
+        local rp=$(_rel_path "$f")
+        local sz=$(du -h "$f" 2>/dev/null | cut -f1)
+        local icon=" "
+        local link=""
+        if [ -L "$f" ]; then
+            icon="🔗"
+            link=" → $(basename "$(readlink "$f")")"
+        fi
+        echo -e "    ${icon} ${rp}  ${sz}${link}"
+    }
+
+    # ═══════════════════════════════════════════
+    # 1. 目录概览 + 列出所有文件
+    # ═══════════════════════════════════════════
+    for model_dir in "$PRETRAINED_DIR" "$SAVED_DIR"; do
         local dir_name=$(basename "$model_dir")
         if [ -d "$model_dir" ]; then
-            local pth_count=$(find "$model_dir" -name "*.pth" 2>/dev/null | wc -l)
-            if [ $pth_count -gt 0 ]; then
-                print_success "$dir_name: $pth_count 个模型"
-                # 显示前3个
-                find "$model_dir" -name "*.pth" -exec basename {} \; 2>/dev/null | head -3 | sed 's/^/  - /'
-                if [ $pth_count -gt 3 ]; then
-                    echo "  ... 还有 $((pth_count - 3)) 个模型"
-                fi
+            local files=()
+            while IFS= read -r -d '' f; do files+=("$f"); done < \
+                <(find "$model_dir" -maxdepth 1 \( -name "*.pth" -o -name "*.pt" -o -name "*.pckl" \) -print0 2>/dev/null | sort -z)
+            local total=${#files[@]}
+            local total_sz=$(du -sh "$model_dir" 2>/dev/null | cut -f1)
+            if [ $total -gt 0 ]; then
+                echo -e "  ${GREEN}✓${NC} ${BLUE}${dir_name}/${NC} — ${total} 个权重文件, ${total_sz}"
+                for f in "${files[@]}"; do _ls_model "$f"; done
             else
-                print_warning "$dir_name: 暂无模型"
+                echo -e "  ${YELLOW}⚠${NC} ${dir_name}/: 暂无文件"
             fi
         else
-            print_warning "创建目录: $dir_name"
+            echo -e "  ${YELLOW}⚠${NC} 创建目录: ${dir_name}/"
             mkdir -p "$model_dir"
         fi
     done
-    
-    # 检查关键基础模型（backbone）
+
+    # efficientad 子目录
+    local ef_dir="$PRETRAINED_DIR/efficientad_pretrained_weights"
+    if [ -d "$ef_dir" ]; then
+        local ef_files=()
+        while IFS= read -r -d '' f; do ef_files+=("$f"); done < \
+            <(find "$ef_dir" -maxdepth 1 -name "*.pth" -print0 2>/dev/null | sort -z)
+        if [ ${#ef_files[@]} -gt 0 ]; then
+            local ef_sz=$(du -sh "$ef_dir" 2>/dev/null | cut -f1)
+            echo -e "  ${GREEN}✓${NC} ${BLUE}efficientad_pretrained_weights/${NC} — ${#ef_files[@]} 个文件, ${ef_sz}"
+            for f in "${ef_files[@]}"; do _ls_model "$f"; done
+        fi
+    fi
+
+    # ═══════════════════════════════════════════
+    # 2. 关键基础模型
+    # ═══════════════════════════════════════════
     echo ""
-    print_info "检查关键基础模型..."
-    
+    echo -e "  ${BLUE}▸ 关键基础模型（缺失 → 阻止启动）${NC}"
+    echo ""
+
     local required_models=(
-        "dinov2_vits14_pretrain.pth:基础backbone"
-        "dinov2_vitb14_pretrain.pth:基础backbone"
-        "dinov2_vitl14_pretrain.pth:基础backbone"
-        "wide_resnet50_2-95faca4d.pth:基础backbone"
-        "resnet18-f37072fd.pth:基础backbone"
+        "dinov2_vits14_pretrain.pth:DINOv2 ViT-Small/14"
+        "dinov2_vitb14_pretrain.pth:DINOv2 ViT-Base/14"
+        "dinov2_vitl14_pretrain.pth:DINOv2 ViT-Large/14"
+        "wide_resnet50_2-95faca4d.pth:Wide ResNet-50-2"
+        "resnet18-f37072fd.pth:ResNet-18"
+        "dinov2_vits14_reg4_pretrain.pth:DINOv2-S/14+Reg4 (SubspaceAD)"
+        "dinov2_vitb14_reg4_pretrain.pth:DINOv2-B/14+Reg4 (SubspaceAD)"
+        "dinov2_vitl14_reg4_pretrain.pth:DINOv2-L/14+Reg4 (SubspaceAD)"
     )
-    
+
     local missing_required=()
-    for item in "${required_models[@]}"; do
-        local model_file=$(echo "$item" | cut -d':' -f1)
-        local model_desc=$(echo "$item" | cut -d':' -f2)
-        
-        if [ -f "$PROJECT_DIR/models/pre_trained/$model_file" ]; then
-            print_success "$model_desc: $model_file"
+    for entry in "${required_models[@]}"; do
+        local fname="${entry%%:*}"
+        local label="${entry#*:}"
+        if _model_line "$PRETRAINED_DIR/$fname" "$label"; then
+            :
         else
-            print_warning "$model_desc: $model_file 缺失"
-            missing_required+=("$model_file")
+            missing_required+=("$fname")
         fi
     done
-    
-    # 检查算法特定模型（仅警告，不阻止启动）
+
+    # ═══════════════════════════════════════════
+    # 3. 算法训练模型（可选）
+    # ═══════════════════════════════════════════
     echo ""
-    print_info "检查算法训练模型（可选）..."
-    
+    echo -e "  ${BLUE}▸ 算法训练模型（可选，首次使用时下载/训练）${NC}"
+    echo ""
+
     local algorithm_models=(
-        "dinomaly_dinov2_small.pth:Dinomaly算法"
-        "dinomaly_dinov3_small.pth:Dinomaly算法"
-        "mambaad_best.pth:MambaAD算法"
-        "patchcore_best.pth:PatchCore算法"
+        "dinomaly_dinov2_small.pth:Dinomaly DINOv2 Small (自训练)"
+        "dinomaly_dinov3_small.pth:Dinomaly DINOv3 Small (自训练)"
+        "mambaad_best.pth:MambaAD 状态空间模型"
+        "invad_best.pth:InVad 生成式模型"
+        "vitad_best.pth:ViTAD Transformer"
+        "unad_best.pth:UniAD 统一架构"
+        "cflow_best.pth:CFlow 归一化流"
+        "pyramidflow_best.pth:PyramidFlow 金字塔流"
+        "simplenet_best.pth:SimpleNet 特征学习"
+        "patchcore_best.pth:PatchCore 特征嵌入 (Anomalib)"
+        "efficientad_best.pth:EfficientAD 轻量级 (Anomalib)"
+        "padim_best.pth:PaDiM 特征嵌入 (Anomalib)"
+        "denseae_best.pth:DenseAE 自编码器 (BaseASD)"
+        "cae_best.pth:CAE 自编码器 (BaseASD)"
+        "vae_best.pth:VAE 自编码器 (BaseASD)"
+        "ViT-B-32.pt:MuSc 零样本 — CLIP ViT-B/32"
+        "ViT-B-16.pt:MuSc 零样本 — CLIP ViT-B/16"
+        "ViT-L-14.pt:MuSc 零样本 — CLIP ViT-L/14"
+        "ViT-L-14-336px.pt:MuSc 零样本 — CLIP ViT-L/14@336px"
     )
-    
-    for item in "${algorithm_models[@]}"; do
-        local model_file=$(echo "$item" | cut -d':' -f1)
-        local model_desc=$(echo "$item" | cut -d':' -f2)
-        
-        if [ -f "$PROJECT_DIR/models/pre_trained/$model_file" ]; then
-            print_success "$model_desc: $model_file"
-        else
-            print_info "$model_desc: $model_file 未找到（将在首次训练时生成）"
-        fi
+
+    for entry in "${algorithm_models[@]}"; do
+        local fname="${entry%%:*}"
+        local label="${entry#*:}"
+        _model_line "$PRETRAINED_DIR/$fname" "$label"
     done
-    
+
+    # ═══════════════════════════════════════════
+    # 4. 子目录模型
+    # ═══════════════════════════════════════════
+    echo ""
+    echo -e "  ${BLUE}▸ 子目录模型文件${NC}"
+    echo ""
+
+    local subdir_models=(
+        "efficientad_pretrained_weights/pretrained_teacher_small.pth:EfficientAD 教师网络 (small)"
+        "efficientad_pretrained_weights/pretrained_teacher_medium.pth:EfficientAD 教师网络 (medium)"
+    )
+
+    for entry in "${subdir_models[@]}"; do
+        local fname="${entry%%:*}"
+        local label="${entry#*:}"
+        _model_line "$PRETRAINED_DIR/$fname" "$label"
+    done
+
+    # ═══════════════════════════════════════════
+    # 5. 缺失汇总与下载指引
+    # ═══════════════════════════════════════════
     if [ ${#missing_required[@]} -gt 0 ]; then
         echo ""
-        print_warning "缺少关键基础模型，部分功能可能无法正常使用"
-        print_info "请从以下地址下载预训练模型:"
-        print_info "  - DINOv2: https://github.com/facebookresearch/dinov2"
-        print_info "  - ResNet: https://download.pytorch.org/models/"
+        echo -e "  ${YELLOW}╔══════════════════════════════════════════════════════╗${NC}"
+        echo -e "  ${YELLOW}║  缺少 ${#missing_required[@]} 个关键基础模型，部分功能不可用            ║${NC}"
+        echo -e "  ${YELLOW}╚══════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "  ${NC}缺失文件:${NC}"
+        for m in "${missing_required[@]}"; do
+            echo -e "    • ${m}"
+        done
+        echo ""
+        echo -e "  ${NC}下载地址:${NC}"
+        echo -e "    DINOv2 → https://dl.fbaipublicfiles.com/dinov2/"
+        echo -e "    ResNet → https://download.pytorch.org/models/"
+        echo -e "    CLIP   → https://openaipublic.azureedge.net/clip/models/"
+        echo ""
+        echo -e "  ${NC}下载后放入: ${BLUE}${PRETRAINED_DIR}${NC}"
+        echo -e "  ${NC}缺失模型将在首次运行时尝试自动下载${NC}"
     fi
+
+    unset -f _model_line _ls_model
 }
 
 # 检查端口

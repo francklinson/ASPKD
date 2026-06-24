@@ -89,14 +89,20 @@ if os.path.exists(config_path):
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
         env_config = config.get('environments', {})
-        
+
         env_set_count = 0
         for key, value in env_config.items():
             if value and key not in os.environ:
-                os.environ[key] = str(value)
+                # 将相对路径转为绝对路径（基于项目根目录）
+                abs_value = str(value)
+                # 检查是否是相对路径（以 models/、data/ 等开头）
+                if not os.path.isabs(abs_value) and not abs_value.startswith('/'):
+                    abs_value = os.path.join(project_root, abs_value)
+                    abs_value = os.path.normpath(abs_value)
+                os.environ[key] = abs_value
                 env_set_count += 1
-                print_info(f"设置环境变量: {key}={value}")
-        
+                print_info(f"设置环境变量: {key}={abs_value}")
+
         if env_set_count > 0:
             print_success(f"已设置 {env_set_count} 个环境变量")
         else:

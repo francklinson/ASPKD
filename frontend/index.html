@@ -35,8 +35,8 @@
             <button class="tab" style="display:none" onclick="switchTab('monitor')">📡 实时监控</button>
             <button class="tab" onclick="switchTab('client-monitor')">🖥️ 在线检测</button>
             <button class="tab" style="display:none" onclick="switchTab('cluster')">📊 特征聚类</button>
-            <button class="tab" style="display:none" onclick="switchTab('zero-shot')">🎯 零样本检测</button>
-            <button class="tab" style="display:none" onclick="switchTab('few-shot')">🔬 少样本检测</button>
+            <button class="tab" onclick="switchTab('zero-shot')">🎯 零样本检测</button>
+            <button class="tab" onclick="switchTab('few-shot')">🔬 少样本检测</button>
             <button class="tab" onclick="switchTab('tasks')">📋 任务管理</button>
             <button class="tab" onclick="switchTab('reference')">🎵 参考音频库</button>
             <button class="tab" onclick="switchTab('dataset-builder')">🗂️ 数据集构建</button>
@@ -452,8 +452,8 @@
             </div>
         </div>
 
-        <!-- 零样本检测 (已隐藏，待后续开发) -->
-        <div id="zero-shot" class="content" style="display:none">
+        <!-- 零样本检测 -->
+        <div id="zero-shot" class="content">
             <div class="row">
                 <!-- 左侧：上传和设置 -->
                 <div class="card">
@@ -589,8 +589,8 @@
             </div>
         </div>
 
-        <!-- 少样本检测 (已隐藏，待后续开发) -->
-        <div id="few-shot" class="content" style="display:none">
+        <!-- 少样本检测 -->
+        <div id="few-shot" class="content">
             <div class="row">
                 <!-- 左侧：参考样本上传 -->
                 <div class="card">
