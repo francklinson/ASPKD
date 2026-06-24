@@ -11,6 +11,8 @@ import numpy as np
 from typing import Optional, List, Dict, Tuple
 from PIL import Image
 import cv2
+import torch
+import torch.nn.functional as F
 
 from backend.core import BaseDetector, DetectionResult, register_algorithm
 

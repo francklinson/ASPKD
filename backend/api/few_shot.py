@@ -279,9 +279,11 @@ def run_few_shot_analysis(
         # 执行批量推理
         log_operation("INFERENCE", f"任务ID={task_id}, 开始推理, {len(test_paths)} 个测试文件")
         
-        # 限制参考样本数量
-        if len(ref_paths) > k_shot:
-            ref_paths = ref_paths[:k_shot]
+        # 使用用户上传的所有参考图（不再被 k_shot 限制）
+        # k_shot 参数仅在未提供参考图时（auto-reference）用于从测试集中选取
+        if len(ref_paths) > 50:
+            log_operation("REF_LIMIT", f"任务ID={task_id}, 参考图超过50张，取前50张")
+            ref_paths = ref_paths[:50]
         
         results = detector.predict_batch(test_paths, ref_paths)
         

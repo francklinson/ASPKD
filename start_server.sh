@@ -359,7 +359,48 @@ check_models() {
     done
 
     # ═══════════════════════════════════════════
-    # 3. 算法训练模型（可选）
+    # 3. SubspaceAD transformers 模型（本地目录）
+    # ═══════════════════════════════════════════
+    echo ""
+    echo -e "  ${BLUE}▸ SubspaceAD 少样本模型（本地目录）${NC}"
+    echo ""
+
+    local DINOV2_DIR="$PRETRAINED_DIR/dinov2"
+    if [ -d "$DINOV2_DIR" ]; then
+        local dinov2_backbones=(
+            "dinov2-with-registers-small:DINOv2-S/14+Reg4 (384dim)"
+            "dinov2-with-registers-base:DINOv2-B/14+Reg4  (768dim)"
+            "dinov2-with-registers-large:DINOv2-L/14+Reg4 (1024dim)"
+        )
+        for entry in "${dinov2_backbones[@]}"; do
+            local dirname="${entry%%:*}"
+            local label="${entry#*:}"
+            local dirpath="$DINOV2_DIR/$dirname"
+            if [ -d "$dirpath" ]; then
+                local has_cfg=0; [ -f "$dirpath/config.json" ] && has_cfg=1
+                local has_proc=0; [ -f "$dirpath/preprocessor_config.json" ] && has_proc=1
+                local has_weights=0
+                if [ -f "$dirpath/model.safetensors" ]; then
+                    has_weights=1
+                elif [ -f "$dirpath/pytorch_model.bin" ]; then
+                    has_weights=1
+                fi
+                local sz=$(du -sh "$dirpath" 2>/dev/null | cut -f1)
+                if [ $has_cfg -eq 1 ] && [ $has_proc -eq 1 ] && [ $has_weights -eq 1 ]; then
+                    echo -e "  ${GREEN}✓${NC} ${BLUE}dinov2/$dirname/${NC}  ${sz}  ${label}"
+                else
+                    echo -e "  ${YELLOW}⚠${NC} ${YELLOW}dinov2/$dirname/${NC}  ${sz}  [不完整]"
+                fi
+            else
+                echo -e "  ${YELLOW}⚠${NC} 缺失 ${YELLOW}dinov2/$dirname/${NC}  — ${label}"
+            fi
+        done
+    else
+        echo -e "  ${YELLOW}⚠${NC} dinov2/ 目录不存在，SubspaceAD 少样本检测不可用"
+    fi
+
+    # ═══════════════════════════════════════════
+    # 4. 算法训练模型（可选）
     # ═══════════════════════════════════════════
     echo ""
     echo -e "  ${BLUE}▸ 算法训练模型（可选，首次使用时下载/训练）${NC}"
@@ -394,7 +435,7 @@ check_models() {
     done
 
     # ═══════════════════════════════════════════
-    # 4. 子目录模型
+    # 5. 子目录模型
     # ═══════════════════════════════════════════
     echo ""
     echo -e "  ${BLUE}▸ 子目录模型文件${NC}"
@@ -412,7 +453,7 @@ check_models() {
     done
 
     # ═══════════════════════════════════════════
-    # 5. 缺失汇总与下载指引
+    # 6. 缺失汇总与下载指引
     # ═══════════════════════════════════════════
     if [ ${#missing_required[@]} -gt 0 ]; then
         echo ""
