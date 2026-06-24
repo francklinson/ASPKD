@@ -123,18 +123,50 @@ class SubspaceADBaseAdapter(BaseDetector):
         print(f"[SubspaceAD] [MODEL LOAD COMPLETE] Total time: {total_time:.2f}s")
         print(f"[SubspaceAD] {'='*60}")
 
+    def _compute_image_score(self, tokens: np.ndarray, pca_params: dict) -> float:
+        """从 tokens 和 PCA 参数计算单张图像的原始异常分数"""
+        from src.subspacead.post_process.scoring import calculate_anomaly_scores, post_process_map
+
+        b, h, w, c = tokens.shape
+        tokens_flat = tokens.reshape(b * h * w, c)
+
+        scores = calculate_anomaly_scores(tokens_flat, pca_params, self.score_method, self.drop_k)
+        anomaly_map = scores.reshape(h, w)
+        anomaly_map_resized = post_process_map(anomaly_map, self.img_size, blur=True)
+
+        if self.img_score_agg == 'max':
+            return float(np.max(anomaly_map_resized))
+        elif self.img_score_agg == 'p99':
+            return float(np.percentile(anomaly_map_resized, 99))
+        elif self.img_score_agg == 'mtop5':
+            return float(np.mean(np.sort(anomaly_map_resized.flatten())[-5:]))
+        elif self.img_score_agg == 'mtop1p':
+            flat = anomaly_map_resized.ravel()
+            k = max(1, int(len(flat) * 0.01))
+            idx = np.argpartition(flat, -k)[-k:]
+            return float(np.mean(flat[idx]))
+        else:
+            return float(np.mean(anomaly_map_resized))
+
     def _fit_pca(self, image_paths: List[str]) -> None:
-        """在参考图像上拟合 PCA 模型"""
+        """
+        拟合 PCA 并校准归一化参数。
+
+        流程：
+        1. 提取所有参考图的 tokens（每图独立保存）
+        2. LOO 校准：对每张图，用其余 N-1 张图的 tokens 拟合 PCA，
+           然后计算这张图的异常分数（真正的"未见样本"误差）
+        3. 用全部参考图拟合最终 PCA（用于测试图像评分）
+        """
         from src.subspacead.core.pca import PCAModel
 
         print(f"[SubspaceAD] Fitting PCA on {len(image_paths)} reference images...")
 
-        # 加载并处理参考图像
-        all_tokens = []
+        # 步骤 1：提取 tokens（每张参考图独立保留）
+        per_image_tokens = []
         for path in image_paths:
             img = Image.open(path).convert('RGB')
             img_resized = img.resize((self.img_size, self.img_size), Image.BICUBIC)
-
             tokens, (h_p, w_p), _ = self._extractor.extract_tokens(
                 [img_resized],
                 self.img_size,
@@ -145,102 +177,109 @@ class SubspaceADBaseAdapter(BaseDetector):
                 use_clahe=self.use_clahe,
                 dino_saliency_layer=6,
             )
-            all_tokens.append(tokens)
+            per_image_tokens.append(tokens)
 
-        # 合并所有 tokens
-        all_tokens = np.concatenate(all_tokens, axis=0)
-        b, h, w, c = all_tokens.shape
-        tokens_flat = all_tokens.reshape(b * h * w, c)
+        self._patch_h, self._patch_w = per_image_tokens[0].shape[1], per_image_tokens[0].shape[2]
 
-        print(f"[SubspaceAD] Total tokens for PCA: {tokens_flat.shape}")
+        # 步骤 2：留一法（LOO）校准
+        self._calibrate_normal_scores(per_image_tokens)
 
-        # 拟合 PCA
+        # 步骤 3：用全部 tokens 拟合最终 PCA
+        all_tokens = np.concatenate(per_image_tokens, axis=0)
+        b, h, w_feat, c = all_tokens.shape
+        all_tokens_flat = all_tokens.reshape(b * h * w_feat, c)
+
+        print(f"[SubspaceAD] Final PCA on all {b} images ({all_tokens_flat.shape[0]} tokens)...")
         self._pca_model = PCAModel(k=self.pca_dim, ev=self.pca_ev, whiten=False)
 
-        # 创建特征生成器
         def feature_generator():
-            yield tokens_flat
+            yield all_tokens_flat
 
         self._pca_params = self._pca_model.fit(
             feature_generator,
             feature_dim=c,
-            total_tokens=tokens_flat.shape[0],
+            total_tokens=all_tokens_flat.shape[0],
             num_batches=1
         )
 
-        print(f"[SubspaceAD] PCA fitted with {self._pca_params['k']} components")
+        print(f"[SubspaceAD] Final PCA fitted with {self._pca_params['k']} components")
 
-        # 计算参考样本的异常分数用于归一化
-        self._calibrate_normal_scores(image_paths)
-
-    def _calibrate_normal_scores(self, image_paths: List[str]) -> None:
+    def _calibrate_normal_scores(self, per_image_tokens: list) -> None:
         """
-        基于参考样本计算正常分数范围，用于后续归一化。
-        使用参考样本的最大分数作为"正常上限"，将分数映射到 [0, 1] 范围。
+        留一法交叉验证（LOO）校准分数。
+
+        对 N 张参考图的每张图 i：
+          用其他 N-1 张拟合 PCA → 对第 i 张图计算异常分数
+        这些是"未经 PCA 拟合的正常图"的真实误差估计。
+
+        N<3 时回退到带启发式修正的原始校准。
         """
-        from src.subspacead.post_process.scoring import calculate_anomaly_scores
+        from src.subspacead.core.pca import PCAModel
 
-        print(f"[SubspaceAD] Calibrating normal scores from {len(image_paths)} reference images...")
+        N = len(per_image_tokens)
+        print(f"[SubspaceAD] LOO calibration on {N} reference images...")
 
-        normal_scores = []
-        for path in image_paths:
-            img = Image.open(path).convert('RGB')
-            img_resized = img.resize((self.img_size, self.img_size), Image.BICUBIC)
+        if N >= 3:
+            loo_scores = []
+            for i in range(N):
+                # 训练 tokens：除第 i 张外的所有图
+                train_np = np.concatenate(
+                    [t for j, t in enumerate(per_image_tokens) if j != i], axis=0
+                )
+                b, h, w_f, c = train_np.shape
+                train_flat = train_np.reshape(b * h * w_f, c)
 
-            tokens, (h_p, w_p), _ = self._extractor.extract_tokens(
-                [img_resized],
-                self.img_size,
-                self.layers,
-                self.agg_method,
-                [],
-                docrop=False,
-                use_clahe=self.use_clahe,
-                dino_saliency_layer=6,
-            )
+                # 拟合 PCA（用 N-1 张图）
+                pca_model = PCAModel(k=self.pca_dim, ev=self.pca_ev, whiten=False)
+                def gen(): yield train_flat
+                loo_params = pca_model.fit(gen, c, train_flat.shape[0], 1)
 
-            b, h, w, c = tokens.shape
-            tokens_flat = tokens.reshape(b * h * w, c)
+                # 对第 i 张图评分（真正的"未见样本"误差）
+                score = self._compute_image_score(per_image_tokens[i], loo_params)
+                loo_scores.append(score)
+                print(f"[SubspaceAD]   LOO[{i+1}/{N}]: score={score:.4f} "
+                      f"(PCA on {b} images, {loo_params['k']} components)")
 
-            scores = calculate_anomaly_scores(
-                tokens_flat,
-                self._pca_params,
-                self.score_method,
-                self.drop_k,
-            )
-            anomaly_map = scores.reshape(h, w)
+            normal_scores = np.array(loo_scores)
+            print(f"[SubspaceAD] LOO scores: {[f'{s:.4f}' for s in loo_scores]}")
+        else:
+            # N < 3：回退到原始方法（在 per_image_tokens 上直接评分），加宽边界
+            print(f"[SubspaceAD] N={N} < 3, using widened heuristic calibration")
+            normal_scores = np.array([
+                self._compute_image_score(t, {"mu": np.zeros(1), "components": np.zeros((1, 1)),
+                     "eigvals": np.ones(1), "k": 0, "eps": 1e-6})  # dummy
+                for t in per_image_tokens
+            ])
+            # 无法做 LOO，用启发式宽边界
+            self._normal_score_mean = 0.0
+            self._normal_score_std = 0.0
+            # 宽边界预估
+            if len(per_image_tokens) > 0:
+                # 先计算每个图的特征范数作为分数量级参考
+                norms = []
+                for t in per_image_tokens:
+                    features = t.reshape(-1, t.shape[-1])
+                    norms.append(float(np.mean(np.linalg.norm(features, axis=1))))
+                ref_norm = np.mean(norms)
+                self._normal_score_mean = 0.01 * ref_norm
+                self._normal_score_std = 0.5 * self._normal_score_mean
+                print(f"[SubspaceAD] Heuristic: ref_norm={ref_norm:.4f}, "
+                      f"estimated mean={self._normal_score_mean:.4f}")
 
-            # 后处理：上采样到原始尺寸（与预测阶段保持一致）
-            from src.subspacead.post_process.scoring import post_process_map
-            anomaly_map_resized = post_process_map(anomaly_map, self.img_size, blur=True)
+            self._score_lower_bound = max(0, self._normal_score_mean - 2 * self._normal_score_std)
+            self._score_upper_bound = self._normal_score_mean + 4 * self._normal_score_std
+            print(f"[SubspaceAD] Heuristic bounds: [{self._score_lower_bound:.4f}, {self._score_upper_bound:.4f}]")
+            return
 
-            # 计算图像级分数（使用与预测相同的聚合方法）
-            if self.img_score_agg == 'max':
-                img_score = float(np.max(anomaly_map_resized))
-            elif self.img_score_agg == 'p99':
-                img_score = float(np.percentile(anomaly_map_resized, 99))
-            elif self.img_score_agg == 'mtop5':
-                img_score = float(np.mean(np.sort(anomaly_map_resized.flatten())[-5:]))
-            elif self.img_score_agg == 'mtop1p':
-                flat = anomaly_map_resized.ravel()
-                k = max(1, int(len(flat) * 0.01))
-                idx = np.argpartition(flat, -k)[-k:]
-                img_score = float(np.mean(flat[idx]))
-            else:
-                img_score = float(np.mean(anomaly_map_resized))
-
-            normal_scores.append(img_score)
-
-        # 计算归一化参数
-        normal_scores = np.array(normal_scores)
+        # 从 LOO 分数计算归一化参数
         self._normal_score_min = float(np.min(normal_scores))
         self._normal_score_max = float(np.max(normal_scores))
         self._normal_score_mean = float(np.mean(normal_scores))
         self._normal_score_std = float(np.std(normal_scores))
 
-        # 处理只有一个参考样本的情况（std=0）
         if self._normal_score_std < 1e-6:
-            self._normal_score_std = self._normal_score_mean * 0.1 if self._normal_score_mean > 0 else 0.01
-            print(f"[SubspaceAD] Single reference detected, using estimated std={self._normal_score_std:.4f}")
+            self._normal_score_std = self._normal_score_mean * 0.5 if self._normal_score_mean > 0 else 0.01
+            print(f"[SubspaceAD] Low std detected, using 0.5*mean as std={self._normal_score_std:.4f}")
 
         self._score_upper_bound = self._normal_score_mean + 4 * self._normal_score_std
         self._score_lower_bound = max(0, self._normal_score_mean - 2 * self._normal_score_std)
@@ -248,9 +287,10 @@ class SubspaceADBaseAdapter(BaseDetector):
         if self._score_upper_bound <= self._score_lower_bound:
             self._score_upper_bound = self._score_lower_bound + self._normal_score_mean * 0.5
 
-        print(f"[SubspaceAD] Normal score range: [{self._normal_score_min:.4f}, {self._normal_score_max:.4f}]")
-        print(f"[SubspaceAD] Normal score stats: mean={self._normal_score_mean:.4f}, std={self._normal_score_std:.4f}")
-        print(f"[SubspaceAD] Score bounds for normalization: [{self._score_lower_bound:.4f}, {self._score_upper_bound:.4f}]")
+        print(f"[SubspaceAD] LOO calibration: mean={self._normal_score_mean:.4f}, "
+              f"std={self._normal_score_std:.4f}")
+        print(f"[SubspaceAD] Normalization bounds: [{self._score_lower_bound:.4f}, {self._score_upper_bound:.4f}]")
+        print(f"[SubspaceAD] Mapping: lower→0.3, mean→0.5, upper→0.7, above→0.7-1.0")
 
     def _normalize_score(self, raw_score: float) -> float:
         """
@@ -297,7 +337,7 @@ class SubspaceADBaseAdapter(BaseDetector):
 
     def _calculate_anomaly_score(self, image_path: str) -> tuple:
         """计算单张图像的异常分数"""
-        from src.subspacead.post_process.scoring import calculate_anomaly_scores, post_process_map
+        from src.subspacead.post_process.scoring import post_process_map
 
         # 加载图像
         img = Image.open(image_path).convert('RGB')
@@ -315,35 +355,16 @@ class SubspaceADBaseAdapter(BaseDetector):
             dino_saliency_layer=6,
         )
 
-        b, h, w, c = tokens.shape
-        tokens_flat = tokens.reshape(b * h * w, c)
+        # 计算原始分数 + 后处理热力图
+        raw_score = self._compute_image_score(tokens, self._pca_params)
 
-        # 计算异常分数
-        scores = calculate_anomaly_scores(
-            tokens_flat,
-            self._pca_params,
-            self.score_method,
-            self.drop_k,
-        )
-        anomaly_map = scores.reshape(h, w)
-
-        # 后处理：上采样到原始尺寸
+        # 生成热力图（后处理上采样）
+        b, h, w_f, c = tokens.shape
+        tokens_flat = tokens.reshape(b * h * w_f, c)
+        from src.subspacead.post_process.scoring import calculate_anomaly_scores
+        scores = calculate_anomaly_scores(tokens_flat, self._pca_params, self.score_method, self.drop_k)
+        anomaly_map = scores.reshape(h, w_f)
         anomaly_map_resized = post_process_map(anomaly_map, self.img_size, blur=True)
-
-        # 计算图像级原始分数
-        if self.img_score_agg == 'max':
-            raw_score = float(np.max(anomaly_map_resized))
-        elif self.img_score_agg == 'p99':
-            raw_score = float(np.percentile(anomaly_map_resized, 99))
-        elif self.img_score_agg == 'mtop5':
-            raw_score = float(np.mean(np.sort(anomaly_map_resized.flatten())[-5:]))
-        elif self.img_score_agg == 'mtop1p':
-            flat = anomaly_map_resized.ravel()
-            k = max(1, int(len(flat) * 0.01))
-            idx = np.argpartition(flat, -k)[-k:]
-            raw_score = float(np.mean(flat[idx]))
-        else:
-            raw_score = float(np.mean(anomaly_map_resized))
 
         # 归一化分数到 [0, 1] 范围
         normalized_score = self._normalize_score(raw_score)
