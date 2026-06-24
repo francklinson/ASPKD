@@ -169,10 +169,11 @@ def create_detector(algorithm_name: str,
 def list_available_algorithms() -> List[str]:
     """
     列出所有可用算法
-    
+
     Returns:
         算法名称列表
     """
+    _import_adapters()
     return AlgorithmRegistry.list_algorithms()
 
 
