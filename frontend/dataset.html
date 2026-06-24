@@ -326,6 +326,11 @@
             color: #1890ff;
         }
 
+        .segment-status.predicted {
+            background: #fffbe6;
+            color: #d4b106;
+        }
+
         .segment-item .segment-actions {
             display: flex;
             gap: 4px;
@@ -1746,7 +1751,7 @@
 		</div>
 
 		<!-- 右侧：音频片段列表 -->
-		<div class="card segments-panel">
+		<div class="card segments-panel" id="segmentsPanel" style="display:none;">
 			<h2 class="card-title">
 				<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
@@ -3988,6 +3993,16 @@
             }
         }
 
+        // 构建标注进度 HTML
+        function buildAnnotationProgressHtml(session) {
+            const total = session.total_segments || 0;
+            const annotated = session.annotated_count || 0;
+            if (total === 0) return "";
+            if (annotated >= total) {
+                return '<span style="color:#52c41a;">✅ 全部已完成标注</span>';
+            }
+            return '<span style="color:#888;">标注: ' + annotated + '/' + total + '</span>';
+        }
         function renderV2SessionItem(session) {
             const div = document.createElement('div');
             div.className = 'session-item';
@@ -4018,6 +4033,9 @@
                         <span style="font-size:10px;color:#999;margin-left:6px;">${session.created_at ? new Date(session.created_at).toLocaleString() : ''}</span>
                     </div>
                     ${sourceDetailHtml}
+                    <div style="font-size:11px;margin-top:2px;">
+                        ${buildAnnotationProgressHtml(session)}
+                    </div>
                 </div>
                 <span class="session-status-badge ${session.status}">${statusText}</span>
                 <div class="session-actions">
@@ -4049,6 +4067,7 @@
                 const data = await resp.json();
 
                 // 将会话中的片段加载到右侧片段列表
+                document.getElementById('segmentsPanel').style.display = '';
                 if (data.segments && data.segments.length > 0) {
                     const v1Segments = data.segments.map(s => ({
                         segment_id: s.segment_id,
@@ -4061,7 +4080,8 @@
                         reference_audio: s.reference_audio,
                         start_time: s.start_time || 0,
                         end_time: s.end_time || 0,
-                        label: s.manual_label || s.predicted_label,
+                        label: s.manual_label,
+                        predicted_label: s.predicted_label,
                         annotated_at: s.annotated_at,
                         source_type: s.source_type,
                         predicted_score: s.predicted_score,
@@ -4099,22 +4119,25 @@
                 const div = document.createElement('div');
                 div.className = 'segment-item';
                 div.dataset.segmentId = seg.segment_id;
-                const label = seg.label;
-                const segStatus = seg.status;  // 后端返回的 status，如 "annotated", "in_dataset"
+                const label = seg.label;          // manual_label
+                const segStatus = seg.status;    // 后端返回的 status
                 let statusHtml = '<span class="segment-status unlabeled">未标注</span>';
                 if (segStatus === 'in_dataset') {
                     statusHtml = '<span class="segment-status in-dataset">已导入</span>';
-                } else if (label === 'normal') statusHtml = '<span class="segment-status normal">正常</span>';
-                else if (label === 'anomaly') statusHtml = '<span class="segment-status anomaly">异常</span>';
+                } else if (segStatus === 'annotated' && label) {
+                    // 已人工标注
+                    if (label === 'normal') statusHtml = '<span class="segment-status normal">正常</span>';
+                    else if (label === 'anomaly') statusHtml = '<span class="segment-status anomaly">异常</span>';
+                } else if (seg.predicted_label) {
+                    // 模型预标注（未人工标注）
+                    const plabel = seg.predicted_label === 'normal' ? '预正常' : '预异常';
+                    statusHtml = `<span class="segment-status predicted">${plabel}</span>`;
+                }
 
-                // 显示预标注信息
+                // 预测分数（只要有就显示）
                 let predictedHtml = '';
                 if (seg.predicted_score !== undefined && seg.predicted_score !== null) {
                     predictedHtml = `<span style="font-size:11px;color:#888;"> 预测:${Number(seg.predicted_score).toFixed(3)}</span>`;
-                    if (seg.predicted_label && !seg.label) {
-                        const plabel = seg.predicted_label === 'normal' ? '正常' : '异常';
-                        predictedHtml += `<span class="item-badge ${seg.predicted_label === 'normal' ? 'badge-normal' : 'badge-anomaly'}" style="margin-left:4px;font-size:10px;">预${plabel}</span>`;
-                    }
                 }
 
                 // 标注时间信息
@@ -4225,6 +4248,7 @@
                             + '<p style="font-size: 13px; margin-top: 8px;">请先上传音频文件</p></div>';
                         document.getElementById('playerSection').style.display = 'none';
                         document.getElementById('emptyPlayer').style.display = 'block';
+                        document.getElementById('segmentsPanel').style.display = 'none';
                     }
                     loadV2Sessions();
                 } else {

@@ -1840,6 +1840,8 @@ async def list_sessions():
             "total_segments": session.total_segments,
             "normal_count": session.normal_count,
             "anomaly_count": session.anomaly_count,
+            "annotated_count": sum(1 for s in session.segments if s.manual_label is not None),
+            "unlabeled_count": session.unlabeled_count,
             "source_details": session.source_details,  # 返回详细来源信息
             "import_history": session.import_history  # 返回导入历史（去重用）
         })
