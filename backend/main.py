@@ -175,30 +175,30 @@ async def favicon():
         return FileResponse(favicon_path, media_type="image/svg+xml")
     raise HTTPException(status_code=404, detail="Favicon not found")
 
-# 热力图静态文件服务
+# 热力图静态文件服务（确保目录存在，否则首次少样本/零样本检测时图片无法挂载）
 visualize_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "output", "vis")
-if os.path.exists(visualize_path):
-    app.mount("/visualize", StaticFiles(directory=visualize_path), name="visualize")
+os.makedirs(visualize_path, exist_ok=True)
+app.mount("/visualize", StaticFiles(directory=visualize_path), name="visualize")
 
 # 音频切片和输出文件服务
 output_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "output")
-if os.path.exists(output_path):
-    app.mount("/output", StaticFiles(directory=output_path), name="output")
+os.makedirs(output_path, exist_ok=True)
+app.mount("/output", StaticFiles(directory=output_path), name="output")
 
 # 数据集临时文件服务
 uploads_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "uploads")
-if os.path.exists(uploads_path):
-    app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
+os.makedirs(uploads_path, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
 
 # 数据集静态文件服务
 data_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "spk")
-if os.path.exists(data_path):
-    app.mount("/data/spk", StaticFiles(directory=data_path), name="dataset")
+os.makedirs(data_path, exist_ok=True)
+app.mount("/data/spk", StaticFiles(directory=data_path), name="dataset")
 
 # 数据集构建工作区静态文件服务
 dataset_builder_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "dataset_builder")
-if os.path.exists(dataset_builder_path):
-    app.mount("/data/dataset-builder", StaticFiles(directory=dataset_builder_path), name="dataset_builder")
+os.makedirs(dataset_builder_path, exist_ok=True)
+app.mount("/data/dataset-builder", StaticFiles(directory=dataset_builder_path), name="dataset_builder")
 
 
 @app.get("/")

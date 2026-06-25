@@ -60,8 +60,13 @@ directories_to_check = [
     ("algorithms", "算法目录"),
     ("data", "数据目录"),
     ("models", "模型目录"),
-    ("uploads", "上传目录"),
-    ("output", "输出目录"),
+    ("data/uploads", "上传文件目录"),
+    ("data/output", "输出数据目录"),
+    ("data/output/vis", "可视化输出目录"),
+    ("data/spk", "数据集目录"),
+    ("data/dataset_builder", "数据集构建工作区目录"),
+    ("data/ref", "参考音频目录"),
+    ("logs", "日志目录"),
 ]
 
 for dir_name, description in directories_to_check:

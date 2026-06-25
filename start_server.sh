@@ -117,7 +117,7 @@ check_directories() {
     print_step 1 6 "检查项目环境"
     print_info "项目目录: $PROJECT_DIR"
     
-    local dirs=("backend" "algorithms" "data" "models" "uploads" "output" "logs")
+    local dirs=("backend" "algorithms" "data" "models" "data/uploads" "data/output" "data/output/vis" "data/spk" "data/dataset_builder" "data/ref" "logs")
     for dir in "${dirs[@]}"; do
         if [ -d "$PROJECT_DIR/$dir" ]; then
             print_success "目录存在: $dir/"
