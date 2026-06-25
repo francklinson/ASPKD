@@ -243,32 +243,64 @@ class SubspaceADBaseAdapter(BaseDetector):
             normal_scores = np.array(loo_scores)
             print(f"[SubspaceAD] LOO scores: {[f'{s:.4f}' for s in loo_scores]}")
         else:
-            # N < 3：回退到原始方法（在 per_image_tokens 上直接评分），加宽边界
-            print(f"[SubspaceAD] N={N} < 3, using widened heuristic calibration")
-            normal_scores = np.array([
-                self._compute_image_score(t, {"mu": np.zeros(1), "components": np.zeros((1, 1)),
-                     "eigvals": np.ones(1), "k": 0, "eps": 1e-6})  # dummy
-                for t in per_image_tokens
-            ])
-            # 无法做 LOO，用启发式宽边界
-            self._normal_score_mean = 0.0
-            self._normal_score_std = 0.0
-            # 宽边界预估
-            if len(per_image_tokens) > 0:
-                # 先计算每个图的特征范数作为分数量级参考
-                norms = []
-                for t in per_image_tokens:
-                    features = t.reshape(-1, t.shape[-1])
-                    norms.append(float(np.mean(np.linalg.norm(features, axis=1))))
-                ref_norm = np.mean(norms)
-                self._normal_score_mean = 0.01 * ref_norm
-                self._normal_score_std = 0.5 * self._normal_score_mean
-                print(f"[SubspaceAD] Heuristic: ref_norm={ref_norm:.4f}, "
-                      f"estimated mean={self._normal_score_mean:.4f}")
+            # N < 3：用参考图自身的 PCA 重建误差作为校准基线
+            # 避免使用任意因子估算，改用实际重建误差计算
+            print(f"[SubspaceAD] N={N} < 3, using self-reconstruction calibration")
 
-            self._score_lower_bound = max(0, self._normal_score_mean - 2 * self._normal_score_std)
-            self._score_upper_bound = self._normal_score_mean + 4 * self._normal_score_std
-            print(f"[SubspaceAD] Heuristic bounds: [{self._score_lower_bound:.4f}, {self._score_upper_bound:.4f}]")
+            if N >= 2:
+                # N == 2：2 折交叉验证——每张图用另一张训练的 PCA 评分
+                loo_scores = []
+                for i in range(N):
+                    j = 1 - i
+                    train_np = per_image_tokens[j]
+                    b, h, w_f, c = train_np.shape
+                    train_flat = train_np.reshape(b * h * w_f, c)
+
+                    pca_model = PCAModel(k=self.pca_dim, ev=self.pca_ev, whiten=False)
+                    def _gen2(): yield train_flat
+                    loo_params = pca_model.fit(_gen2, c, train_flat.shape[0], 1)
+                    score = self._compute_image_score(per_image_tokens[i], loo_params)
+                    loo_scores.append(score)
+
+                normal_scores = np.array(loo_scores)
+                print(f"[SubspaceAD] 2-fold LOO scores: {[f'{s:.4f}' for s in loo_scores]}")
+            else:
+                # N == 1：在单张图上拟合 PCA，评分自身作为基线
+                # 这给出"图内补丁变异"的重建误差量级
+                tokens = per_image_tokens[0]
+                b, h, w_f, c = tokens.shape
+                tokens_flat = tokens.reshape(b * h * w_f, c)
+
+                pca_model = PCAModel(k=self.pca_dim, ev=self.pca_ev, whiten=False)
+                def _gen1(): yield tokens_flat
+                pca_params = pca_model.fit(_gen1, c, tokens_flat.shape[0], 1)
+                score = self._compute_image_score(tokens, pca_params)
+                normal_scores = np.array([score])
+                print(f"[SubspaceAD] Self-reconstruction score: {score:.4f}")
+
+            # 使用参考分数计算校准参数
+            self._normal_score_mean = float(np.mean(normal_scores))
+            self._normal_score_std = float(np.std(normal_scores))
+
+            # 对于单样本，std 可能为 0，使用保守的默认值
+            if self._normal_score_std < 1e-6:
+                self._normal_score_std = max(self._normal_score_mean * 2.0, 0.1)
+                print(f"[SubspaceAD] Low std, using {self._normal_score_std:.4f}")
+
+            # N < 3 时放宽边界（因为校准样本太少）
+            if N == 2:
+                widen = 2.0
+            else:
+                widen = 3.0  # N==1 时更宽松
+            self._score_lower_bound = max(0, self._normal_score_mean - widen * self._normal_score_std)
+            self._score_upper_bound = self._normal_score_mean + 2 * widen * self._normal_score_std
+
+            if self._score_upper_bound <= self._score_lower_bound:
+                self._score_upper_bound = self._score_lower_bound + self._normal_score_mean * 0.5 + 0.1
+
+            print(f"[SubspaceAD] N<3 calibration: mean={self._normal_score_mean:.4f}, std={self._normal_score_std:.4f}")
+            print(f"[SubspaceAD] Bounds: [{self._score_lower_bound:.4f}, {self._score_upper_bound:.4f}]")
+            print(f"[SubspaceAD] Mapping: lower→0.3, mean→0.5, upper→0.7, above→0.7-1.0")
             return
 
         # 从 LOO 分数计算归一化参数
