@@ -79,7 +79,7 @@ if 'torch' in sys.modules:
 else:
     print(f"[Main] torch not yet imported - good")
 
-from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor, dataset_builder, dataset_builder_v2, auth, training
+from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor, dataset_builder, dataset_builder_v2, auth, training, custom_detection
 from backend.core.websocket import websocket_manager
 from backend.core.task_manager import task_manager
 
@@ -154,6 +154,7 @@ app.include_router(dataset_builder.router, prefix="/api/dataset", tags=["数据�
 app.include_router(dataset_builder_v2.router, prefix="/api/dataset", tags=["数据集构建 V2"])
 app.include_router(auth.router, prefix="/api/auth", tags=["用户认证"])
 app.include_router(training.router, prefix="/api/training", tags=["模型训练"])
+app.include_router(custom_detection.router, prefix="/api/custom-detection", tags=["自定义检测"])
 
 # WebSocket 路由 - 使用标准装饰器方式
 @app.websocket("/ws/progress/{task_id}")
