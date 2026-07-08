@@ -31,7 +31,8 @@ EXCLUDED_ALGORITHMS = {
 ALGORITHM_GROUPS = {
     "Dinomaly": ["dinomaly_dinov3_small", "dinomaly_dinov3_base", "dinomaly_dinov3_large",
                  "dinomaly_dinov2_small", "dinomaly_dinov2_base", "dinomaly_dinov2_large"],
-    "Dinomaly2 (预览)": ["dinomaly2_dinov2_small", "dinomaly2_dinov2_base", "dinomaly2_dinov2_large"],
+    "Dinomaly2 (预览)": ["dinomaly2_dinov2_small", "dinomaly2_dinov2_base", "dinomaly2_dinov2_large",
+                         "dinomaly2_dinov3_small", "dinomaly2_dinov3_base", "dinomaly2_dinov3_large"],
     "Anomalib": ["patchcore", "cfa", "csflow", "dfkde", "dfm", "draem", "dsr",
                  "efficient_ad", "fastflow", "fre", "padim", "reverse_distillation",
                  "stfpm", "ganomaly", "supersimplenet", "uflow", "uninet", "vlm_ad", "winclip",

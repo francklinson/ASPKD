@@ -58,26 +58,32 @@ async function loadCustomAlgorithms() {
 
         select.innerHTML = '';
 
-        // 按分组添加 optgroup
-        const groupOrder = ['Dinomaly', 'Anomalib', 'BaseASD', 'MuSc (零样本)', 'SubspaceAD (少样本)'];
+        // 按分组添加 optgroup（优先展示的组，其余组按字母序追加）
+        const groupOrder = ['Dinomaly', 'Dinomaly2 (预览)', 'Anomalib', 'BaseASD', 'MuSc (零样本)', 'SubspaceAD (少样本)'];
         let hasOptions = false;
+
+        // 记录已渲染的组名
+        const renderedGroups = new Set();
 
         for (const groupName of groupOrder) {
             const algs = data.groups?.[groupName];
             if (!algs || algs.length === 0) continue;
-
-            const group = document.createElement('optgroup');
-            group.label = `── ${groupName} ──`;
-
-            algs.forEach(alg => {
-                const option = document.createElement('option');
-                option.value = alg.id;
-                option.textContent = alg.name || alg.id;
-                group.appendChild(option);
-            });
-
-            select.appendChild(group);
+            _renderGroup(select, groupName, algs);
+            renderedGroups.add(groupName);
             hasOptions = true;
+        }
+
+        // 追加 groupOrder 中没有的新组
+        if (data.groups) {
+            Object.keys(data.groups).forEach(groupName => {
+                if (!renderedGroups.has(groupName)) {
+                    const algs = data.groups[groupName];
+                    if (algs && algs.length > 0) {
+                        _renderGroup(select, groupName, algs);
+                        hasOptions = true;
+                    }
+                }
+            });
         }
 
         if (!hasOptions) {
@@ -92,6 +98,19 @@ async function loadCustomAlgorithms() {
             select.innerHTML = `<option>⚠️ 加载失败: ${e.message}</option>`;
         }
     }
+}
+
+// 辅助: 渲染一个算法组到 select
+function _renderGroup(select, groupName, algs) {
+    const group = document.createElement('optgroup');
+    group.label = `── ${groupName} ──`;
+    algs.forEach(alg => {
+        const option = document.createElement('option');
+        option.value = alg.id;
+        option.textContent = alg.name || alg.id;
+        group.appendChild(option);
+    });
+    select.appendChild(group);
 }
 
 // ============ 数据集加载 ============

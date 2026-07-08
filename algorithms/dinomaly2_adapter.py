@@ -3,7 +3,7 @@ Dinomaly2 算法适配器
 "One Dinomaly2 Detect Them All" — 统一全频谱无监督异常检测
 GitHub: https://github.com/guojiajeremy/Dinomaly2
 
-支持: DINOv2 Small / Base / Large 骨干网络
+支持: DINOv2 (reg) / DINOv3 Small / Base / Large 骨干网络
 """
 
 import os
@@ -29,6 +29,40 @@ if _algorithms_dir not in sys.path:
 if _DINOMALY2_DIR not in sys.path:
     sys.path.insert(0, _DINOMALY2_DIR)
 
+# 骨干网络配置: {key: (embed_dim, num_heads, target_layers, use_get_intermediate)}
+_BACKBONE_CONFIG = {
+    # --- DINOv2 with registers ---
+    "dinov2reg_vit_small_14":  (384,  6,  [2, 3, 4, 5, 6, 7, 8, 9],   False),
+    "dinov2reg_vit_base_14":   (768,  12, [2, 3, 4, 5, 6, 7, 8, 9],   False),
+    "dinov2reg_vit_large_14":  (1024, 16, [4, 6, 8, 10, 12, 14, 16, 18], False),
+    # --- DINOv3 ---
+    "dinov3_vits16":           (384,  6,  [2, 3, 4, 5, 6, 7, 8, 9],   True),
+    "dinov3_vitb16":           (768,  12, [2, 3, 4, 5, 6, 7, 8, 9],   True),
+    "dinov3_vitl16":           (1024, 16, [4, 6, 8, 10, 12, 14, 16, 18], True),
+}
+
+
+def _resolve_backbone(backbone: str):
+    """解析骨干网络名称，返回完整配置"""
+    if backbone in _BACKBONE_CONFIG:
+        return _BACKBONE_CONFIG[backbone]
+
+    # 模糊匹配: 通过 small/base/large + v2/v3 关键词
+    is_v3 = "v3" in backbone.lower() or "dinov3" in backbone.lower()
+    is_large = "large" in backbone.lower()
+    is_base = "base" in backbone.lower()
+
+    if is_v3:
+        embed_dim, heads, layers, use_gi = (1024, 16, [4, 6, 8, 10, 12, 14, 16, 18], True) if is_large else \
+                                           (768, 12, [2, 3, 4, 5, 6, 7, 8, 9], True) if is_base else \
+                                           (384, 6, [2, 3, 4, 5, 6, 7, 8, 9], True)
+    else:
+        embed_dim, heads, layers, use_gi = (1024, 16, [4, 6, 8, 10, 12, 14, 16, 18], False) if is_large else \
+                                           (768, 12, [2, 3, 4, 5, 6, 7, 8, 9], False) if is_base else \
+                                           (384, 6, [2, 3, 4, 5, 6, 7, 8, 9], False)
+
+    return embed_dim, heads, layers, use_gi
+
 
 class Dinomaly2Inference:
     """Dinomaly2 推理引擎"""
@@ -40,9 +74,9 @@ class Dinomaly2Inference:
         device: str = "cuda",
         image_size: int = 448,
         crop_size: int = 392,
-        lc: int = 2,        # loose constraint level
-        la: bool = True,     # linear attention
-        cr: bool = True,     # context-aware recentering
+        lc: int = 2,
+        la: bool = True,
+        cr: bool = True,
         dropout: float = 0.4,
     ):
         self.model_path = model_path
@@ -54,54 +88,42 @@ class Dinomaly2Inference:
         self.la = la
         self.cr = cr
         self.dropout = dropout
+
+        # 解析骨干网络参数
+        self._embed_dim, self._num_heads, self._target_layers, self._use_intermediate = \
+            _resolve_backbone(backbone)
+
         self._model = None
         self._transform = None
         self._gt_transform = None
 
     def _build_model(self):
-        """构建 Dinomaly2 模型"""
+        """构建 Dinomaly2 模型（自动适配 DINOv2/v3）"""
         from models.uad import Dinomaly
         from models import vit_encoder
         from models.vision_transformer import Block as VitBlock, LinearAttention2, Attention
 
-        # 1. 解析骨干网络参数
-        encoder_name = self.backbone
-        if "small" in encoder_name:
-            embed_dim, num_heads = 384, 6
-            target_layers = [2, 3, 4, 5, 6, 7, 8, 9]
-        elif "base" in encoder_name:
-            embed_dim, num_heads = 768, 12
-            target_layers = [2, 3, 4, 5, 6, 7, 8, 9]
-        elif "large" in encoder_name:
-            embed_dim, num_heads = 1024, 16
-            target_layers = [4, 6, 8, 10, 12, 14, 16, 18]
-        else:
-            raise ValueError(f"Unknown backbone: {encoder_name}")
+        # 直接用预解析的参数
+        embed_dim = self._embed_dim
+        num_heads = self._num_heads
+        target_layers = self._target_layers
+        use_intermediate = self._use_intermediate
 
-        # 2. Fuse layer 配置
-        if self.lc == 0:
-            fuse_layer_encoder = [[0], [1], [2], [3], [4], [5], [6], [7]]
-            fuse_layer_decoder = [[0], [1], [2], [3], [4], [5], [6], [7]]
-        elif self.lc == 1:
-            fuse_layer_encoder = [[0, 1, 2, 3, 4, 5, 6, 7]]
-            fuse_layer_decoder = [[0, 1, 2, 3, 4, 5, 6, 7]]
-        elif self.lc == 2:
-            fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
-            fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
-        elif self.lc == 3:
-            fuse_layer_encoder = [[0, 1, 2], [3, 4, 5], [6, 7]]
-            fuse_layer_decoder = [[0, 1, 2], [3, 4, 5], [6, 7]]
-        elif self.lc == 4:
-            fuse_layer_encoder = [[0, 1], [2, 3], [4, 5], [6, 7]]
-            fuse_layer_decoder = [[0, 1], [2, 3], [4, 5], [6, 7]]
-        else:
-            fuse_layer_encoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
-            fuse_layer_decoder = [[0, 1, 2, 3], [4, 5, 6, 7]]
+        # 1. Fuse layer 配置
+        fuse_presets = {
+            0: ([[0], [1], [2], [3], [4], [5], [6], [7]],  [[0], [1], [2], [3], [4], [5], [6], [7]]),
+            1: ([[0, 1, 2, 3, 4, 5, 6, 7]],            [[0, 1, 2, 3, 4, 5, 6, 7]]),
+            2: ([[0, 1, 2, 3], [4, 5, 6, 7]],            [[0, 1, 2, 3], [4, 5, 6, 7]]),
+            3: ([[0, 1, 2], [3, 4, 5], [6, 7]],          [[0, 1, 2], [3, 4, 5], [6, 7]]),
+            4: ([[0, 1], [2, 3], [4, 5], [6, 7]],        [[0, 1], [2, 3], [4, 5], [6, 7]]),
+        }
+        fuse_layer_encoder, fuse_layer_decoder = fuse_presets.get(
+            self.lc, ([[0, 1, 2, 3], [4, 5, 6, 7]], [[0, 1, 2, 3], [4, 5, 6, 7]]))
 
-        # 3. 构建编码器
+        # 2. 构建编码器
         encoder = vit_encoder.load(encoder_name)
 
-        # 4. 构建瓶颈层 (Noisy Bottleneck)
+        # 3. 构建瓶颈层 (Noisy Bottleneck)
         bottleneck = nn.ModuleList([
             nn.Sequential(nn.Linear(embed_dim, 256), nn.Dropout(p=self.dropout)),
             nn.Sequential(
@@ -112,7 +134,7 @@ class Dinomaly2Inference:
             )
         ])
 
-        # 5. 构建解码器
+        # 4. 构建解码器
         decoder = nn.ModuleList([
             VitBlock(
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=4.,
@@ -122,7 +144,7 @@ class Dinomaly2Inference:
             for _ in range(8)
         ])
 
-        # 6. 组合完整模型
+        # 5. 组合模型 — DINOv3 自动开 use_get_intermediate
         model = Dinomaly(
             encoder=encoder,
             bottleneck=bottleneck,
@@ -132,6 +154,7 @@ class Dinomaly2Inference:
             fuse_layer_encoder=fuse_layer_encoder,
             fuse_layer_decoder=fuse_layer_decoder,
             context_aware_recenter=self.cr,
+            use_get_intermediate=use_intermediate,
         )
 
         return model
@@ -264,6 +287,7 @@ class Dinomaly2BaseAdapter(BaseDetector):
 # ============================================================================
 
 DINOMALY2_VARIANTS = {
+    # --- DINOv2 with registers ---
     "dinomaly2_dinov2_small": {
         "name": "Dinomaly2 DINOv2 Small",
         "backbone": "dinov2reg_vit_small_14",
@@ -279,6 +303,25 @@ DINOMALY2_VARIANTS = {
     "dinomaly2_dinov2_large": {
         "name": "Dinomaly2 DINOv2 Large",
         "backbone": "dinov2reg_vit_large_14",
+        "model_size": "large",
+        "threshold": 0.5,
+    },
+    # --- DINOv3 ---
+    "dinomaly2_dinov3_small": {
+        "name": "Dinomaly2 DINOv3 Small",
+        "backbone": "dinov3_vits16",
+        "model_size": "small",
+        "threshold": 0.5,
+    },
+    "dinomaly2_dinov3_base": {
+        "name": "Dinomaly2 DINOv3 Base",
+        "backbone": "dinov3_vitb16",
+        "model_size": "base",
+        "threshold": 0.5,
+    },
+    "dinomaly2_dinov3_large": {
+        "name": "Dinomaly2 DINOv3 Large",
+        "backbone": "dinov3_vitl16",
         "model_size": "large",
         "threshold": 0.5,
     },

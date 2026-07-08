@@ -274,6 +274,15 @@
                 </h2>
 
                 <div class="form-group">
+                    <label>算法族</label>
+                    <div class="model-type-group" id="algoFamilyGroup">
+                        <button class="model-type-btn selected" id="btnFamilyDinomaly" onclick="selectFamily('dinomaly')">Dinomaly</button>
+                        <button class="model-type-btn" id="btnFamilyAnomalib" onclick="selectFamily('anomalib')">Anomalib</button>
+                        <button class="model-type-btn" id="btnFamilyAder" onclick="selectFamily('ader')">ADer</button>
+                    </div>
+                </div>
+
+                <div class="form-group" id="dinomaly-algo-options">
                     <label>编码器类型</label>
                     <div class="model-type-group">
                         <button class="model-type-btn selected" id="btnDinov3" onclick="selectModelType('dinov3')">
@@ -311,6 +320,39 @@
                         <option value="8" selected>8 (标准)</option>
                         <option value="16">16 (需要较大显存)</option>
                         <option value="32">32 (需要大显存)</option>
+                    </select>
+                </div>
+
+                </div> <!-- end dinomaly-algo-options -->
+
+                <!-- Anomalib 特有参数 -->
+                <div class="form-group" id="anomalib-algo-options" style="display:none;">
+                    <label>选择算法</label>
+                    <select class="form-control" id="anomalibAlgorithm">
+                        <option value="padim">PaDiM — 特征嵌入</option>
+                        <option value="patchcore">PatchCore — 特征嵌入</option>
+                        <option value="efficient_ad">EfficientAD — 轻量级</option>
+                        <option value="cfa">CFA — 特征嵌入</option>
+                        <option value="cflow">CFlow — 流模型</option>
+                        <option value="draem">DRAEM — 重建</option>
+                        <option value="fastflow">FastFlow — 流模型</option>
+                        <option value="reverse_distillation">Reverse Distillation</option>
+                        <option value="ganomaly">GANomaly</option>
+                        <option value="stfpm">STFPM</option>
+                    </select>
+                </div>
+
+                <!-- ADer 特有参数 -->
+                <div class="form-group" id="ader-algo-options" style="display:none;">
+                    <label>选择算法</label>
+                    <select class="form-control" id="aderAlgorithm">
+                        <option value="mambaad">MambaAD — 状态空间模型</option>
+                        <option value="invad">InvAD — 生成式</option>
+                        <option value="vitad">ViTAD — Transformer</option>
+                        <option value="unad">UniAD — 统一模型</option>
+                        <option value="cflow">CFlow — 流模型</option>
+                        <option value="pyramidflow">PyramidFlow — 流模型</option>
+                        <option value="simplenet">SimpleNet — 特征学习</option>
                     </select>
                 </div>
 
@@ -406,6 +448,19 @@
     <script>
         let selectedCategories = new Set();
         let selectedModelType = 'dinov3';
+        let selectedFamily = 'dinomaly';
+
+        function selectFamily(family) {
+            selectedFamily = family;
+            // 更新按钮状态
+            document.getElementById('btnFamilyDinomaly').classList.toggle('selected', family === 'dinomaly');
+            document.getElementById('btnFamilyAnomalib').classList.toggle('selected', family === 'anomalib');
+            document.getElementById('btnFamilyAder').classList.toggle('selected', family === 'ader');
+            // 切换参数区域
+            document.getElementById('dinomaly-algo-options').style.display = family === 'dinomaly' ? 'block' : 'none';
+            document.getElementById('anomalib-algo-options').style.display = family === 'anomalib' ? 'block' : 'none';
+            document.getElementById('ader-algo-options').style.display = family === 'ader' ? 'block' : 'none';
+        }
         let currentTaskId = null;
         let pollingInterval = null;
 
@@ -552,7 +607,7 @@
                         <div>
                             <div class="model-name">${escapeHtml(m.name)}</div>
                             <div class="model-meta">
-                                ${m.model_type} · ${m.size_mb}MB · ${new Date(m.created_at).toLocaleString('zh-CN')}
+                                ${m.algorithm_family || 'dinomaly'} · ${m.model_type || '-'} · ${m.size_mb}MB · ${new Date(m.created_at).toLocaleString('zh-CN')}
                             </div>
                         </div>
                     </div>
@@ -578,6 +633,15 @@
             const modelSize = document.getElementById('modelSize').value;
             const totalIters = parseInt(document.getElementById('totalIters').value);
             const batchSize = parseInt(document.getElementById('batchSize').value);
+            const family = selectedFamily;
+
+            // 获取算法族对应的算法名
+            let algorithmName = '';
+            if (family === 'anomalib') {
+                algorithmName = document.getElementById('anomalibAlgorithm').value;
+            } else if (family === 'ader') {
+                algorithmName = document.getElementById('aderAlgorithm').value;
+            }
 
             try {
                 const resp = await apiFetch('/api/training/start', {
@@ -585,6 +649,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         categories: Array.from(selectedCategories),
+                        algorithm_family: family,
+                        algorithm_name: algorithmName,
                         model_type: selectedModelType,
                         model_size: modelSize,
                         total_iters: totalIters,
@@ -600,7 +666,7 @@
                     document.getElementById('btnStartTraining').disabled = true;
                     document.getElementById('btnStopTraining').style.display = 'block';
                     document.getElementById('taskCategories').textContent =
-                        `类别: ${Array.from(selectedCategories).join(', ')} | 模型: ${selectedModelType}/${modelSize}`;
+                        `类别: ${Array.from(selectedCategories).join(', ')} | 族: ${family} | 模型: ${selectedModelType}/${modelSize}`;
                     document.getElementById('logConsole').textContent = '';
                     startPolling();
                 } else {

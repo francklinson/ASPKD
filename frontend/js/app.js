@@ -70,6 +70,8 @@ function switchTab(tabName) {
         if (trIframe && !trIframe.dataset.loaded) {
             trIframe.dataset.loaded = 'true';
         }
+    } else if (tabName === 'custom-detection') {
+        initCustomDetectionPage();
     }
 }
 
@@ -732,6 +734,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // 初始化客户端监控
     initClientMonitor();
+
+    // 初始化自定义检测（图片异常检测）
+    initCustomDetectionPage();
 
     console.log('[Init] 所有模块初始化完成');
 });

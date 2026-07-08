@@ -837,6 +837,123 @@ body {
     background: #f0f2f5;
 }
 
+/* ============ 自定义检测样式 ============ */
+.custom-status {
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+.custom-status.info    { background: #e8f4fd; color: #0c5460; border: 1px solid #bee5eb; }
+.custom-status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.custom-status.error   { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.custom-status.warn    { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+
+/* Dropzone drag-over */
+.dropzone.drag-over {
+    border-color: #667eea !important;
+    background: #f0f0ff !important;
+}
+
+/* 文件列表 */
+.file-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; background: #f5f5f5; border-radius: 4px;
+    margin-bottom: 4px; font-size: 13px;
+}
+.file-item .file-icon { font-size: 18px; }
+.file-item .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-item .file-size { color: #999; font-size: 12px; }
+
+/* 数据集卡片 */
+.dataset-card {
+    background: #fff; border: 1px solid #e0e0e0; border-radius: 8px;
+    padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+}
+.dataset-card:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(102,126,234,0.15); }
+.dataset-card-header { display: flex; justify-content: space-between; align-items: center; }
+.dataset-name { font-weight: 600; font-size: 14px; }
+.dataset-count { color: #999; font-size: 12px; }
+.dataset-thumbs { display: flex; gap: 4px; margin-top: 8px; overflow-x: auto; }
+.dataset-thumb img {
+    width: 48px; height: 48px; object-fit: cover; border-radius: 4px; border: 1px solid #e0e0e0;
+}
+.dataset-actions { margin-top: 8px; text-align: right; }
+
+/* 数据集图片选择 */
+.dataset-image-item {
+    border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden;
+    transition: all 0.2s;
+}
+.dataset-image-item:hover { border-color: #667eea; }
+.dataset-image-item label { display: block; cursor: pointer; position: relative; }
+.dataset-image-item input[type="checkbox"] {
+    position: absolute; top: 6px; left: 6px; z-index: 1; transform: scale(1.2);
+}
+.dataset-image-item img {
+    width: 100%; height: 100px; object-fit: cover; display: block;
+}
+.dataset-image-item .img-label {
+    display: block; text-align: center; padding: 4px; font-size: 12px;
+    font-weight: 600;
+}
+.dataset-image-item .img-label.good { color: #27ae60; }
+.dataset-image-item .img-label.anomaly { color: #e74c3c; }
+
+/* 结果网格 */
+.result-grid { margin-top: 12px; }
+.result-card {
+    background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;
+    transition: all 0.2s;
+}
+.result-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+.result-card.anomaly { border-left: 4px solid #e74c3c; }
+.result-card.normal { border-left: 4px solid #27ae60; }
+.result-card-img img {
+    width: 100%; height: 140px; object-fit: cover;
+}
+.result-card .no-img {
+    height: 140px; display: flex; align-items: center; justify-content: center;
+    color: #ccc; font-size: 20px; background: #f5f5f5;
+}
+.result-card-info { padding: 10px; }
+.result-filename {
+    font-size: 12px; color: #666; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; margin-bottom: 6px;
+}
+.result-score { font-size: 13px; margin-bottom: 4px; }
+.score-value.high { color: #e74c3c; font-weight: 700; }
+.score-value.low { color: #27ae60; }
+.result-status { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-bottom: 4px; }
+.tag-anomaly { background: #ffeaea; color: #e74c3c; }
+.tag-normal { background: #eafaf1; color: #27ae60; }
+.result-time { font-size: 11px; color: #999; }
+.result-error { font-size: 11px; color: #e74c3c; padding: 6px; background: #fff5f5; }
+.result-actions { margin-top: 6px; }
+.result-actions .btn-small { font-size: 12px; padding: 4px 10px; }
+
+/* 详情模态框 */
+.detail-image-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.detail-image-tabs .tab-btn {
+    padding: 6px 14px; border: 1px solid #ccc; border-radius: 4px;
+    background: #fff; cursor: pointer; font-size: 13px;
+}
+.detail-image-tabs .tab-btn.active {
+    background: #667eea; color: #fff; border-color: #667eea;
+}
+.detail-image-container img { width: 100%; max-height: 400px; object-fit: contain; }
+.detail-info { margin-top: 12px; }
+.detail-info table { width: 100%; border-collapse: collapse; }
+.detail-info td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.detail-info td:first-child { color: #999; width: 120px; }
+.score-high { color: #e74c3c; font-weight: 700; }
+.score-low { color: #27ae60; }
+
+.empty-hint { text-align: center; padding: 20px; color: #999; font-size: 14px; }
+
+/* 模态框激活 */
+.modal-overlay.active { display: flex !important; }
+
 #dataset-builder.content,
 #training.content {
     padding: 0;

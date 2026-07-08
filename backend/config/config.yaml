@@ -51,6 +51,28 @@ algorithms:
     thresholds:
       default: 0.02
 
+  # Dinomaly2 DINOv3系列
+  dinomaly2_dinov3_small:
+    name: "Dinomaly2 DINOv3 Small"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.02
+
+  dinomaly2_dinov3_base:
+    name: "Dinomaly2 DINOv3 Base"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.02
+
+  dinomaly2_dinov3_large:
+    name: "Dinomaly2 DINOv3 Large"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.02
+
   # ADer系列
   mambaad:
     name: "MambaAD"
@@ -289,6 +311,9 @@ models:
     dinov2_small: "models/pre_trained/dinomaly2_dinov2_small.pth"
     dinov2_base: "models/pre_trained/dinomaly2_dinov2_base.pth"
     dinov2_large: "models/pre_trained/dinomaly2_dinov2_large.pth"
+    dinov3_small: "models/pre_trained/dinomaly2_dinov3_small.pth"
+    dinov3_base: "models/pre_trained/dinomaly2_dinov3_base.pth"
+    dinov3_large: "models/pre_trained/dinomaly2_dinov3_large.pth"
 
   # ADer 系列
   mambaad:
