@@ -1,4 +1,4 @@
-# Copyright (C) 2023-2024 Intel Corporation
+# Copyright (C) 2023-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """ShanghaiTech Campus Data Module.
@@ -56,6 +56,7 @@ from Anomalib.data.datasets.base.video import VideoTargetFrame
 from Anomalib.data.datasets.video.shanghaitech import ShanghaiTechDataset
 from Anomalib.data.utils import DownloadInfo, Split, ValSplitMode, download_and_extract
 from Anomalib.data.utils.video import convert_video
+from Anomalib.utils.path import resolve_with_warning
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ class ShanghaiTech(AnomalibVideoDataModule):
     """ShanghaiTech DataModule class.
 
     Args:
-        root (Path | str): Path to the root directory of the dataset.
+        root (Path | str | None): Path to the root directory of the dataset.
             Defaults to ``"./datasets/shanghaitech"``.
         scene (int): Scene index in range [1, 13].
             Defaults to ``1``.
@@ -87,7 +88,7 @@ class ShanghaiTech(AnomalibVideoDataModule):
             Defaults to ``32``.
         num_workers (int): Number of workers for data loading.
             Defaults to ``8``.
-        train_augmentations (Transform | None): Augmentations to apply dto the training images
+        train_augmentations (Transform | None): Augmentations to apply to the training images
             Defaults to ``None``.
         val_augmentations (Transform | None): Augmentations to apply to the validation images.
             Defaults to ``None``.
@@ -107,7 +108,7 @@ class ShanghaiTech(AnomalibVideoDataModule):
 
     def __init__(
         self,
-        root: Path | str = "./datasets/shanghaitech",
+        root: Path | str | None = "./datasets/shanghaitech",
         scene: int = 1,
         clip_length_in_frames: int = 2,
         frames_between_clips: int = 1,
@@ -136,6 +137,7 @@ class ShanghaiTech(AnomalibVideoDataModule):
             seed=seed,
         )
 
+        root = resolve_with_warning(root, "shanghaitech")
         self.root = Path(root)
         self.scene = scene
 

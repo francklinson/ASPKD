@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2025 Intel Corporation
+# Copyright (C) 2022-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """BTech Data Module.
@@ -49,6 +49,7 @@ from tqdm import tqdm
 from Anomalib.data.datamodules.base.image import AnomalibDataModule
 from Anomalib.data.datasets.image.btech import BTechDataset
 from Anomalib.data.utils import DownloadInfo, Split, TestSplitMode, ValSplitMode, download_and_extract
+from Anomalib.utils.path import resolve_with_warning
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ class BTech(AnomalibDataModule):
     """BTech Lightning Data Module.
 
     Args:
-        root (Path | str): Path to the root of the dataset.
+        root (Path | str | None): Path to the root of the dataset.
             Defaults to ``"./datasets/BTech"``.
         category (str): Category of the BTech dataset (e.g. ``"01"``, ``"02"``,
             or ``"03"``).
@@ -74,7 +75,7 @@ class BTech(AnomalibDataModule):
             Defaults to ``32``.
         num_workers (int, optional): Number of workers.
             Defaults to ``8``.
-        train_augmentations (Transform | None): Augmentations to apply dto the training images
+        train_augmentations (Transform | None): Augmentations to apply to the training images
             Defaults to ``None``.
         val_augmentations (Transform | None): Augmentations to apply to the validation images.
             Defaults to ``None``.
@@ -139,7 +140,7 @@ class BTech(AnomalibDataModule):
 
     def __init__(
         self,
-        root: Path | str = "./datasets/BTech",
+        root: Path | str | None = "./datasets/BTech",
         category: str = "01",
         train_batch_size: int = 32,
         eval_batch_size: int = 32,
@@ -169,6 +170,7 @@ class BTech(AnomalibDataModule):
             seed=seed,
         )
 
+        root = resolve_with_warning(root, "BTech")
         self.root = Path(root)
         self.category = category
 

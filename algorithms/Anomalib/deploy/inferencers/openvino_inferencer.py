@@ -64,7 +64,7 @@ from Anomalib.data.utils import read_image
 if TYPE_CHECKING:
     from openvino.utils.data_helpers.wrappers import OVDict
 
-logger = logging.getLogger("Anomalib")
+logger = logging.getLogger("anomalib")
 
 
 class OpenVINOInferencer:
@@ -139,9 +139,10 @@ class OpenVINOInferencer:
                 msg = f"Path must be .onnx, .bin or .xml file. Got {path.suffix}"
                 raise ValueError(msg)
         # Create cache folder
-        cache_folder = Path("cache")
+        cache_folder = Path("openvino_cache")
         cache_folder.mkdir(exist_ok=True)
-        core.set_property({"CACHE_DIR": cache_folder})
+        # set_property for cache_dir needs a string path, not a Path object
+        core.set_property({"CACHE_DIR": str(cache_folder)})
 
         compile_model = core.compile_model(
             model=model,

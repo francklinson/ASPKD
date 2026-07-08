@@ -46,7 +46,7 @@ try:
         ],
     )
 except ImportError:
-    print("To use any logger install it using `Anomalib install -v`")
+    print("To use any logger install it using `anomalib install -v`")
 
 
 def configure_logger(level: int | str = logging.INFO) -> None:
@@ -75,7 +75,7 @@ def configure_logger(level: int | str = logging.INFO) -> None:
     logging.basicConfig(format=format_string, level=level)
     logging.getLogger().addHandler(RichHandler(rich_tracebacks=True))
 
-    # Set Pytorch Lightning logs to have a the consistent formatting with Anomalib.
+    # Set Pytorch Lightning logs to have a the consistent formatting with anomalib.
     for handler in logging.getLogger("lightning.pytorch").handlers:
         handler.setFormatter(logging.Formatter(format_string))
         handler.setLevel(level)

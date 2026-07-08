@@ -18,7 +18,7 @@ The AUPIMO score is the area under a PIMO curve within specified FPR bounds,
 normalized to the range [0,1].
 
 See Also:
-    :mod:`Anomalib.metrics.per_image.pimo` for detailed documentation.
+    :mod:`anomalib.metrics.per_image.pimo` for detailed documentation.
 
 Example:
     >>> import torch
@@ -137,7 +137,7 @@ def pimo_curves(
 
     # shape -> (K,)
     # this is the only shared FPR metric implemented so far,
-    # see note about shared FPR in Details: `Anomalib.metrics.per_image.pimo`.
+    # see note about shared FPR in Details: `anomalib.metrics.per_image.pimo`.
     shared_fpr = per_image_fprs_normals.mean(axis=0)
 
     # shape -> (N, K)

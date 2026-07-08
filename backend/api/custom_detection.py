@@ -31,9 +31,13 @@ EXCLUDED_ALGORITHMS = {
 ALGORITHM_GROUPS = {
     "Dinomaly": ["dinomaly_dinov3_small", "dinomaly_dinov3_base", "dinomaly_dinov3_large",
                  "dinomaly_dinov2_small", "dinomaly_dinov2_base", "dinomaly_dinov2_large"],
+    "Dinomaly2 (预览)": ["dinomaly2_dinov2_small", "dinomaly2_dinov2_base", "dinomaly2_dinov2_large"],
     "Anomalib": ["patchcore", "cfa", "csflow", "dfkde", "dfm", "draem", "dsr",
                  "efficient_ad", "fastflow", "fre", "padim", "reverse_distillation",
-                 "stfpm", "ganomaly", "supersimplenet", "uflow", "uninet", "vlm_ad", "winclip"],
+                 "stfpm", "ganomaly", "supersimplenet", "uflow", "uninet", "vlm_ad", "winclip",
+                 # Anomalib v2.5.0 新增
+                 "anomalyvfm", "cfm", "general_ad", "glass", "inp_former",
+                 "l2bt", "patchflow", "anomaly_dino"],
     "BaseASD": ["denseae", "cae", "vae", "aegan", "differnet"],
     "MuSc (零样本)": ["musc_clip_b32_512", "musc_clip_b16_512", "musc_clip_l14_336",
                      "musc_clip_l14_518", "musc_dinov2_b14_336", "musc_dinov2_b14_518",

@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2025 Intel Corporation
+# Copyright (C) 2022-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """Anomalib Datasets.
@@ -48,16 +48,17 @@ from .dataclasses import (
 
 # Datamodules
 from .datamodules.base import AnomalibDataModule
-from .datamodules.depth import DepthDataFormat, Folder3D, MVTec3D
+from .datamodules.depth import ADAM3D, DepthDataFormat, Folder3D, MVTec3D
 from .datamodules.image import (
+    BMAD,
     MPDD,
     VAD,
     BTech,
     Datumaro,
     Folder,
     ImageDataFormat,
+    Kaputt,
     Kolektor,
-    MVTec,
     MVTecAD,
     MVTecAD2,
     MVTecLOCO,
@@ -69,11 +70,13 @@ from .datamodules.video import Avenue, ShanghaiTech, UCSDped, VideoDataFormat
 
 # Datasets
 from .datasets import AnomalibDataset
-from .datasets.depth import Folder3DDataset, MVTec3DDataset
+from .datasets.depth import ADAM3DDataset, Folder3DDataset, MVTec3DDataset
 from .datasets.image import (
+    BMADDataset,
     BTechDataset,
     DatumaroDataset,
     FolderDataset,
+    KaputtDataset,
     KolektorDataset,
     MPDDDataset,
     MVTecADDataset,
@@ -130,8 +133,8 @@ def get_datamodule(config: DictConfig | ListConfig | dict) -> AnomalibDataModule
         config = DictConfig(config)
     config_ = config.data if "data" in config else config
 
-    # All the sub data modules are imported to Anomalib.data. So need to import the module dynamically using paths.
-    module = importlib.import_module("Anomalib.data")
+    # All the sub data modules are imported to anomalib.data. So need to import the module dynamically using paths.
+    module = importlib.import_module("anomalib.data")
     data_class_name = config_.class_path.split(".")[-1]
     # check if the data_class exists in the module
     if not hasattr(module, data_class_name):
@@ -175,13 +178,15 @@ __all__ = [
     # Depth Data Modules
     "Folder3D",
     "MVTec3D",
+    "ADAM3D",
     # Image Data Modules
+    "BMAD",
     "BTech",
     "Datumaro",
     "Folder",
+    "Kaputt",
     "Kolektor",
     "MPDD",
-    "MVTec",  # Include MVTec for backward compatibility
     "MVTecAD",
     "MVTecAD2",
     "MVTecLOCO",
@@ -199,8 +204,10 @@ __all__ = [
     "BTechDataset",
     "DatumaroDataset",
     "FolderDataset",
+    "KaputtDataset",
     "KolektorDataset",
     "MPDDDataset",
+    "ADAM3DDataset",
     "MVTecADDataset",
     "MVTecLOCODataset",
     "TabularDataset",
@@ -210,6 +217,7 @@ __all__ = [
     "ShanghaiTechDataset",
     "UCSDpedDataset",
     "PredictDataset",
+    "BMADDataset",
     # Functions
     "get_datamodule",
     # Exceptions

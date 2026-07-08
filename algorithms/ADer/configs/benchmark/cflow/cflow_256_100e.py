@@ -4,8 +4,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
 
-from ADer.configs.__base__ import *
-from ADer.configs.__base__ import cfg_model_cflow
+from configs.__base__ import *
 
 
 
@@ -18,7 +17,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cflow):
 
 		self.seed = 42
 		self.size = 256 # 512
-		self.epoch_full = 2
+		self.epoch_full = 10
 		self.warmup_epochs = 0
 		self.test_start_epoch = self.epoch_full * 10
 		self.test_per_epoch = self.epoch_full
@@ -28,19 +27,17 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cflow):
 
 		self.weight_decay = 0.0
 		self.metrics = [
-			'bAUROC_sp_max',
-			'bAUROC_sp_mean',
-			# 'mAUROC_sp_max', 'mAP_sp_max', 'mF1_max_sp_max',
-			# 'mAUPRO_px',
-			# 'mAUROC_px', 'mAP_px', 'mF1_max_px',
-			# 'mF1_px_0.2_0.8_0.1', 'mAcc_px_0.2_0.8_0.1', 'mIoU_px_0.2_0.8_0.1',
-			# 'mIoU_max_px',
+			'mAUROC_sp_max', 'mAP_sp_max', 'mF1_max_sp_max',
+			'mAUPRO_px',
+			'mAUROC_px', 'mAP_px', 'mF1_max_px',
+			'mF1_px_0.2_0.8_0.1', 'mAcc_px_0.2_0.8_0.1', 'mIoU_px_0.2_0.8_0.1',
+			'mIoU_max_px',
 		]
-		self.use_adeval = False
+		self.use_adeval = True
 
 		# ==> data
 		self.data.type = 'DefaultAD'
-		self.data.root = 'data/spk'
+		self.data.root = 'data/mvtec'
 		self.data.meta = 'meta.json'
 		self.data.cls_names = []
 
@@ -76,7 +73,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cflow):
 
 		in_chas = [256, 512, 1024, 2048]
 		name = 'timm_wide_resnet50_2'
-		checkpoint_path = 'runs/CFLOWTrainer_ADer_configs_benchmark_cflow_cflow_256_100e_20250903-232649/ckpt.pth'
+		checkpoint_path = 'model/pretrain/wide_resnet50_2-95faca4d.pth'
 		out_indices = [i + 1 for i in range(len(in_chas))]  # [1, 2, 3, 4]
 		self.model_backbone.name = name
 		self.model_backbone.device = 'cuda'
@@ -95,7 +92,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cflow):
 		self.model.pool_layers = 3
 		self.model.N = 256
 		self.model.kwargs = dict(
-			pretrained=True, checkpoint_path=checkpoint_path, strict=True,
+			pretrained=True, checkpoint_path='', strict=True,
 			model_backbone=self.model_backbone, L=self.model.pool_layers, N=self.model.N)
 
 		# ==> evaluator TODO to check

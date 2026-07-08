@@ -3,8 +3,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
 
-from ADer.configs.__base__ import *
-from ADer.configs.__base__.cfg_model_invad import cfg_model_invad
+from configs.__base__ import *
 
 
 class cfg(cfg_common, cfg_dataset_default, cfg_model_invad):

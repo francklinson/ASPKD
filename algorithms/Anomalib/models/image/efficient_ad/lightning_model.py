@@ -1,4 +1,4 @@
-# Copyright (C) 2023-2024 Intel Corporation
+# Copyright (C) 2023-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """EfficientAd: Accurate Visual Anomaly Detection at Millisecond-Level Latencies.
@@ -37,7 +37,6 @@ See Also:
 """
 
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +55,7 @@ from Anomalib.metrics import Evaluator
 from Anomalib.models.components import AnomalibModule
 from Anomalib.post_processing import PostProcessor
 from Anomalib.pre_processing import PreProcessor
+from Anomalib.utils.path import get_pretrained_weights_dir
 from Anomalib.visualization import Visualizer
 
 from .torch_model import EfficientAdModel, EfficientAdModelSize, reduce_tensor_elems
@@ -160,13 +160,7 @@ class EfficientAd(AnomalibModule):
         Downloads and loads pretrained weights for the teacher model if not already
         present.
         """
-        # 使用项目根目录的 models/pre_trained 路径（而非相对于 CWD）
-        current_file = os.path.abspath(__file__)
-        # algorithms/Anomalib/models/image/efficient_ad/ -> 项目根目录（6级上溯）
-        project_root = current_file
-        for _ in range(6):
-            project_root = os.path.dirname(project_root)
-        pretrained_models_dir = Path(project_root) / "models" / "pre_trained"
+        pretrained_models_dir = get_pretrained_weights_dir()
         if not (pretrained_models_dir / "efficientad_pretrained_weights").is_dir():
             download_and_extract(pretrained_models_dir, WEIGHTS_DOWNLOAD_INFO)
         model_size_str = self.model_size.value if isinstance(self.model_size, EfficientAdModelSize) else self.model_size

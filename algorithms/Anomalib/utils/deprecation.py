@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Deprecation utilities for Anomalib.
+"""Deprecation utilities for anomalib.
 
 This module provides utilities for marking functions, classes and args as deprecated.
 The utilities help maintain backward compatibility while encouraging users to

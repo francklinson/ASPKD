@@ -11,6 +11,7 @@ The module exports the following callbacks:
 - :class:`ModelCheckpoint`: Save model checkpoints during training
 - :class:`GraphLogger`: Log model computation graphs
 - :class:`LoadModelCallback`: Load pre-trained model weights
+- :class:`MaxStepsProgressCallback`: Fix epoch display for step-based training
 - :class:`TilerConfigurationCallback`: Configure image tiling settings
 - :class:`TimerCallback`: Track training/inference timing
 
@@ -33,6 +34,7 @@ See Also:
     - :mod:`anomalib.callbacks.checkpoint`: Model checkpoint callback
     - :mod:`anomalib.callbacks.graph`: Graph logging callback
     - :mod:`anomalib.callbacks.model_loader`: Model loading callback
+    - :mod:`anomalib.callbacks.rich_progress_bar`: Max-steps progress callback
     - :mod:`anomalib.callbacks.tiler_configuration`: Tiler configuration callback
     - :mod:`anomalib.callbacks.timer`: Timer callback
 """
@@ -49,6 +51,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from .checkpoint import ModelCheckpoint
 from .graph import GraphLogger
 from .model_loader import LoadModelCallback
+from .rich_progress_bar import MaxStepsProgressCallback
 from .tiler_configuration import TilerConfigurationCallback
 from .timer import TimerCallback
 
@@ -56,6 +59,7 @@ __all__ = [
     "ModelCheckpoint",
     "GraphLogger",
     "LoadModelCallback",
+    "MaxStepsProgressCallback",
     "TilerConfigurationCallback",
     "TimerCallback",
 ]
@@ -122,7 +126,7 @@ def get_callbacks(config: DictConfig | ListConfig | Namespace) -> list[Callback]
     if "optimization" in config and "nncf" in config.optimization and config.optimization.nncf.apply:
         # NNCF wraps torch's jit which conflicts with kornia's jit calls.
         # Hence, nncf is imported only when required
-        nncf_module = import_module("Anomalib.utils.callbacks.nncf.callback")
+        nncf_module = import_module("anomalib.utils.callbacks.nncf.callback")
         nncf_callback = nncf_module.NNCFCallback
         nncf_config = yaml.safe_load(OmegaConf.to_yaml(config.optimization.nncf))
         callbacks.append(

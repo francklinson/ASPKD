@@ -25,7 +25,7 @@ from Anomalib.cli.utils.openvino import add_openvino_export_arguments
 from Anomalib.loggers import configure_logger
 
 traceback.install()
-logger = logging.getLogger("Anomalib.cli")
+logger = logging.getLogger("anomalib.cli")
 
 _LIGHTNING_AVAILABLE = True
 try:
@@ -57,7 +57,7 @@ class AnomalibCLI:
         Run from command line:
 
         >>> import sys
-        >>> sys.argv = ["Anomalib", "train", "--model", "Padim", "--data", "MVTecAD"]
+        >>> sys.argv = ["anomalib", "train", "--model", "Padim", "--data", "MVTecAD"]
 
         Run programmatically:
 
@@ -85,7 +85,7 @@ class AnomalibCLI:
     @staticmethod
     def init_parser(**kwargs) -> ArgumentParser:
         """Method that instantiates the argument parser."""
-        kwargs.setdefault("dump_header", [f"Anomalib=={__version__}"])
+        kwargs.setdefault("dump_header", [f"anomalib=={__version__}"])
         parser = ArgumentParser(formatter_class=CustomHelpFormatter, **kwargs)
         parser.add_argument(
             "-c",
@@ -99,9 +99,9 @@ class AnomalibCLI:
     def subcommands() -> dict[str, set[str]]:
         """Skip predict subcommand as it is added later."""
         return {
-            "fit": {"model", "train_dataloaders", "val_dataloaders", "datamodule"},
-            "validate": {"model", "dataloaders", "datamodule"},
-            "test": {"model", "dataloaders", "datamodule"},
+            "fit": {"model", "train_dataloaders", "val_dataloaders", "datamodule", "weights_only"},
+            "validate": {"model", "dataloaders", "datamodule", "weights_only"},
+            "test": {"model", "dataloaders", "datamodule", "weights_only"},
         }
 
     @staticmethod
@@ -114,7 +114,7 @@ class AnomalibCLI:
         }
 
     def add_subcommands(self, **kwargs) -> None:
-        """Initialize base subcommands and add Anomalib specific on top of it."""
+        """Initialize base subcommands and add anomalib specific on top of it."""
         parser_subcommands = self.parser.add_subcommands()
 
         # Extra subcommand: install
@@ -138,7 +138,7 @@ class AnomalibCLI:
             parser_subcommands.add_subcommand(subcommand, sub_parser, help=description)
             self.add_trainer_arguments(sub_parser, subcommand)
 
-        # Add Anomalib subcommands
+        # Add anomalib subcommands
         for subcommand in self.anomalib_subcommands():
             sub_parser = self.init_parser(**kwargs)
 
@@ -283,7 +283,7 @@ class AnomalibCLI:
         action_subcommand.add_subcommand(
             "install",
             sub_parser,
-            help="Install the full-package for Anomalib.",
+            help="Install the full-package for anomalib.",
         )
 
     def before_instantiate_classes(self) -> None:
@@ -360,7 +360,7 @@ class AnomalibCLI:
         method rather than the ``Train`` method.
         """
         if self.subcommand == "install":
-            from Anomalib.cli.install import anomalib_install
+            from Anomalib.cli.install import Anomalib_install
 
             install_kwargs = self.config.get("install", {})
             anomalib_install(**install_kwargs)

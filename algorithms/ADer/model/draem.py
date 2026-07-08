@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from ADer.model import MODEL
+from model import MODEL
 
 
 class ReconstructiveSubNetwork(nn.Module):

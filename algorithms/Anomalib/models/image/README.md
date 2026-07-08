@@ -21,9 +21,9 @@ This feature allows the application of the same models and techniques to video d
 
 ```python
 # Import the necessary modules
-from Anomalib.data import Visa
-from Anomalib.models import EfficientAD
-from Anomalib.engine import Engine
+from anomalib.data import Visa
+from anomalib.models import EfficientAD
+from anomalib.engine import Engine
 
 # Load the ViSA dataset, model and engine.
 datamodule = Visa()
@@ -43,9 +43,9 @@ To use an image model to train on a video dataset, we need to convert the video 
 
 ```python
 # Import the necessary modules
-from Anomalib.data import Avenue
-from Anomalib.models import EfficientAD
-from Anomalib.engine import Engine
+from anomalib.data import Avenue
+from anomalib.models import EfficientAD
+from anomalib.engine import Engine
 
 # Load the folder, model and engine.
 # Set the clip_length_in_frames to 1 to convert the video dataset to a

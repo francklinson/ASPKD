@@ -1,17 +1,17 @@
-from operator import index
 from scipy.ndimage import gaussian_filter
 from sklearn.metrics import auc, roc_auc_score, average_precision_score, precision_recall_curve
 from skimage import measure
 import multiprocessing
 import copy
-from sklearn.metrics import roc_curve, auc
-import matplotlib.pyplot as plt
+
 import numpy as np
 from numba import jit
 import torch
 from torch.nn import functional as F
-from ADer.util.util import get_timepc, log_msg
-from ADer.util.registry import Registry
+
+from util.util import get_timepc, log_msg
+from util.registry import Registry
+
 from adeval import EvalAccumulatorCuda
 
 EVALUATOR = Registry('Evaluator')
@@ -32,28 +32,8 @@ def func(th, amaps, binary_amaps, masks):
     return [np.array(pro).mean(), fpr, th]
 
 
-def draw_roc(y_true, y_score):
-    """
-    绘制roc图
-    """
-    fpr, tpr, thresholds = roc_curve(y_true, y_score)
-    roc_auc = auc(fpr, tpr)
-    plt.figure()
-    lw = 2
-    plt.plot(fpr, tpr, color='darkorange', lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)
-    plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("Ture Positive Rate")
-    plt.title("Receiver Operating Characteristic")
-    plt.legend(loc='lower right')
-    plt.show()
-
-
 class Evaluator(object):
     def __init__(self, metrics=[], pooling_ks=None, max_step_aupro=200, mp=False, use_adeval=False):
-        # 如果没有指定metrics，则默认使用以下metrics
         if len(metrics) == 0:
             self.metrics = [
                 'mAUROC_sp_max', 'mAUROC_px', 'mAUPRO_px',
@@ -76,29 +56,17 @@ class Evaluator(object):
         self.use_adeval = use_adeval
 
     def run(self, results, cls_name, logger=None):
-        """
-        像素级指标(px)：基于像素级别的比较
-        图像级指标(sp)：基于整个图像级别的比较
-        样本级指标(sa)：基于样本级别的比较
-        """
-        # 根据cls_name筛选出对应的gt_px, pr_px, pr_sp
         idxes = results['cls_names'] == cls_name
         gt_px = results['imgs_masks'][idxes].squeeze(1)
-        # pr_px 这个就是真实值 不知道为什么这么写
         pr_px = results['anomaly_maps'][idxes]
-
         pr_sp = results['anomalys'][idxes]
-        # gt_labels = results['gt_labels'][idxes]
-        gt_labels = pr_sp
-        # 如果存在smp_pre，则筛选出对应的pr_sample和gt_sa
         if 'smp_pre' in results:
             pr_sample = results['smp_pre'][idxes]
-            subarrays = np.split(pr_sample, len(pr_sample) // 5)
+            subarrays = np.split(pr_sample, len(pr_sample)//5)
             pr_sa_max = np.array([np.max(subarray) for subarray in subarrays])
             subarray2 = np.split(idxes, len(idxes) // 5)
             sample_idxes = np.array([subarr[0] for subarr in subarray2])
             gt_sa = results['smp_masks'][sample_idxes]
-        # 如果gt_px和pr_px的维度为4，则去掉第一个维度
         if len(gt_px.shape) == 4:
             gt_px = gt_px.squeeze(1)
         if len(pr_px.shape) == 4:
@@ -108,7 +76,6 @@ class Evaluator(object):
         # normalization for pixel-level evaluations
         pr_px_norm = (pr_px - pr_px.min()) / (pr_px.max() - pr_px.min())
         gt_sp = gt_px.max(axis=(1, 2))
-        # 如果指定了pooling_ks，则进行pooling操作
         if self.pooling_ks is not None:
             pr_px_pooling = F.avg_pool2d(torch.tensor(pr_px).unsqueeze(1), self.pooling_ks, stride=1).numpy().squeeze(1)
             pr_sp_max = pr_px_pooling.max(axis=(1, 2))
@@ -117,14 +84,12 @@ class Evaluator(object):
             pr_sp_max = pr_px.max(axis=(1, 2))
             pr_sp_mean = pr_px.mean(axis=(1, 2))
 
-        # 如果使用adeval，则进行相应的计算
         if self.use_adeval:
             score_min = min(pr_sp_max) - self.boundary
             score_max = max(pr_sp_max) + self.boundary
             anomap_min = pr_px.min()
             anomap_max = pr_px.max()
-            accum = EvalAccumulatorCuda(score_min, score_max, anomap_min, anomap_max, skip_pixel_aupro=False,
-                                        nstrips=50)
+            accum = EvalAccumulatorCuda(score_min, score_max, anomap_min, anomap_max, skip_pixel_aupro=False, nstrips=50)
             accum.add_anomap_batch(torch.tensor(pr_px).cuda(non_blocking=True),
                                    torch.tensor(gt_px.astype(np.uint8)).cuda(non_blocking=True))
             for i in range(torch.tensor(pr_px).size(0)):
@@ -135,27 +100,6 @@ class Evaluator(object):
         metric_results = {}
         for metric in self.metrics:
             t0 = get_timepc()
-            # 根据metric名称进行相应的计算
-            if metric.startswith('bAUROC_sp_max'):
-                """
-                手动新增的，在没有真实gt数据的情况下直接算auroc with 图像级预测max
-                """
-                auroc_sp = roc_auc_score(gt_labels, pr_sp_max)
-                metric_results[metric] = auroc_sp
-                print('ground truth labels:', gt_labels)
-                print('predict pr_sp_max:', pr_sp_max)
-                # draw_roc(gt_labels,pr_sp_max)
-
-            if metric.startswith('bAUROC_sp_mean'):
-                """
-                手动新增的，在没有真实gt数据的情况下直接算auroc with 图像级预测mean     
-                """
-                auroc_sp = roc_auc_score(gt_labels, pr_sp_mean)
-                metric_results[metric] = auroc_sp
-                print('ground truth labels:', gt_labels)
-                print('predict pr_sp_mean', pr_sp_mean)
-                # draw_roc(gt_labels,pr_sp_mean)
-
             if metric.startswith('mAUROC_sp_max'):
                 auroc_sp = roc_auc_score(gt_sp, pr_sp_max)
                 metric_results[metric] = auroc_sp
@@ -238,13 +182,11 @@ class Evaluator(object):
             #     best_f1_score_index = np.argmax(f1_scores[np.isfinite(f1_scores)])
             #     best_threshold = thresholds[best_f1_score_index]
             #     metric_results[metric] = best_f1_score
-            elif metric.startswith('mF1_px') or metric.startswith('mDice_px') or metric.startswith(
-                    'mAcc_px') or metric.startswith('mIoU_px'):  # example: F1_sp_0.3_0.8
+            elif metric.startswith('mF1_px') or metric.startswith('mDice_px') or metric.startswith('mAcc_px') or metric.startswith('mIoU_px'):  # example: F1_sp_0.3_0.8
                 # F1_px equals Dice_px
                 coms = metric.split('_')
                 assert len(coms) == 5, f"{metric} should contain parameters 'score_l', 'score_h', and 'score_step' "
-                score_l, score_h, score_step = float(metric.split('_')[-3]), float(metric.split('_')[-2]), float(
-                    metric.split('_')[-1])
+                score_l, score_h, score_step = float(metric.split('_')[-3]), float(metric.split('_')[-2]), float(metric.split('_')[-1])
                 gt = gt_px.astype(np.bool_)
                 metric_scores = []
                 for score in np.arange(score_l, score_h + 1e-3, score_step):
@@ -256,8 +198,7 @@ class Evaluator(object):
                     if metric.startswith('mF1_px'):
                         precision = total_area_intersect / (total_area_pred_label + self.eps)
                         recall = total_area_intersect / (total_area_label + self.eps)
-                        f1_px = (1 + self.beta ** 2) * precision * recall / (
-                                self.beta ** 2 * precision + recall + self.eps)
+                        f1_px = (1 + self.beta ** 2) * precision * recall / (self.beta ** 2 * precision + recall + self.eps)
                         metric_scores.append(f1_px)
                     elif metric.startswith('mDice_px'):
                         dice_px = 2 * total_area_intersect / (total_area_pred_label + total_area_label + self.eps)
@@ -271,8 +212,7 @@ class Evaluator(object):
                     else:
                         raise f'invalid metric: {metric}'
                 metric_results[metric] = np.array(metric_scores).mean()
-            elif metric.startswith('mF1_max_px') or metric.startswith('mDice_max_px') or metric.startswith(
-                    'mAcc_max_px') or metric.startswith('mIoU_max_px'):
+            elif metric.startswith('mF1_max_px') or metric.startswith('mDice_max_px') or metric.startswith('mAcc_max_px') or metric.startswith('mIoU_max_px'):
                 # F1_px equals Dice_px
                 score_l, score_h, score_step = 0.0, 1.0, 0.05
                 gt = gt_px.astype(np.bool_)
@@ -287,7 +227,7 @@ class Evaluator(object):
                         precision = total_area_intersect / (total_area_pred_label + self.eps)
                         recall = total_area_intersect / (total_area_label + self.eps)
                         f1_px = (1 + self.beta ** 2) * precision * recall / (
-                                self.beta ** 2 * precision + recall + self.eps)
+                                    self.beta ** 2 * precision + recall + self.eps)
                         metric_scores.append(f1_px)
                     elif metric.startswith('mDice_max_px'):
                         dice_px = 2 * total_area_intersect / (total_area_pred_label + total_area_label + self.eps)
@@ -307,15 +247,13 @@ class Evaluator(object):
         return metric_results
 
     @staticmethod
-    def cal_anomaly_map(ft_list, fs_list, out_size=[224, 224], uni_am=False, use_cos=True, amap_mode='add',
-                        gaussian_sigma=0, weights=None):
+    def cal_anomaly_map(ft_list, fs_list, out_size=[224, 224], uni_am=False, use_cos=True, amap_mode='add', gaussian_sigma=0, weights=None):
         # ft_list = [f.cpu() for f in ft_list]
         # fs_list = [f.cpu() for f in fs_list]
         bs = ft_list[0].shape[0]
         weights = weights if weights else [1] * len(ft_list)
         anomaly_map = np.ones([bs] + out_size) if amap_mode == 'mul' else np.zeros([bs] + out_size)
         a_map_list = []
-        # 如果uni_am为True，则进行全局计算
         if uni_am:
             size = (ft_list[0].shape[2], ft_list[0].shape[3])
             for i in range(len(ft_list)):
@@ -352,7 +290,6 @@ class Evaluator(object):
                     anomaly_map *= a_map
             if amap_mode == 'add':
                 anomaly_map /= (len(ft_list) * sum(weights))
-        # 如果gaussian_sigma大于0，则进行高斯滤波
         if gaussian_sigma > 0:
             for idx in range(anomaly_map.shape[0]):
                 anomaly_map[idx] = gaussian_filter(anomaly_map[idx], sigma=gaussian_sigma)
@@ -379,7 +316,6 @@ class Evaluator(object):
         min_th, max_th = amaps.min(), amaps.max()
         delta = (max_th - min_th) / max_step
         pros, fprs, ths = [], [], []
-        # 如果mp为True，则使用多进程进行计算
         if mp:
             # enable in the main process, i.e., __main__
             # pool = multiprocessing.Pool(processes=int(multiprocessing.cpu_count() * 0.25))
@@ -435,3 +371,4 @@ class Evaluator(object):
 def get_evaluator(cfg_evaluator):
     evaluator, kwargs = Evaluator, cfg_evaluator.kwargs
     return evaluator(**kwargs)
+

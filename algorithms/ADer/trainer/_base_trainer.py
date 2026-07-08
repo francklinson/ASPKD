@@ -1,17 +1,22 @@
 import os
+import copy
+import glob
+import shutil
 import datetime
+import tabulate
 import torch
-from ADer.util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
-from ADer.util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
-from ADer.util.net import get_loss_scaler, get_autocast, distribute_bn
-from ADer.optim.scheduler import get_scheduler
-from ADer.data import get_loader
-from ADer.model import get_model
-from ADer.optim import get_optim
-from ADer.loss import get_loss_terms
-from ADer.util.metric import get_evaluator
+from util.util import makedirs, log_cfg, able, log_msg, get_log_terms, update_log_term
+from util.net import trans_state_dict, print_networks, get_timepc, reduce_tensor
+from util.net import get_loss_scaler, get_autocast, distribute_bn
+from optim.scheduler import get_scheduler
+from data import get_loader
+from model import get_model
+from optim import get_optim
+from loss import get_loss_terms
+from util.metric import get_evaluator
 from timm.data import Mixup
 
+import numpy as np
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 
 try:
@@ -22,6 +27,8 @@ except:
     from timm.layers.norm_act import convert_sync_batchnorm as ApexSyncBN
 from timm.layers.norm_act import convert_sync_batchnorm as TIMMSyncBN
 from timm.utils import dispatch_clip_grad
+
+# from . import TRAINER
 
 
 # @TRAINER.register_module
@@ -39,9 +46,7 @@ class BaseTrainer():
         self.net.eval()
         log_msg(self.logger, f"==> Load checkpoint: {cfg.model.kwargs['checkpoint_path']}") if cfg.model.kwargs[
             'checkpoint_path'] else None
-        print_networks([self.net],
-                       torch.randn(self.cfg.fvcore_b, self.cfg.fvcore_c, self.cfg.size, self.cfg.size).cuda(),
-                       self.logger) if self.cfg.fvcore_is else None
+        print_networks([self.net], torch.randn(self.cfg.fvcore_b, self.cfg.fvcore_c, self.cfg.size, self.cfg.size).cuda(), self.logger) if self.cfg.fvcore_is else None
         self.dist_BN = cfg.trainer.dist_BN
         if cfg.dist and cfg.trainer.sync_BN != 'none':
             self.dist_BN = ''
@@ -198,7 +203,6 @@ class BaseTrainer():
                 self.optim.sync_lookahead() if hasattr(self.optim, 'sync_lookahead') else None
                 if self.epoch >= self.cfg.trainer.test_start_epoch or self.epoch % self.cfg.trainer.test_per_epoch == 0:
                     self.test()
-                    # self.test_ghost()
                 else:
                     self.test_ghost()
                 self.cfg.total_time = get_timepc() - self.cfg.task_start_time
@@ -215,9 +219,6 @@ class BaseTrainer():
 
     @torch.no_grad()
     def test_ghost(self):
-        """
-        假测试
-        """
         for idx, cls_name in enumerate(self.cls_names):
             for metric in self.metrics:
                 self.metric_recorder[f'{metric}_{cls_name}'].append(0)
@@ -226,13 +227,6 @@ class BaseTrainer():
 
     @torch.no_grad()
     def test(self):
-        pass
-
-    def inference(self):
-        """
-        子类实现inference
-        Returns:
-        """
         pass
 
     def save_checkpoint(self):
@@ -258,7 +252,6 @@ class BaseTrainer():
             self.train()
         elif self.cfg.mode in ['test']:
             self.test()
-        elif self.cfg.mode in ['inference']:
-            self.inference()
         else:
             raise NotImplementedError
+

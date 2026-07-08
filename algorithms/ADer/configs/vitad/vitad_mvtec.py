@@ -3,8 +3,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
 
-from ADer.configs.__base__ import *
-from ADer.configs.__base__ import cfg_common, cfg_dataset_default, cfg_model_vitad
+from configs.__base__ import *
 
 
 class cfg(cfg_common, cfg_dataset_default, cfg_model_vitad):
@@ -16,7 +15,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_vitad):
 
 		self.seed = 42
 		self.size = 256
-		self.epoch_full = 20
+		self.epoch_full = 100
 		self.warmup_epochs = 0
 		self.test_start_epoch = self.epoch_full
 		self.test_per_epoch = self.epoch_full // 10
@@ -34,7 +33,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_vitad):
 
 		# ==> data
 		self.data.type = 'DefaultAD'
-		self.data.root = 'data/spk'
+		self.data.root = 'data/mvtec'
 		self.data.meta = 'meta.json'
 		self.data.cls_names = []
 
@@ -64,10 +63,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_vitad):
 								   img_size=self.size, students=[3, 6, 9], depth=9)
 		self.model = Namespace()
 		self.model.name = 'vitad'
-		self.model.kwargs = dict(pretrained=False,
-								 # checkpoint_path='runs/ViTADTrainer_configs_vitad_vitad_mvtec_20250803-143157/ckpt.pth',
-								 checkpoint_path='',
-								 strict=True, model_t=self.model_t,
+		self.model.kwargs = dict(pretrained=False, checkpoint_path='', strict=True, model_t=self.model_t,
 								 model_f=self.model_f, model_s=self.model_s)
 
 		# ==> evaluator

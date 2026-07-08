@@ -16,7 +16,7 @@ from Anomalib.cli.utils.help_formatter import get_short_docstring
 
 logger = logging.getLogger(__name__)
 
-if module_available("Anomalib.pipelines"):
+if module_available("anomalib.pipelines"):
     from Anomalib.pipelines import Benchmark
     from Anomalib.pipelines.components.base import Pipeline
 

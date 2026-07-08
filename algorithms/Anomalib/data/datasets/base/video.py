@@ -56,7 +56,7 @@ class VideoTargetFrame(str, Enum):
 
 
 class AnomalibVideoDataset(AnomalibDataset, ABC):
-    """Base video Anomalib dataset class.
+    """Base video anomalib dataset class.
 
     This class extends ``AnomalibDataset`` to handle video data for anomaly
     detection tasks. It supports both classification and segmentation tasks.

@@ -12,9 +12,9 @@ The following example shows how to use the FUVAS model to train on the ucsdped d
 
 ```python
 # Import the necessary modules
-from Anomalib.data import UCSDped
-from Anomalib.models import Fuvas
-from Anomalib.engine import Engine
+from anomalib.data import UCSDped
+from anomalib.models import Fuvas
+from anomalib.engine import Engine
 
 # Load the ucsdped dataset, model and engine.
 datamodule = UCSDped()

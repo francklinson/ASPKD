@@ -26,9 +26,6 @@ data
 ### MVTec AD
 - Download and extract [MVTec AD](https://www.mvtec.com/company/research/datasets/mvtec-ad) into `data/mvtec`.
 - run`python data/gen_benchmark/mvtec.py` to obtain `data/mvtec/meta.json` that matches standard `DefaultAD` in `data/ad_dataset.py`.
-- 
-python data/gen_benchmark/spk.py
-
 ```
 data
 ├── mvtec

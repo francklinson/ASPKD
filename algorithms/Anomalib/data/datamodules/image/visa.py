@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2025 Intel Corporation
+# Copyright (C) 2022-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """Visual Anomaly (VisA) Data Module.
@@ -55,6 +55,7 @@ from torchvision.transforms.v2 import Transform
 from Anomalib.data.datamodules.base.image import AnomalibDataModule
 from Anomalib.data.datasets.image.visa import VisaDataset
 from Anomalib.data.utils import DownloadInfo, Split, TestSplitMode, ValSplitMode, download_and_extract
+from Anomalib.utils.path import resolve_with_warning
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class Visa(AnomalibDataModule):
     """VisA Datamodule.
 
     Args:
-        root (Path | str): Path to the root of the dataset.
+        root (Path | str | None): Path to the root of the dataset.
             Defaults to ``"./datasets/visa"``.
         category (str): Category of the VisA dataset (e.g. ``"candle"``).
             Defaults to ``"capsules"``.
@@ -79,7 +80,7 @@ class Visa(AnomalibDataModule):
             Defaults to ``32``.
         num_workers (int, optional): Number of workers for data loading.
             Defaults to ``8``.
-        train_augmentations (Transform | None): Augmentations to apply dto the training images
+        train_augmentations (Transform | None): Augmentations to apply to the training images
             Defaults to ``None``.
         val_augmentations (Transform | None): Augmentations to apply to the validation images.
             Defaults to ``None``.
@@ -101,7 +102,7 @@ class Visa(AnomalibDataModule):
 
     def __init__(
         self,
-        root: Path | str = "./datasets/visa",
+        root: Path | str | None = "./datasets/visa",
         category: str = "capsules",
         train_batch_size: int = 32,
         eval_batch_size: int = 32,
@@ -131,6 +132,7 @@ class Visa(AnomalibDataModule):
             seed=seed,
         )
 
+        root = resolve_with_warning(root, "visa")
         self.root = Path(root)
         self.split_root = self.root / "visa_pytorch"
         self.category = category

@@ -1,10 +1,10 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Custom exceptions for Anomalib data validation.
+"""Custom exceptions for anomalib data validation.
 
 This module provides custom exception classes for handling data validation errors
-in Anomalib.
+in anomalib.
 """
 
 

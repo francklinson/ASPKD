@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """Visualizer callback.
@@ -39,7 +39,7 @@ from Anomalib.data.utils.image import save_image, show_image
 from Anomalib.loggers import AnomalibWandbLogger
 from Anomalib.loggers.base import ImageLoggerBase
 from Anomalib.models import AnomalibModule
-from Anomalib.utils.visualization import BaseVisualizer, GeneratorResult, VisualizationStep
+from Anomalib.utils.visualization import GeneratorResult, VisualizationStep, Visualizer
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class _VisualizationCallback(Callback):
     to various backends.
 
     Args:
-        visualizers (BaseVisualizer | list[BaseVisualizer]): Visualizer objects that
+        visualizers (Visualizer | list[Visualizer]): Visualizer objects that
             are used for computing the visualizations.
         save (bool, optional): Save the visualizations. Defaults to ``False``.
         root (Path | None, optional): The path to save the visualizations. Defaults to ``None``.
@@ -80,7 +80,7 @@ class _VisualizationCallback(Callback):
 
     def __init__(
         self,
-        visualizers: BaseVisualizer | list[BaseVisualizer],
+        visualizers: Visualizer | list[Visualizer],
         save: bool = False,
         root: Path | None = None,
         log: bool = False,
@@ -257,7 +257,7 @@ class _VisualizationCallback(Callback):
         """
         # Store names of logger and the logger in a dict
         available_loggers = {
-            type(logger).__name__.lower().replace("logger", "").replace("Anomalib", ""): logger
+            type(logger).__name__.lower().replace("logger", "").replace("anomalib", ""): logger
             for logger in trainer.loggers
         }
         # save image to respective logger

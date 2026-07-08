@@ -10,7 +10,7 @@
 """PyTorch model for UniNet.
 
 See Also:
-    :class:`Anomalib.models.image.uninet.lightning_model.UniNet`:
+    :class:`anomalib.models.image.uninet.lightning_model.UniNet`:
         UniNet Lightning model.
 """
 
@@ -78,7 +78,7 @@ class UniNetModel(nn.Module):
         student_features = self.student(bottleneck_outputs)
 
         # These predictions are part of the de_resnet model of the original code.
-        # since we are using the de_resnet model from Anomalib, we need to compute predictions here
+        # since we are using the de_resnet model from anomalib, we need to compute predictions here
         predictions = self.avgpool(student_features[0])
         predictions = torch.flatten(predictions, 1)
         predictions = self.fc(predictions).squeeze()
@@ -197,7 +197,8 @@ class Teachers(nn.Module):
         Returns:
             GraphModule: The teacher model.
         """
-        model = getattr(torchvision.models, backbone)(pretrained=True)
+        weights = torchvision.models.get_model_weights(backbone).DEFAULT
+        model = getattr(torchvision.models, backbone)(weights=weights)
         return create_feature_extractor(model, return_nodes=["layer3", "layer2", "layer1"])
 
     def forward(self, images: torch.Tensor) -> tuple[torch.Tensor, list[torch.Tensor]]:

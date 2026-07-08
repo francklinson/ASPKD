@@ -3,8 +3,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
 
-from ADer.configs.__base__ import *
-from ADer.configs.__base__ import cfg_model_draem
+from configs.__base__ import *
 
 
 class cfg(cfg_common, cfg_dataset_default, cfg_model_draem):
@@ -16,7 +15,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_draem):
 
 		self.seed = 42
 		self.size = 256
-		self.epoch_full = 20
+		self.epoch_full = 100
 		self.warmup_epochs = 0
 		self.test_start_epoch = self.epoch_full
 		self.test_per_epoch = self.epoch_full // 10
@@ -24,19 +23,17 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_draem):
 		self.batch_test_per = 8
 		self.lr = 1e-4 * self.batch_train / 8
 		self.metrics = [
-			'bAUROC_sp_max',
-			'bAUROC_sp_mean',
-			# 'mAUROC_sp_max', 'mAP_sp_max', 'mF1_max_sp_max',
-			# 'mAUPRO_px',
-			# 'mAUROC_px', 'mAP_px', 'mF1_max_px',
-			# 'mF1_px_0.2_0.8_0.1', 'mAcc_px_0.2_0.8_0.1', 'mIoU_px_0.2_0.8_0.1',
-			# 'mIoU_max_px',
+			'mAUROC_sp_max', 'mAP_sp_max', 'mF1_max_sp_max',
+			'mAUPRO_px',
+			'mAUROC_px', 'mAP_px', 'mF1_max_px',
+			'mF1_px_0.2_0.8_0.1', 'mAcc_px_0.2_0.8_0.1', 'mIoU_px_0.2_0.8_0.1',
+			'mIoU_max_px',
 		]
-		self.use_adeval = False
+		self.use_adeval = True
 
 		# ==> data
 		self.data.type = 'DefaultAD'
-		self.data.root = 'data/spk'
+		self.data.root = 'data/mvtec'
 		self.data.meta = 'meta.json'
 		self.data.cls_names = []
 

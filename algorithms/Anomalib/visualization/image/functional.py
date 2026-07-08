@@ -1100,7 +1100,7 @@ def get_visualize_function(field: str) -> Callable:
         >>> get_visualize_function('invalid_field')  # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
             ...
-        AttributeError: module 'Anomalib.visualization.image.functional' has no
+        AttributeError: module 'anomalib.visualization.image.functional' has no
         attribute 'visualize_invalid_field'
 
     Note:

@@ -147,10 +147,19 @@ class AnomalibAdapter(BaseDetector):
 # 注册Anomalib各算法
 # 注意: dinomaly使用Dinomaly路径下的原生实现，不在此处注册
 ANOMALIB_MODELS = [
-    'patchcore', 'cfa', 'csflow', 'dfkde', 'dfm', 'draem', 
+    'patchcore', 'cfa', 'csflow', 'dfkde', 'dfm', 'draem',
     'dsr', 'efficient_ad', 'fastflow', 'fre',
     'padim', 'reverse_distillation', 'stfpm', 'ganomaly',
-    'supersimplenet', 'uflow', 'uninet', 'vlm_ad', 'winclip'
+    'supersimplenet', 'uflow', 'uninet', 'vlm_ad', 'winclip',
+    # --- Anomalib v2.5.0 新增算法 ---
+    'anomalyvfm',      # AnomalyVFM - 零样本异常检测（Vision Foundation Models）
+    'cfm',             # CFM - 跨模态特征映射（3D异常检测）
+    'general_ad',      # GeneralAD - 通用异常检测
+    'glass',           # GLASS - 梯度上升异常合成
+    'inp_former',      # INP-Former - 内在正常原型
+    'l2bt',            # L2BT -
+    'patchflow',       # PatchFlow -
+    'anomaly_dino',    # AnomalyDINO - DINOv2少样本异常检测
 ]
 
 for model_name in ANOMALIB_MODELS:

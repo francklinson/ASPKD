@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2025 Intel Corporation
+# Copyright (C) 2022-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """Anomalib library for research and benchmarking.
@@ -34,7 +34,7 @@ Note:
 
 from enum import Enum
 
-__version__ = "2.2.0dev"
+__version__ = "2.5.0"
 
 
 class LearningType(str, Enum):
@@ -86,3 +86,28 @@ class TaskType(str, Enum):
 
     CLASSIFICATION = "classification"
     SEGMENTATION = "segmentation"
+
+
+class PrecisionType(str, Enum):
+    """Precision type defining the numerical precision used in model computations.
+
+    This enum defines the different precision types supported by anomalib models:
+
+        - ``FLOAT32``: Standard 32-bit floating point precision
+        - ``FLOAT16``: Half-precision 16-bit floating point for faster computation
+
+    Example:
+        >>> from Anomalib import PrecisionType
+        >>> precision_type = PrecisionType.FLOAT16
+        >>> print(precision_type)
+        'float16'
+
+    Note:
+        The precision type affects:
+            - Memory usage during model training and inference
+            - Computational speed, especially on compatible hardware
+            - Numerical stability of model computations
+    """
+
+    FLOAT32 = "float32"
+    FLOAT16 = "float16"

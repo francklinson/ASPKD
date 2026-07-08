@@ -1,10 +1,10 @@
 # Copyright (C) 2022-2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Base logger for image logging consistency across all loggers used in Anomalib.
+"""Base logger for image logging consistency across all loggers used in anomalib.
 
 This module provides a base class that defines a common interface for logging images
-across different logging backends used in Anomalib.
+across different logging backends used in anomalib.
 
 Example:
     Create a custom image logger:
@@ -30,7 +30,7 @@ class ImageLoggerBase:
     """Base class that provides a common interface for logging images.
 
     This abstract base class ensures consistent image logging functionality across
-    different logger implementations in Anomalib.
+    different logger implementations in anomalib.
 
     All custom image loggers should inherit from this class and implement the
     ``add_image`` method.

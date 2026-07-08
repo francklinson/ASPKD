@@ -3,7 +3,7 @@
 
 """Base Classes for Torch Datasets.
 
-This module contains the base dataset classes used in Anomalib for different data
+This module contains the base dataset classes used in anomalib for different data
 modalities:
 
 - ``AnomalibDataset``: Base class for image datasets

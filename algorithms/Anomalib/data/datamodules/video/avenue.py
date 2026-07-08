@@ -1,4 +1,4 @@
-# Copyright (C) 2023-2024 Intel Corporation
+# Copyright (C) 2023-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """CUHK Avenue Data Module.
@@ -67,6 +67,7 @@ from Anomalib.data.datamodules.base.video import AnomalibVideoDataModule
 from Anomalib.data.datasets.base.video import VideoTargetFrame
 from Anomalib.data.datasets.video.avenue import AvenueDataset
 from Anomalib.data.utils import DownloadInfo, Split, ValSplitMode, download_and_extract
+from Anomalib.utils.path import resolve_with_warning
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +87,9 @@ class Avenue(AnomalibVideoDataModule):
     """Avenue DataModule class.
 
     Args:
-        root (Path | str): Path to the root of the dataset.
+        root (Path | str | None): Path to the root of the dataset.
             Defaults to ``"./datasets/avenue"``.
-        gt_dir (Path | str): Path to the ground truth files.
+        gt_dir (Path | str | None): Path to the ground truth files.
             Defaults to ``"./datasets/avenue/ground_truth_demo"``.
         clip_length_in_frames (int): Number of video frames in each clip.
             Defaults to ``2``.
@@ -102,7 +103,7 @@ class Avenue(AnomalibVideoDataModule):
             Defaults to ``32``.
         num_workers (int): Number of workers.
             Defaults to ``8``.
-        train_augmentations (Transform | None): Augmentations to apply dto the training images
+        train_augmentations (Transform | None): Augmentations to apply to the training images
             Defaults to ``None``.
         val_augmentations (Transform | None): Augmentations to apply to the validation images.
             Defaults to ``None``.
@@ -139,8 +140,8 @@ class Avenue(AnomalibVideoDataModule):
 
     def __init__(
         self,
-        root: Path | str = "./datasets/avenue",
-        gt_dir: Path | str = "./datasets/avenue/ground_truth_demo",
+        root: Path | str | None = "./datasets/avenue",
+        gt_dir: Path | str | None = "./datasets/avenue/ground_truth_demo",
         clip_length_in_frames: int = 2,
         frames_between_clips: int = 1,
         target_frame: VideoTargetFrame | str = VideoTargetFrame.LAST,
@@ -168,6 +169,8 @@ class Avenue(AnomalibVideoDataModule):
             seed=seed,
         )
 
+        root = resolve_with_warning(root, "avenue")
+        gt_dir = resolve_with_warning(gt_dir, "avenue/ground_truth_demo")
         self.root = Path(root)
         self.gt_dir = Path(gt_dir)
         self.clip_length_in_frames = clip_length_in_frames

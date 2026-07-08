@@ -3,8 +3,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
 from PIL import Image
-from ADer.configs.__base__ import *
-from ADer.configs.__base__ import cfg_model_realnet
+from configs.__base__ import *
 
 
 class cfg(cfg_common, cfg_dataset_default, cfg_model_realnet):
@@ -36,7 +35,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_realnet):
 
 		# ==> data
 		self.data.type = 'Realnet'
-		self.data.root = 'data/spk'
+		self.data.root = 'data/mvtec'
 		self.data.meta = 'meta.json'
 		self.data.cls_names = []
 

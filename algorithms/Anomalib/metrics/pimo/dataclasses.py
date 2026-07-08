@@ -132,7 +132,7 @@ class PIMOResult:
         """Get threshold at given shared FPR level.
 
         For details see
-        :func:`Anomalib.metrics.per_image.pimo_numpy.thresh_at_shared_fpr_level`.
+        :func:`anomalib.metrics.per_image.pimo_numpy.thresh_at_shared_fpr_level`.
 
         Args:
             fpr_level: Target shared FPR level to find threshold for.

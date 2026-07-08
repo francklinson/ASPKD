@@ -25,7 +25,7 @@ Example:
 import logging
 from enum import Enum
 
-logger = logging.getLogger("Anomalib")
+logger = logging.getLogger("anomalib")
 
 
 class ExportType(str, Enum):

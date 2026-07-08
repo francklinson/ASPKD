@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2025 Intel Corporation
+# Copyright (C) 2022-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """PyTorch model for the PaDiM model implementation.
@@ -34,7 +34,6 @@ See Also:
         Multivariate Gaussian distribution modeling
 """
 
-from random import sample
 from typing import TYPE_CHECKING
 
 import torch
@@ -140,14 +139,14 @@ class PadimModel(nn.Module):
         # Since idx is randomly selected, save it with model to get same results
         self.register_buffer(
             "idx",
-            torch.tensor(sample(range(self.n_features_original), self.n_features)),
+            torch.randperm(self.n_features_original)[: self.n_features],
         )
         self.idx: torch.Tensor
         self.loss = None
         self.anomaly_map_generator = AnomalyMapGenerator()
 
         self.gaussian = MultiVariateGaussian()
-        self.memory_bank = torch.empty(0)
+        self.memory_bank: list[torch.tensor] = []
 
     def forward(self, input_tensor: torch.Tensor) -> torch.Tensor | InferenceBatch:
         """Forward-pass image-batch (N, C, H, W) into model to extract features.
@@ -183,11 +182,7 @@ class PadimModel(nn.Module):
             embeddings = self.tiler.untile(embeddings)
 
         if self.training:
-            if self.memory_bank.size(0) == 0:
-                self.memory_bank = embeddings
-            else:
-                new_bank = torch.cat((self.memory_bank, embeddings), dim=0).to(self.memory_bank)
-                self.memory_bank = new_bank
+            self.memory_bank.append(embeddings)
             return embeddings
 
         anomaly_map = self.anomaly_map_generator(
@@ -234,12 +229,13 @@ class PadimModel(nn.Module):
         Raises:
             ValueError: If the memory bank is empty.
         """
-        if self.memory_bank.size(0) == 0:
+        if len(self.memory_bank) == 0:
             msg = "Memory bank is empty. Cannot perform coreset selection."
             raise ValueError(msg)
+        self.memory_bank = torch.vstack(self.memory_bank)
 
         # fit gaussian
         self.gaussian.fit(self.memory_bank)
 
         # clear memory bank, redcues gpu usage
-        self.memory_bank = torch.empty(0).to(self.memory_bank)
+        self.memory_bank = []

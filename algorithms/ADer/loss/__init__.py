@@ -1,9 +1,10 @@
 import glob
 import importlib
-from ADer.util.registry import Registry
+
+from util.registry import Registry
 LOSS = Registry('Loss')
 
-files = glob.glob('ADer/loss/[!_]*.py')
+files = glob.glob('loss/[!_]*.py')
 for file in files:
 	model_lib = importlib.import_module(file.split('.')[0].replace('/', '.'))
 

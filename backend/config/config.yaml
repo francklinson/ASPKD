@@ -29,6 +29,28 @@ algorithms:
     thresholds:
       default: 0.02
 
+  # Dinomaly2系列 (待官方代码发布)
+  dinomaly2_dinov2_small:
+    name: "Dinomaly2 DINOv2 Small"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.02
+
+  dinomaly2_dinov2_base:
+    name: "Dinomaly2 DINOv2 Base"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.02
+
+  dinomaly2_dinov2_large:
+    name: "Dinomaly2 DINOv2 Large"
+    type: "feature_based"
+    input_size: [600, 600]
+    thresholds:
+      default: 0.02
+
   # ADer系列
   mambaad:
     name: "MambaAD"
@@ -88,6 +110,55 @@ algorithms:
   padim:
     name: "PaDiM"
     type: "feature_embedding"
+    thresholds:
+      default: 0.5
+
+  # --- Anomalib v2.5.0 新增算法 ---
+  anomalyvfm:
+    name: "AnomalyVFM"
+    type: "zero_shot"
+    thresholds:
+      default: 0.5
+
+  cfm:
+    name: "CFM"
+    type: "cross_modal"
+    thresholds:
+      default: 0.5
+
+  general_ad:
+    name: "GeneralAD"
+    type: "feature_embedding"
+    thresholds:
+      default: 0.5
+
+  glass:
+    name: "GLASS"
+    type: "synthesis"
+    thresholds:
+      default: 0.5
+
+  inp_former:
+    name: "INP-Former"
+    type: "prototype"
+    thresholds:
+      default: 0.5
+
+  l2bt:
+    name: "L2BT"
+    type: "feature_embedding"
+    thresholds:
+      default: 0.5
+
+  patchflow:
+    name: "PatchFlow"
+    type: "flow_based"
+    thresholds:
+      default: 0.5
+
+  anomaly_dino:
+    name: "AnomalyDINO"
+    type: "few_shot"
     thresholds:
       default: 0.5
 
@@ -212,7 +283,13 @@ models:
     dinov2_small: "models/pre_trained/dinomaly_dinov2_small.pth"
     dinov2_large: "models/pre_trained/dinov2_vitl14_pretrain.pth"
     dinov2_base: "models/pre_trained/dinov2_vitb14_pretrain.pth"
-    
+
+  # Dinomaly2 系列 (DINOv2 with registers)
+  dinomaly2:
+    dinov2_small: "models/pre_trained/dinomaly2_dinov2_small.pth"
+    dinov2_base: "models/pre_trained/dinomaly2_dinov2_base.pth"
+    dinov2_large: "models/pre_trained/dinomaly2_dinov2_large.pth"
+
   # ADer 系列
   mambaad:
     default: "models/pre_trained/mambaad_best.pth"
@@ -246,7 +323,32 @@ models:
     
   padim:
     default: "models/pre_trained/padim_best.pth"
-  
+
+  # Anomalib v2.5.0 新增模型
+  anomalyvfm:
+    default: ""
+
+  cfm:
+    default: ""
+
+  general_ad:
+    default: ""
+
+  glass:
+    default: ""
+
+  inp_former:
+    default: ""
+
+  l2bt:
+    default: ""
+
+  patchflow:
+    default: ""
+
+  anomaly_dino:
+    default: ""
+
   # MuSc 零样本检测系列
   musc:
     pretrained_models_dir: "models/pre_trained"

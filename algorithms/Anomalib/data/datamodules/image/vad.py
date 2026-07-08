@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """VAD Data Module.
@@ -45,14 +45,15 @@ from torchvision.transforms.v2 import Transform
 from Anomalib.data.datamodules.base.image import AnomalibDataModule
 from Anomalib.data.datasets import VADDataset
 from Anomalib.data.utils import DownloadInfo, Split, TestSplitMode, ValSplitMode, download_and_extract
+from Anomalib.utils.path import resolve_with_warning
 
 logger = logging.getLogger(__name__)
 
 
 DOWNLOAD_INFO = DownloadInfo(
     name="VAD",
-    url="https://eu.mydrive.ch/shares/88472/0eb328ff388ac0614b383cdfdeada104/download/452926775-1741958563/VAD.zip",
-    hashsum="bfffce213d1649c8dd6b8e3afd8d85512736131e9ec7c5edfa0c26e774b5760b",
+    url="https://eu.mydrive.ch/shares/90677/c42f2e42db42dd710153dbadc2160f88/download/453437487-1757245265/VAD.zip",
+    hashsum="8655b46d9de19f1c50d3eb79567cc3504773979892281a669d0c36680050050a",
 )
 
 
@@ -60,7 +61,7 @@ class VAD(AnomalibDataModule):
     """VAD Datamodule.
 
     Args:
-        root (Path | str): Path to the root of the dataset.
+        root (Path | str | None): Path to the root of the dataset.
             Defaults to ``"./datasets/VAD"``.
         category (str): Category of the VAD dataset. Defaults to ``"vad"``.
         train_batch_size (int, optional): Training batch size.
@@ -69,7 +70,7 @@ class VAD(AnomalibDataModule):
             Defaults to ``32``.
         num_workers (int, optional): Number of workers.
             Defaults to ``8``.
-        train_augmentations (Transform | None): Augmentations to apply dto the training images
+        train_augmentations (Transform | None): Augmentations to apply to the training images
             Defaults to ``None``.
         val_augmentations (Transform | None): Augmentations to apply to the validation images.
             Defaults to ``None``.
@@ -117,7 +118,7 @@ class VAD(AnomalibDataModule):
 
     def __init__(
         self,
-        root: Path | str = "./datasets/VAD",
+        root: Path | str | None = "./datasets/VAD",
         category: str = "vad",
         train_batch_size: int = 32,
         eval_batch_size: int = 32,
@@ -147,6 +148,7 @@ class VAD(AnomalibDataModule):
             seed=seed,
         )
 
+        root = resolve_with_warning(root, "VAD")
         self.root = Path(root)
         self.category = category
 

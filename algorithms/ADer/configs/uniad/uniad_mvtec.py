@@ -3,8 +3,8 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
 
-from ADer.configs.__base__ import *
-from ADer.configs.__base__ import cfg_model_uniad
+from configs.__base__ import *
+
 
 class cfg(cfg_common, cfg_dataset_default, cfg_model_uniad):
 
@@ -15,7 +15,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_uniad):
 
 		self.seed = 42
 		self.size = 256
-		self.epoch_full = 20
+		self.epoch_full = 1000
 		self.warmup_epochs = 0
 		self.test_start_epoch = self.epoch_full
 		self.test_per_epoch = self.epoch_full // 10
@@ -68,7 +68,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_uniad):
 		)
 		self.model = Namespace()
 		self.model.name = 'uniad'
-		self.model.kwargs = dict(pretrained=False, checkpoint_path='runs/UniADTrainer_configs_uniad_uniad_mvtec_20250803-170448/ckpt.pth', strict=True, model_backbone=self.model_backbone,
+		self.model.kwargs = dict(pretrained=False, checkpoint_path='', strict=True, model_backbone=self.model_backbone,
 								 model_decoder=self.model_decoder)
 
 		# ==> evaluator

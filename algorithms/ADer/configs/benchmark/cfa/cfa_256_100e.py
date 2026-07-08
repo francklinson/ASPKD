@@ -5,7 +5,7 @@ import torchvision.transforms.functional as F
 from PIL import Image
 Image.ANTIALIAS = Image.LANCZOS
 
-from ADer.configs.__base__ import *
+from configs.__base__ import *
 
 
 class cfg(cfg_common, cfg_dataset_default, cfg_model_cfa):
@@ -17,7 +17,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cfa):
 
 		self.seed = 1024
 		self.size = 256
-		self.epoch_full = 20
+		self.epoch_full = 100
 		self.warmup_epochs = 0
 		self.test_start_epoch = self.epoch_full
 		self.test_per_epoch = self.epoch_full // 10
@@ -63,11 +63,11 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cfa):
 		# ==> model
 		self.model_backbone = Namespace()
 		in_chas = [256, 512, 1024]
-		checkpoint_path = 'runs/CFATrainer_configs_benchmark_cfa_cfa_256_100e_20250803-221009/ckpt.pth'
+		checkpoint_path = 'model/pretrain/wide_resnet50_2-95faca4d.pth'
 		out_indices = [i + 1 for i in range(len(in_chas))]  # [1, 2, 3, 4]
 		self.model_backbone.name = 'timm_wide_resnet50_2'
-		self.model_backbone.kwargs = dict(pretrained=False,
-										 checkpoint_path=checkpoint_path,
+		self.model_backbone.kwargs = dict(pretrained=True,
+										 checkpoint_path='',
 										 strict=False,
 										 features_only=True, out_indices=out_indices)
 
@@ -83,7 +83,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cfa):
 		self.model = Namespace()
 		self.model.name = 'cfa'
 		self.model.kwargs = dict(pretrained=False,
-								 checkpoint_path=checkpoint_path, strict=True,
+								 checkpoint_path='', strict=True, 
 								model_backbone=self.model_backbone,
 								model_dsvdd=self.model_dsvdd, 
 								data_cfg=self)

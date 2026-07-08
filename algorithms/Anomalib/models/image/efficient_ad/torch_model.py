@@ -27,7 +27,7 @@ Paper:
     https://arxiv.org/pdf/2303.14535.pdf
 
 See Also:
-    :class:`Anomalib.models.image.efficient_ad.lightning_model.EfficientAd`:
+    :class:`anomalib.models.image.efficient_ad.lightning_model.EfficientAd`:
         Lightning implementation of the EfficientAd model.
 """
 

@@ -51,7 +51,12 @@ def _import_adapters():
         from . import subspacead_adapter
     except Exception as e:
         print(f"[algorithms] subspacead_adapter 导入失败: {e}")
-    
+
+    try:
+        from . import dinomaly2_adapter
+    except Exception as e:
+        print(f"[algorithms] dinomaly2_adapter 导入失败: {e}")
+
     _adapters_imported = True
 
 
@@ -95,19 +100,18 @@ def create_detector(algorithm_name: str,
         if not os.path.exists(model_path):
             raise ValueError(f"自训练模型不存在: {model_path}")
 
-        # 从文件名解析算法类型和模型大小
-        # 文件名格式: dinomaly_{model_type}_{model_size}_{categories}_epoch_...
+        # 从文件名解析算法族和算法类型
+        # 文件名格式: {family}_{algorithm}_{params}_epoch_{n}_{timestamp}.pth
         fname_lower = filename.lower()
         if "dinomaly" in fname_lower:
-            # 解析 model_type: dinov2 / dinov3
+            # Dinomaly: dinomaly_dinov3_small_cat1_cat2_epoch_1000.pth
             if "dinov3" in fname_lower:
                 model_type = "dinov3"
             elif "dinov2" in fname_lower:
                 model_type = "dinov2"
             else:
-                model_type = "dinov3"  # 默认
+                model_type = "dinov3"
 
-            # 解析 model_size: small / base / large
             if "large" in fname_lower:
                 model_size = "large"
             elif "base" in fname_lower:
@@ -116,6 +120,28 @@ def create_detector(algorithm_name: str,
                 model_size = "small"
 
             algorithm_name = f"dinomaly_{model_type}_{model_size}"
+        elif "anomalib_" in fname_lower:
+            # Anomalib: anomalib_patchcore_cat1_epoch_50.pth
+            parts = fname_lower.split("anomalib_", 1)
+            if len(parts) > 1:
+                algo_part = parts[1].split("_")[0]
+                algorithm_name = algo_part  # e.g. "patchcore"
+            else:
+                algorithm_name = "patchcore"
+        elif "ader_" in fname_lower:
+            # ADer: ader_mambaad_cat1_epoch_100.pth
+            parts = fname_lower.split("ader_", 1)
+            if len(parts) > 1:
+                algo_part = parts[1].split("_")[0]
+                # 映射到 ADer 算法名
+                ader_map = {
+                    "mambaad": "mambaad", "invad": "invad", "vitad": "vitad",
+                    "unad": "unad", "cflow": "cflow", "pyramidflow": "pyramidflow",
+                    "simplenet": "simplenet"
+                }
+                algorithm_name = ader_map.get(algo_part, algo_part)
+            else:
+                algorithm_name = "mambaad"
         else:
             raise ValueError(f"无法识别自训练模型的算法类型: {filename}")
         print(f"[DEBUG] create_detector: 自训练模型: {model_path}, 基础算法: {algorithm_name}")

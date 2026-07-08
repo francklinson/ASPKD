@@ -24,9 +24,9 @@ The following example shows how to use the AiVad model to train on the Avenue da
 
 ```python
 # Import the necessary modules
-from Anomalib.data import Avenue
-from Anomalib.models import AiVad
-from Anomalib.engine import Engine
+from anomalib.data import Avenue
+from anomalib.models import AiVad
+from anomalib.engine import Engine
 
 # Load the avenue dataset, model and engine.
 datamodule = Avenue()

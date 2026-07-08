@@ -49,6 +49,8 @@ from .anomaly_map import AnomalyMapGenerator
 if TYPE_CHECKING:
     from Anomalib.data.utils.tiler import Tiler
 
+DEFAULT_CHUNK_SIZE = 1024
+
 
 class PatchcoreModel(DynamicBufferMixin, nn.Module):
     """PatchCore PyTorch model for anomaly detection.
@@ -126,6 +128,7 @@ class PatchcoreModel(DynamicBufferMixin, nn.Module):
         self.anomaly_map_generator = AnomalyMapGenerator()
         self.memory_bank: torch.Tensor
         self.register_buffer("memory_bank", torch.empty(0))
+        self.embedding_store: list[torch.tensor] = []
 
     def forward(self, input_tensor: torch.Tensor) -> torch.Tensor | InferenceBatch:
         """Process input tensor through the model.
@@ -152,6 +155,7 @@ class PatchcoreModel(DynamicBufferMixin, nn.Module):
             ... else:
             ...     assert isinstance(output, InferenceBatch)
         """
+        input_tensor = input_tensor.type(self.memory_bank.dtype)
         output_size = input_tensor.shape[-2:]
         if self.tiler:
             input_tensor = self.tiler.tile(input_tensor)
@@ -169,11 +173,7 @@ class PatchcoreModel(DynamicBufferMixin, nn.Module):
         embedding = self.reshape_embedding(embedding)
 
         if self.training:
-            if self.memory_bank.size(0) == 0:
-                self.memory_bank = embedding
-            else:
-                new_bank = torch.cat((self.memory_bank, embedding), dim=0).to(self.memory_bank)
-                self.memory_bank = new_bank
+            self.embedding_store.append(embedding)
             return embedding
 
         # Ensure memory bank is not empty
@@ -272,13 +272,16 @@ class PatchcoreModel(DynamicBufferMixin, nn.Module):
         if embeddings is not None:
             del embeddings
 
-        if self.memory_bank.size(0) == 0:
-            msg = "Memory bank is empty. Cannot perform coreset selection."
+        if len(self.embedding_store) == 0:
+            msg = "Embedding store is empty. Cannot perform coreset selection."
             raise ValueError(msg)
+
         # Coreset Subsampling
+        self.memory_bank = torch.vstack(self.embedding_store)
+        self.embedding_store.clear()
+
         sampler = KCenterGreedy(embedding=self.memory_bank, sampling_ratio=sampling_ratio)
-        coreset = sampler.sample_coreset().to(self.memory_bank)
-        self.memory_bank = coreset
+        self.memory_bank = sampler.sample_coreset()
 
     @staticmethod
     def euclidean_dist(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -307,17 +310,20 @@ class PatchcoreModel(DynamicBufferMixin, nn.Module):
             This implementation avoids using ``torch.cdist()`` for better
             compatibility with ONNX export and OpenVINO conversion.
         """
-        x_norm = x.pow(2).sum(dim=-1, keepdim=True)  # |x|
-        y_norm = y.pow(2).sum(dim=-1, keepdim=True)  # |y|
-        # row distance can be rewritten as sqrt(|x| - 2 * x @ y.T + |y|.T)
-        res = x_norm - 2 * torch.matmul(x, y.transpose(-2, -1)) + y_norm.transpose(-2, -1)
+        x_norm = x.pow(2).sum(dim=-1, keepdim=True)
+        y_norm = y.pow(2).sum(dim=-1, keepdim=True)
+        res = torch.matmul(x, y.transpose(-2, -1))
+        res.mul_(-2)
+        res.add_(x_norm)
+        res.add_(y_norm.transpose(-2, -1))
         return res.clamp_min_(0).sqrt_()
 
     def nearest_neighbors(self, embedding: torch.Tensor, n_neighbors: int) -> tuple[torch.Tensor, torch.Tensor]:
         """Find nearest neighbors in memory bank for input embeddings.
 
         Uses brute force search with Euclidean distance to find the closest
-        matches in the memory bank for each input embedding.
+        matches in the memory bank for each input embedding. Processes embeddings
+        in chunks to reduce memory usage for large embedding sets.
 
         Args:
             embedding (torch.Tensor): Query embeddings to find neighbors for.
@@ -337,12 +343,43 @@ class PatchcoreModel(DynamicBufferMixin, nn.Module):
             >>> scores.shape, locations.shape
             (torch.Size([100, 5]), torch.Size([100, 5]))
         """
-        distances = self.euclidean_dist(embedding, self.memory_bank)
-        if n_neighbors == 1:
-            # when n_neighbors is 1, speed up computation by using min instead of topk
-            patch_scores, locations = distances.min(1)
+        n = embedding.shape[0]
+        chunk_size = DEFAULT_CHUNK_SIZE
+
+        if n <= chunk_size:
+            # Small embedding set: process all at once
+            distances = self.euclidean_dist(embedding, self.memory_bank)
+            if n_neighbors == 1:
+                # when n_neighbors is 1, speed up computation by using min instead of topk
+                patch_scores, locations = distances.min(1)
+            else:
+                patch_scores, locations = distances.topk(k=n_neighbors, largest=False, dim=1)
         else:
-            patch_scores, locations = distances.topk(k=n_neighbors, largest=False, dim=1)
+            # Large embedding set: process in chunks
+            all_scores = []
+            all_locations = []
+
+            for start_idx in range(0, n, chunk_size):
+                end_idx = min(start_idx + chunk_size, n)
+                embedding_chunk = embedding[start_idx:end_idx]
+
+                # Compute distances for this chunk against full memory bank
+                distances = self.euclidean_dist(embedding_chunk, self.memory_bank)
+
+                # Find top-k neighbors immediately and discard full distance matrix
+                if n_neighbors == 1:
+                    chunk_scores, chunk_locations = distances.min(1)
+                else:
+                    chunk_scores, chunk_locations = distances.topk(k=n_neighbors, largest=False, dim=1)
+
+                all_scores.append(chunk_scores)
+                all_locations.append(chunk_locations)
+                del distances  # Drop reference to allow garbage collection
+
+            # Concatenate results from all chunks
+            patch_scores = torch.cat(all_scores, dim=0)
+            locations = torch.cat(all_locations, dim=0)
+
         return patch_scores, locations
 
     def compute_anomaly_score(

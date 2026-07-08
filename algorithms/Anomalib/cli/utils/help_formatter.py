@@ -38,7 +38,7 @@ try:
         "export": Engine.export,
     }
 except ImportError:
-    print("To use other subcommand using `Anomalib install`")
+    print("To use other subcommand using `anomalib install`")
 
 
 def get_short_docstring(component: type) -> str:
@@ -79,7 +79,7 @@ def get_verbosity_subcommand() -> dict:
 
     Example:
         >>> import sys
-        >>> sys.argv = ['Anomalib', 'train', '-h', '-v']
+        >>> sys.argv = ['anomalib', 'train', '-h', '-v']
         >>> get_verbosity_subcommand()
         {'subcommand': 'train', 'help': True, 'verbosity': 1}
     """
@@ -143,9 +143,9 @@ def get_verbose_usage(subcommand: str = "train") -> str:
         To get more overridable argument information, run the command below.
         ```python
         # Verbosity Level 1
-        Anomalib train [optional_arguments] -h -v
+        anomalib train [optional_arguments] -h -v
         # Verbosity Level 2
-        Anomalib train [optional_arguments] -h -vv
+        anomalib train [optional_arguments] -h -vv
         ```
 
         Get usage for a different subcommand:
@@ -155,18 +155,18 @@ def get_verbose_usage(subcommand: str = "train") -> str:
         To get more overridable argument information, run the command below.
         ```python
         # Verbosity Level 1
-        Anomalib export [optional_arguments] -h -v
+        anomalib export [optional_arguments] -h -v
         # Verbosity Level 2
-        Anomalib export [optional_arguments] -h -vv
+        anomalib export [optional_arguments] -h -vv
         ```
     """
     return (
         "To get more overridable argument information, run the command below.\n"
         "```python\n"
         "# Verbosity Level 1\n"
-        f"Anomalib {subcommand} [optional_arguments] -h -v\n"
+        f"anomalib {subcommand} [optional_arguments] -h -v\n"
         "# Verbosity Level 2\n"
-        f"Anomalib {subcommand} [optional_arguments] -h -vv\n"
+        f"anomalib {subcommand} [optional_arguments] -h -vv\n"
         "```"
     )
 
@@ -327,7 +327,7 @@ class CustomHelpFormatter(RichHelpFormatter, DefaultHelpFormatter):
             elif self.verbosity_level == 1:
                 actions = [action for action in actions if action.dest in REQUIRED_ARGUMENTS[self.subcommand]]
 
-        super().add_usage(usage, actions, *args, **kwargs)
+        super(RichHelpFormatter, self).add_usage(usage, actions, *args, **kwargs)
 
     def add_argument(self, action: argparse.Action) -> None:
         """Add an argument to the help formatter.
