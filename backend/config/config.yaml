@@ -116,6 +116,31 @@ algorithms:
     thresholds:
       default: 0.5
 
+  destseg:
+    name: "DeSTSeg"
+    type: "segmentation"
+    thresholds:
+      default: 0.5
+
+  realnet:
+    name: "RealNet"
+    type: "real_world"
+    thresholds:
+      default: 0.5
+
+  rdpp:
+    name: "RD++"
+    type: "knowledge_distillation"
+    thresholds:
+      default: 0.5
+
+  # DiAD
+  diad:
+    name: "DiAD"
+    type: "diffusion"
+    thresholds:
+      default: 0.5
+
   # Anomalib系列
   patchcore:
     name: "PatchCore"
@@ -337,7 +362,16 @@ models:
     
   simplenet:
     default: "models/pre_trained/simplenet_best.pth"
-    
+
+  destseg:
+    default: "models/pre_trained/destseg_best.pth"
+
+  realnet:
+    default: "models/pre_trained/realnet_best.pth"
+
+  rdpp:
+    default: "models/pre_trained/rdpp_best.pth"
+
   # Anomalib 系列
   patchcore:
     default: "models/pre_trained/patchcore_best.pth"
@@ -561,7 +595,7 @@ models:
     default: "models/pre_trained/.placeholder"
 
   diad:
-    default: "models/pre_trained/.placeholder"
+    default: "algorithms/DiAD/models/diad.ckpt"
 
   audio_feature_cluster:
     default: "models/pre_trained/.placeholder"

@@ -22,9 +22,11 @@ router = APIRouter(tags=["custom-detection"])
 # 需要排除的算法（存根或音频专用）
 EXCLUDED_ALGORITHMS = {
     # other_adapters.py 中的未实现存根
-    "hiad", "multiads", "musc", "dictas", "subspacead", "diad", "audio_feature_cluster",
-    # ADer 系列 - 音频→频谱图管道，不适用于直接图片检测
+    "hiad", "multiads", "musc", "dictas", "subspacead", "audio_feature_cluster",
+    # ADer 系列 - 音频→频谱图管道（独特算法后续补全图片推理）
     "mambaad", "invad", "vitad", "unad", "cflow", "pyramidflow", "simplenet",
+    # ADer 新增（图片推理待实现: destseg, realnet, rdpp）
+    "destseg", "realnet", "rdpp",
     # BaseASD 系列 - 依赖 tensorflow/keras，未安装
     "denseae", "cae", "vae", "aegan", "differnet",
 }
@@ -47,6 +49,7 @@ ALGORITHM_GROUPS = {
     "SubspaceAD (少样本)": ["subspacead_dinov2_large_672", "subspacead_dinov2_large_518",
                            "subspacead_dinov2_large_336", "subspacead_dinov2_base_672",
                            "subspacead_dinov2_base_518", "subspacead_dinov2_small_672"],
+    "DiAD (扩散模型)": ["diad"],
 }
 
 # 反向映射：算法名 → 分组名

@@ -67,6 +67,12 @@ class ADerTaskAssigner:
             self.cfg_path = 'ADer/configs/benchmark/pyramidflow/pyramidflow_256_100e.py'
         elif self.method == 'SimpleNet':
             self.cfg_path = 'ADer/configs/benchmark/simplenet/simplenet_256_100e.py'
+        elif self.method == 'DeSTSeg':
+            self.cfg_path = 'ADer/configs/benchmark/destseg/destseg_256_100e.py'
+        elif self.method == 'RealNet':
+            self.cfg_path = 'ADer/configs/benchmark/realnet/realnet_256_100e.py'
+        elif self.method == 'RDpp':
+            self.cfg_path = 'ADer/configs/benchmark/rdpp/rdpp_256_100e.py'
         else:
             raise NotImplementedError
 

@@ -57,6 +57,11 @@ def _import_adapters():
     except Exception as e:
         print(f"[algorithms] dinomaly2_adapter 导入失败: {e}")
 
+    try:
+        from . import diad_adapter
+    except Exception as e:
+        print(f"[algorithms] diad_adapter 导入失败: {e}")
+
     _adapters_imported = True
 
 
@@ -266,7 +271,8 @@ def _resolve_model_path(config_manager: ConfigManager, algorithm_name: str) -> O
                     'uflow', 'uninet', 'vlm_ad', 'winclip',
                     'anomalyvfm', 'cfm', 'general_ad', 'glass', 'inp_former',
                     'l2bt', 'patchflow', 'anomaly_dino',
-                    'audio_feature_cluster']
+                    'audio_feature_cluster',
+                    'destseg', 'realnet', 'rdpp']
     for algo in common_algos:
         path = config_manager.get_model_path(algo, algorithm_name)
         if path:

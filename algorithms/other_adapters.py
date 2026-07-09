@@ -74,14 +74,6 @@ class SubspaceADAdapter(GenericAdapter):
         # TODO: 实现SubspaceAD具体适配
 
 
-@register_algorithm("diad")
-class DiADAdapter(GenericAdapter):
-    """DiAD扩散模型异常检测"""
-    def __init__(self, model_path: str, **kwargs):
-        super().__init__(model_path, algorithm_name='DiAD', **kwargs)
-        # TODO: 实现DiAD具体适配
-
-
 @register_algorithm("audio_feature_cluster")
 class AudioFeatureClusterAdapter(GenericAdapter):
     """音频特征聚类方法"""

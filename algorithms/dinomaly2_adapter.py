@@ -29,6 +29,56 @@ if _algorithms_dir not in sys.path:
 if _DINOMALY2_DIR not in sys.path:
     sys.path.insert(0, _DINOMALY2_DIR)
 
+# 在模块级别导入 Dinomaly2 的内部模块（必须在 DiAD 适配器之前，避免 models 命名冲突）
+# 关键: vit_encoder.load() 内部有 flat imports (from dinov1 import ..., from dinov2.models import ...)
+# 这些需要在 sys.path 中有 Dinomaly2 目录，且不能被 DiAD 的 models 缓存污染
+_DINOMALY2_DIR = os.path.join(_algorithms_dir, "Dinomaly2")
+if _DINOMALY2_DIR not in sys.path:
+    sys.path.insert(0, _DINOMALY2_DIR)
+
+# 在模块级别预先导入所有 Dinomaly2 内部模块（此时 models 命名空间尚无冲突）
+try:
+    from models.uad import Dinomaly as _D2_Dinomaly
+    from models import vit_encoder as _D2_vit_encoder
+    from models.vision_transformer import Block as _D2_VitBlock
+    from models.vision_transformer import LinearAttention2 as _D2_LinearAttention2
+    from models.vision_transformer import Attention as _D2_Attention
+    from dataset import get_data_transforms as _D2_get_data_transforms
+    _D2_MODELS = {
+        'Dinomaly': _D2_Dinomaly,
+        'vit_encoder': _D2_vit_encoder,
+        'VitBlock': _D2_VitBlock,
+        'LinearAttention2': _D2_LinearAttention2,
+        'Attention': _D2_Attention,
+        'get_data_transforms': _D2_get_data_transforms,
+    }
+except ImportError as e:
+    print(f"[Dinomaly2Adapter] Pre-import warning (will retry at load time): {e}")
+    _D2_MODELS = None
+
+def _get_d2_models():
+    """获取 Dinomaly2 内部模块（已在模块级别预加载）"""
+    global _D2_MODELS
+    if _D2_MODELS is not None:
+        return _D2_MODELS
+    # 回退: 运行时加载
+    import sys as _sys
+    _sys.path.insert(0, _DINOMALY2_DIR)
+    from models.uad import Dinomaly as UADDinomaly
+    from models import vit_encoder
+    from models.vision_transformer import Block as VitBlock, LinearAttention2, Attention
+    from dataset import get_data_transforms
+    _D2_MODELS = {
+        'Dinomaly': UADDinomaly,
+        'vit_encoder': vit_encoder,
+        'VitBlock': VitBlock,
+        'LinearAttention2': LinearAttention2,
+        'Attention': Attention,
+        'get_data_transforms': get_data_transforms,
+    }
+    return _D2_MODELS
+
+
 # 骨干网络配置: {key: (embed_dim, num_heads, target_layers, use_get_intermediate)}
 _BACKBONE_CONFIG = {
     # --- DINOv2 with registers ---
@@ -99,9 +149,12 @@ class Dinomaly2Inference:
 
     def _build_model(self):
         """构建 Dinomaly2 模型（自动适配 DINOv2/v3）"""
-        from models.uad import Dinomaly
-        from models import vit_encoder
-        from models.vision_transformer import Block as VitBlock, LinearAttention2, Attention
+        d2 = _get_d2_models()
+        Dinomaly = d2['Dinomaly']
+        vit_encoder = d2['vit_encoder']
+        VitBlock = d2['VitBlock']
+        LinearAttention2 = d2['LinearAttention2']
+        Attention = d2['Attention']
 
         # 直接用预解析的参数
         embed_dim = self._embed_dim
@@ -190,7 +243,7 @@ class Dinomaly2Inference:
         self._model = model
 
         # 准备数据变换
-        from dataset import get_data_transforms
+        get_data_transforms = _get_d2_models()['get_data_transforms']
         self._transform, self._gt_transform = get_data_transforms(self.image_size, self.crop_size)
 
         print(f"[Dinomaly2] Model ready: {self.backbone}, device={self.device}")
@@ -336,13 +389,20 @@ DINOMALY2_VARIANTS = {
     },
 }
 
-for variant, info in DINOMALY2_VARIANTS.items():
+def _make_dinomaly2_adapter(variant: str, info: dict):
+    """工厂函数 — 捕获 variant/info 避免 Python 闭包循环变量 bug"""
     @register_algorithm(variant)
-    class Dinomaly2Adapted(Dinomaly2BaseAdapter):
+    class Adapter(Dinomaly2BaseAdapter):
         def __init__(self, model_path: str, **kwargs):
             kwargs.setdefault("threshold", info["threshold"])
             kwargs.setdefault("backbone", info["backbone"])
             kwargs.setdefault("model_size", info["model_size"])
             super().__init__(model_path, **kwargs)
 
-    Dinomaly2Adapted.__name__ = f"Dinomaly2{info['name'].replace(' ', '').replace('DINOv2', 'DINOv2')}"
+    # 生成唯一类名
+    clean_name = info['name'].replace(' ', '').replace('DINOv2', 'DINOv2')
+    Adapter.__name__ = f"Dinomaly2{clean_name}"
+    return Adapter
+
+for variant, info in DINOMALY2_VARIANTS.items():
+    _make_dinomaly2_adapter(variant, info)

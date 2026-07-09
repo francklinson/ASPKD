@@ -122,3 +122,24 @@ class PyramidFlowAdapter(ADerBaseAdapter):
 class SimpleNetAdapter(ADerBaseAdapter):
     def __init__(self, model_path: str, **kwargs):
         super().__init__(model_path, method='SimpleNet', **kwargs)
+
+
+@register_algorithm("destseg")
+class DeSTSegAdapter(ADerBaseAdapter):
+    """DeSTSeg — 分割范式异常检测 (ADer独家)"""
+    def __init__(self, model_path: str, **kwargs):
+        super().__init__(model_path, method='DeSTSeg', **kwargs)
+
+
+@register_algorithm("realnet")
+class RealNetAdapter(ADerBaseAdapter):
+    """RealNet — 真实场景异常检测 (ADer独家)"""
+    def __init__(self, model_path: str, **kwargs):
+        super().__init__(model_path, method='RealNet', **kwargs)
+
+
+@register_algorithm("rdpp")
+class RDPlusPlusAdapter(ADerBaseAdapter):
+    """RD++ — 增强反向蒸馏 (ADer独家)"""
+    def __init__(self, model_path: str, **kwargs):
+        super().__init__(model_path, method='RDpp', **kwargs)
