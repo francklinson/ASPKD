@@ -25,6 +25,8 @@ EXCLUDED_ALGORITHMS = {
     "hiad", "multiads", "musc", "dictas", "subspacead", "diad", "audio_feature_cluster",
     # ADer 系列 - 音频→频谱图管道，不适用于直接图片检测
     "mambaad", "invad", "vitad", "unad", "cflow", "pyramidflow", "simplenet",
+    # BaseASD 系列 - 依赖 tensorflow/keras，未安装
+    "denseae", "cae", "vae", "aegan", "differnet",
 }
 
 # 算法族分组（前端展示用）
@@ -39,7 +41,6 @@ ALGORITHM_GROUPS = {
                  # Anomalib v2.5.0 新增
                  "anomalyvfm", "cfm", "general_ad", "glass", "inp_former",
                  "l2bt", "patchflow", "anomaly_dino"],
-    "BaseASD": ["denseae", "cae", "vae", "aegan", "differnet"],
     "MuSc (零样本)": ["musc_clip_b32_512", "musc_clip_b16_512", "musc_clip_l14_336",
                      "musc_clip_l14_518", "musc_dinov2_b14_336", "musc_dinov2_b14_518",
                      "musc_dinov2_l14_336", "musc_dinov2_l14_518"],

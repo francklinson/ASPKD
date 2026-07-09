@@ -257,10 +257,16 @@ def _resolve_model_path(config_manager: ConfigManager, algorithm_name: str) -> O
         return path
     
     # 尝试4: 使用完整名称作为variant，尝试常见算法名
-    common_algos = ['dinomaly', 'mambaad', 'invad', 'vitad', 'unad', 
-                    'cflow', 'pyramidflow', 'simplenet', 'patchcore', 
+    common_algos = ['dinomaly', 'mambaad', 'invad', 'vitad', 'unad',
+                    'cflow', 'pyramidflow', 'simplenet', 'patchcore',
                     'efficient_ad', 'padim', 'denseae', 'cae', 'vae', 'aegan', 'differnet',
-                    'hiad', 'multiads', 'musc', 'dictas', 'subspacead', 'diad']
+                    'hiad', 'multiads', 'musc', 'dictas', 'subspacead', 'diad',
+                    'cfa', 'csflow', 'dfkde', 'dfm', 'draem', 'dsr', 'fastflow', 'fre',
+                    'reverse_distillation', 'stfpm', 'ganomaly', 'supersimplenet',
+                    'uflow', 'uninet', 'vlm_ad', 'winclip',
+                    'anomalyvfm', 'cfm', 'general_ad', 'glass', 'inp_former',
+                    'l2bt', 'patchflow', 'anomaly_dino',
+                    'audio_feature_cluster']
     for algo in common_algos:
         path = config_manager.get_model_path(algo, algorithm_name)
         if path:

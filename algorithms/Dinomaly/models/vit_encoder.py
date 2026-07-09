@@ -14,6 +14,14 @@ _logger = logging.getLogger(__name__)
 
 # 注意这里是写死的
 _WEIGHTS_DIR = os.getenv("DINOMALY_ENCODER_DIR")
+if not _WEIGHTS_DIR:
+    # 向上查找项目根目录并推断默认路径
+    _p = os.path.dirname(os.path.abspath(__file__))  # .../algorithms/Dinomaly/models/
+    for _ in range(3):
+        _p = os.path.dirname(_p)  # -> project root
+    _default = os.path.join(_p, "models", "pre_trained")
+    _WEIGHTS_DIR = _default
+    _logger.warning(f"DINOMALY_ENCODER_DIR 未设置，使用默认路径: {_default}")
 
 os.makedirs(_WEIGHTS_DIR, exist_ok=True)
 

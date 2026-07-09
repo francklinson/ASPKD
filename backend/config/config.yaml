@@ -301,10 +301,11 @@ models:
   # Dinomaly 系列
   dinomaly:
     dinov3_small: "models/pre_trained/dinomaly_dinov3_small.pth"
-    dinov3_large: "models/pre_trained/dinov2_vitl14_pretrain.pth"
+    dinov3_base: "models/pre_trained/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth"
+    dinov3_large: "models/pre_trained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"
     dinov2_small: "models/pre_trained/dinomaly_dinov2_small.pth"
-    dinov2_large: "models/pre_trained/dinov2_vitl14_pretrain.pth"
     dinov2_base: "models/pre_trained/dinov2_vitb14_pretrain.pth"
+    dinov2_large: "models/pre_trained/dinov2_vitl14_pretrain.pth"
 
   # Dinomaly2 系列 (DINOv2 with registers)
   dinomaly2:
@@ -340,42 +341,91 @@ models:
   # Anomalib 系列
   patchcore:
     default: "models/pre_trained/patchcore_best.pth"
-    
+
   efficient_ad:
     default: "models/pre_trained/efficientad_best.pth"
     teacher_small: "models/pre_trained/efficientad_pretrained_weights/pretrained_teacher_small.pth"
     teacher_medium: "models/pre_trained/efficientad_pretrained_weights/pretrained_teacher_medium.pth"
-    
+
   padim:
     default: "models/pre_trained/padim_best.pth"
 
+  cfa:
+    default: "models/pre_trained/cfa_best.pth"
+
+  csflow:
+    default: "models/pre_trained/csflow_best.pth"
+
+  dfkde:
+    default: "models/pre_trained/dfkde_best.pth"
+
+  dfm:
+    default: "models/pre_trained/dfm_best.pth"
+
+  draem:
+    default: "models/pre_trained/draem_best.pth"
+
+  dsr:
+    default: "models/pre_trained/dsr_best.pth"
+
+  fastflow:
+    default: "models/pre_trained/fastflow_best.pth"
+
+  fre:
+    default: "models/pre_trained/fre_best.pth"
+
+  reverse_distillation:
+    default: "models/pre_trained/reverse_distillation_best.pth"
+
+  stfpm:
+    default: "models/pre_trained/stfpm_best.pth"
+
+  ganomaly:
+    default: "models/pre_trained/ganomaly_best.pth"
+
+  supersimplenet:
+    default: "models/pre_trained/supersimplenet_best.pth"
+
+  uflow:
+    default: "models/pre_trained/uflow_best.pth"
+
+  uninet:
+    default: "models/pre_trained/uninet_best.pth"
+
+  vlm_ad:
+    default: "models/pre_trained/vlm_ad_best.pth"
+
+  winclip:
+    default: "models/pre_trained/winclip_best.pth"
+
   # Anomalib v2.5.0 新增模型
   anomalyvfm:
-    default: ""
+    default: "models/pre_trained/.placeholder"
 
   cfm:
-    default: ""
+    default: "models/pre_trained/.placeholder"
 
   general_ad:
-    default: ""
+    default: "models/pre_trained/.placeholder"
 
   glass:
-    default: ""
+    default: "models/pre_trained/.placeholder"
 
   inp_former:
-    default: ""
+    default: "models/pre_trained/.placeholder"
 
   l2bt:
-    default: ""
+    default: "models/pre_trained/.placeholder"
 
   patchflow:
-    default: ""
+    default: "models/pre_trained/.placeholder"
 
   anomaly_dino:
-    default: ""
+    default: "models/pre_trained/.placeholder"
 
   # MuSc 零样本检测系列
   musc:
+    default: "models/pre_trained/.placeholder"  # 短名存根
     pretrained_models_dir: "models/pre_trained"
     # CLIP 模型
     ViT-B-32: "models/pre_trained/ViT-B-32.pt"
@@ -425,12 +475,18 @@ models:
   # BaseASD 系列
   denseae:
     default: "models/pre_trained/denseae_best.pth"
-    
+
   cae:
     default: "models/pre_trained/cae_best.pth"
-    
+
   vae:
     default: "models/pre_trained/vae_best.pth"
+
+  aegan:
+    default: "models/pre_trained/aegan_best.pth"
+
+  differnet:
+    default: "models/pre_trained/differnet_best.pth"
     
   # ResNet 骨干网络
   resnet:
@@ -441,12 +497,74 @@ models:
   # 使用 HuggingFace 的 DINOv2-with-registers 模型
   # 首次运行时自动下载并缓存到 models/pre_trained/huggingface/
   subspacead:
+    default: "models/pre_trained/.placeholder"  # 短名存根
     dinov2-large-672: "models/pre_trained/dinov2_vitl14_reg4_pretrain.pth"
     dinov2-large-518: "models/pre_trained/dinov2_vitl14_reg4_pretrain.pth"
     dinov2-large-336: "models/pre_trained/dinov2_vitl14_reg4_pretrain.pth"
     dinov2-base-672: "models/pre_trained/dinov2_vitb14_reg4_pretrain.pth"
     dinov2-base-518: "models/pre_trained/dinov2_vitb14_reg4_pretrain.pth"
     dinov2-small-672: "models/pre_trained/dinov2_vits14_reg4_pretrain.pth"
+
+  # SubspaceAD 详细变体 (作为独立算法条目，方便 factory 解析)
+  subspacead_dinov2_large_672:
+    default: "models/pre_trained/dinov2_vitl14_reg4_pretrain.pth"
+
+  subspacead_dinov2_large_518:
+    default: "models/pre_trained/dinov2_vitl14_reg4_pretrain.pth"
+
+  subspacead_dinov2_large_336:
+    default: "models/pre_trained/dinov2_vitl14_reg4_pretrain.pth"
+
+  subspacead_dinov2_base_672:
+    default: "models/pre_trained/dinov2_vitb14_reg4_pretrain.pth"
+
+  subspacead_dinov2_base_518:
+    default: "models/pre_trained/dinov2_vitb14_reg4_pretrain.pth"
+
+  subspacead_dinov2_small_672:
+    default: "models/pre_trained/dinov2_vits14_reg4_pretrain.pth"
+
+  # MuSc 详细变体 (model_path 实际指向 backbone 权重文件)
+  musc_clip_b32_512:
+    default: "models/pre_trained/ViT-B-32.pt"
+
+  musc_clip_b16_512:
+    default: "models/pre_trained/ViT-B-16.pt"
+
+  musc_clip_l14_336:
+    default: "models/pre_trained/ViT-L-14-336px.pt"
+
+  musc_clip_l14_518:
+    default: "models/pre_trained/ViT-L-14.pt"
+
+  musc_dinov2_b14_336:
+    default: "models/pre_trained/dinov2_vitb14_pretrain.pth"
+
+  musc_dinov2_b14_518:
+    default: "models/pre_trained/dinov2_vitb14_pretrain.pth"
+
+  musc_dinov2_l14_336:
+    default: "models/pre_trained/dinov2_vitl14_pretrain.pth"
+
+  musc_dinov2_l14_518:
+    default: "models/pre_trained/dinov2_vitl14_pretrain.pth"
+
+  # Other 存根算法 (other_adapters.py)
+  # 这些是未实现的占位算法，推理时会报 NotImplementedError
+  hiad:
+    default: "models/pre_trained/.placeholder"
+
+  multiads:
+    default: "models/pre_trained/.placeholder"
+
+  dictas:
+    default: "models/pre_trained/.placeholder"
+
+  diad:
+    default: "models/pre_trained/.placeholder"
+
+  audio_feature_cluster:
+    default: "models/pre_trained/.placeholder"
 
 # 推理配置
 inference:

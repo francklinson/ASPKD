@@ -35,10 +35,10 @@ _BACKBONE_CONFIG = {
     "dinov2reg_vit_small_14":  (384,  6,  [2, 3, 4, 5, 6, 7, 8, 9],   False),
     "dinov2reg_vit_base_14":   (768,  12, [2, 3, 4, 5, 6, 7, 8, 9],   False),
     "dinov2reg_vit_large_14":  (1024, 16, [4, 6, 8, 10, 12, 14, 16, 18], False),
-    # --- DINOv3 ---
-    "dinov3_vits16":           (384,  6,  [2, 3, 4, 5, 6, 7, 8, 9],   True),
-    "dinov3_vitb16":           (768,  12, [2, 3, 4, 5, 6, 7, 8, 9],   True),
-    "dinov3_vitl16":           (1024, 16, [4, 6, 8, 10, 12, 14, 16, 18], True),
+    # --- DINOv3 (命名需兼容 vit_encoder.load: xxx_arch_patchsize, arch=small/base/large) ---
+    "dinov3_vit_small_16":     (384,  6,  [2, 3, 4, 5, 6, 7, 8, 9],   True),
+    "dinov3_vit_base_16":      (768,  12, [2, 3, 4, 5, 6, 7, 8, 9],   True),
+    "dinov3_vit_large_16":     (1024, 16, [4, 6, 8, 10, 12, 14, 16, 18], True),
 }
 
 
@@ -120,8 +120,14 @@ class Dinomaly2Inference:
         fuse_layer_encoder, fuse_layer_decoder = fuse_presets.get(
             self.lc, ([[0, 1, 2, 3], [4, 5, 6, 7]], [[0, 1, 2, 3], [4, 5, 6, 7]]))
 
-        # 2. 构建编码器
-        encoder = vit_encoder.load(encoder_name)
+        # 2. 构建编码器 — 使用项目预训练模型目录
+        # __file__ = .../ASD_for_SPK/algorithms/dinomaly2_adapter.py
+        # dirname x 2 = .../ASD_for_SPK (项目根目录)
+        pretrained_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "models", "pre_trained"
+        )
+        encoder = vit_encoder.load(self.backbone, WEIGHTS_DIR=pretrained_dir)
 
         # 3. 构建瓶颈层 (Noisy Bottleneck)
         bottleneck = nn.ModuleList([
@@ -214,11 +220,14 @@ class Dinomaly2Inference:
         anomaly_maps = []
         for i in range(len(de)):
             a_map = 1 - F.cosine_similarity(en[i], de[i], dim=1)
-            a_map = a_map.unsqueeze(0).unsqueeze(0)
-            a_map = F.interpolate(
-                a_map, size=(original_size[1], original_size[0]),
-                mode="bilinear", align_corners=True
-            )
+            # 确保 a_map 是 4D: [B, C, H, W]
+            while a_map.dim() < 4:
+                a_map = a_map.unsqueeze(0)
+            if a_map.dim() == 4:
+                a_map = F.interpolate(
+                    a_map, size=(original_size[1], original_size[0]),
+                    mode="bilinear", align_corners=True
+                )
             anomaly_maps.append(a_map)
 
         anomaly_map = torch.cat(anomaly_maps, dim=1).mean(dim=1, keepdim=True)
@@ -309,19 +318,19 @@ DINOMALY2_VARIANTS = {
     # --- DINOv3 ---
     "dinomaly2_dinov3_small": {
         "name": "Dinomaly2 DINOv3 Small",
-        "backbone": "dinov3_vits16",
+        "backbone": "dinov3_vit_small_16",
         "model_size": "small",
         "threshold": 0.5,
     },
     "dinomaly2_dinov3_base": {
         "name": "Dinomaly2 DINOv3 Base",
-        "backbone": "dinov3_vitb16",
+        "backbone": "dinov3_vit_base_16",
         "model_size": "base",
         "threshold": 0.5,
     },
     "dinomaly2_dinov3_large": {
         "name": "Dinomaly2 DINOv3 Large",
-        "backbone": "dinov3_vitl16",
+        "backbone": "dinov3_vit_large_16",
         "model_size": "large",
         "threshold": 0.5,
     },

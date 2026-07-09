@@ -13,7 +13,10 @@ import tifffile as tiff
 import cv2
 from torchvision.transforms import functional as F
 from pathlib import Path
-from natsort import natsorted
+try:
+    from natsort import natsorted
+except ImportError:
+    natsorted = sorted  # fallback to standard sorting
 
 # import imgaug.augmenters as iaa
 # from perlin import rand_perlin_2d_np

@@ -46,7 +46,7 @@ def load(name, WEIGHTS_DIR="./backbones/weights"):
             elif arch == "small":
                 model = dinov3_vits16(pretrained=True,
                                       weights=os.path.join(WEIGHTS_DIR,
-                                                           'dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth'),
+                                                           'dinov3_vits16_pretrain_lvd1689m-08c60483.pth'),
                                       )
             elif arch == "large":
                 model = dinov3_vitl16(pretrained=True,
