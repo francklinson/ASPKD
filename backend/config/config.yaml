@@ -134,13 +134,6 @@ algorithms:
     thresholds:
       default: 0.5
 
-  # DiAD
-  diad:
-    name: "DiAD"
-    type: "diffusion"
-    thresholds:
-      default: 0.5
-
   # Anomalib系列
   patchcore:
     name: "PatchCore"
@@ -593,9 +586,6 @@ models:
 
   dictas:
     default: "models/pre_trained/.placeholder"
-
-  diad:
-    default: "algorithms/DiAD/models/diad.ckpt"
 
   audio_feature_cluster:
     default: "models/pre_trained/.placeholder"

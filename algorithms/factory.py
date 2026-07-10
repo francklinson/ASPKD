@@ -57,11 +57,6 @@ def _import_adapters():
     except Exception as e:
         print(f"[algorithms] dinomaly2_adapter 导入失败: {e}")
 
-    try:
-        from . import diad_adapter
-    except Exception as e:
-        print(f"[algorithms] diad_adapter 导入失败: {e}")
-
     _adapters_imported = True
 
 
@@ -265,7 +260,7 @@ def _resolve_model_path(config_manager: ConfigManager, algorithm_name: str) -> O
     common_algos = ['dinomaly', 'mambaad', 'invad', 'vitad', 'unad',
                     'cflow', 'pyramidflow', 'simplenet', 'patchcore',
                     'efficient_ad', 'padim', 'denseae', 'cae', 'vae', 'aegan', 'differnet',
-                    'hiad', 'multiads', 'musc', 'dictas', 'subspacead', 'diad',
+                    'hiad', 'multiads', 'musc', 'dictas', 'subspacead',
                     'cfa', 'csflow', 'dfkde', 'dfm', 'draem', 'dsr', 'fastflow', 'fre',
                     'reverse_distillation', 'stfpm', 'ganomaly', 'supersimplenet',
                     'uflow', 'uninet', 'vlm_ad', 'winclip',

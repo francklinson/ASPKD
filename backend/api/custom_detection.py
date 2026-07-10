@@ -49,7 +49,6 @@ ALGORITHM_GROUPS = {
     "SubspaceAD (少样本)": ["subspacead_dinov2_large_672", "subspacead_dinov2_large_518",
                            "subspacead_dinov2_large_336", "subspacead_dinov2_base_672",
                            "subspacead_dinov2_base_518", "subspacead_dinov2_small_672"],
-    "DiAD (扩散模型)": ["diad"],
 }
 
 # 反向映射：算法名 → 分组名
