@@ -418,8 +418,6 @@ def _run_dinomaly_training(task_id: str, config: TrainingConfig, save_name: str)
             "--model_type", config.model_type,
             "--batch_size", str(config.batch_size),
             "--total_iters", str(config.total_iters),
-            "--learning_rate", str(config.learning_rate),
-            "--save_interval", str(config.save_interval),
             "--categories",
         ] + config.categories
 

@@ -790,11 +790,48 @@ body {
     align-items: stretch;
 }
 
+.row-config {
+    grid-template-columns: 7fr 5fr;
+}
+
 .row > .card {
     display: flex;
     flex-direction: column;
     height: auto;
     min-height: 320px;
+}
+
+.row > .card.card-status {
+    min-height: auto;
+}
+
+/* 自定义检测卡片紧凑化 */
+#custom-detection .row > .card {
+    min-height: auto;
+}
+#custom-detection .card {
+    overflow: hidden;
+}
+#custom-detection .form-group {
+    margin-bottom: 10px;
+}
+#custom-detection .form-control {
+    max-width: 100%;
+}
+#custom-detection .dropzone {
+    padding: 20px !important;
+}
+#custom-detection .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+}
+#custom-detection .stats-grid .stat-item {
+    padding: 10px 12px;
+    font-size: 13px;
+}
+#custom-detection .result-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
 }
 
 .row > .card > #results {
@@ -901,7 +938,12 @@ body {
 .dataset-image-item .img-label.anomaly { color: #e74c3c; }
 
 /* 结果网格 */
-.result-grid { margin-top: 12px; }
+.result-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
 .result-card {
     background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;
     transition: all 0.2s;
@@ -950,6 +992,16 @@ body {
 .score-low { color: #27ae60; }
 
 .empty-hint { text-align: center; padding: 20px; color: #999; font-size: 14px; }
+
+.modal-close {
+    cursor: pointer;
+    float: right;
+    font-size: 24px;
+    line-height: 1;
+    color: #999;
+    transition: color 0.2s;
+}
+.modal-close:hover { color: #333; }
 
 /* 模态框激活 */
 .modal-overlay.active { display: flex !important; }

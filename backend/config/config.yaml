@@ -671,6 +671,7 @@ environments:
   HF_HOME: "models/pre_trained/huggingface"
   TRANSFORMERS_CACHE: "models/pre_trained/huggingface"
   HUGGINGFACE_HUB_CACHE: "models/pre_trained/huggingface"
+  OPEN_CLIP_CACHE_DIR: "models/pre_trained/open_clip"
 
 # Python 虚拟环境配置
 # 用于动态添加虚拟环境 site-packages 到 Python 路径

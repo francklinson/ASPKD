@@ -98,6 +98,9 @@ class AnomalibAdapter(BaseDetector):
         self._model.to(self.device)
         self._model.eval()
 
+        # 3.5 Memory Bank 拟合：ONE_CLASS 模型需要训练数据来填充 memory bank
+        self._fit_memory_bank()
+
         # 4. 缓存模型元信息
         self._model_info = {
             'learning_type': str(self._model.learning_type),
@@ -112,6 +115,80 @@ class AnomalibAdapter(BaseDetector):
         self.is_loaded = True
         elapsed = time.time() - start_time
         print(f"[Anomalib:{self.model_name}] Load complete in {elapsed:.2f}s")
+
+    def _fit_memory_bank(self):
+        """为 ONE_CLASS 模型填充 memory bank
+
+        对于 patchcore/padim/cfa/dfkde/anomaly_dino 等模型，
+        需要在推理前用正常样本训练数据调用 model.fit() 来填充 memory bank。
+        """
+        # 检查是否需要 fit
+        if not hasattr(self._model, 'learning_type'):
+            return
+        from Anomalib.types import LearningType
+        if self._model.learning_type != LearningType.ONE_CLASS:
+            return
+        if not hasattr(self._model, 'fit') or not callable(self._model.fit):
+            return
+        if getattr(self._model, '_is_fitted', False):
+            return
+
+        # 需要参考数据目录
+        if not self.reference_dir or not os.path.isdir(self.reference_dir):
+            print(f"[Anomalib:{self.model_name}] Memory bank needs fitting "
+                  f"but reference_dir not found: {self.reference_dir}")
+            return
+
+        print(f"[Anomalib:{self.model_name}] Fitting memory bank with {self.reference_dir}...")
+        try:
+            from torch.utils.data import DataLoader
+            from torchvision import transforms
+            from torchvision.datasets import ImageFolder
+            from PIL import Image
+            import torch
+
+            # 构建简单的训练数据集
+            input_size = getattr(self._model, 'input_size', (256, 256))
+            transform = transforms.Compose([
+                transforms.Resize(input_size),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]),
+            ])
+
+            # 收集训练图片
+            train_files = sorted([
+                os.path.join(self.reference_dir, f)
+                for f in os.listdir(self.reference_dir)
+                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
+            ])[:64]  # 最多 64 张用于拟合
+
+            if not train_files:
+                print(f"[Anomalib:{self.model_name}] No training images found")
+                return
+
+            # 构建 DataLoader
+            class ImageDataset(torch.utils.data.Dataset):
+                def __init__(self, files, transform):
+                    self.files = files
+                    self.transform = transform
+                def __len__(self):
+                    return len(self.files)
+                def __getitem__(self, idx):
+                    img = Image.open(self.files[idx]).convert('RGB')
+                    return self.transform(img)
+
+            dataset = ImageDataset(train_files, transform)
+            dataloader = DataLoader(dataset, batch_size=8, shuffle=False,
+                                    num_workers=0, pin_memory=True)
+
+            fit_start = time.time()
+            self._model.fit(dataloader)
+            fit_elapsed = time.time() - fit_start
+            print(f"[Anomalib:{self.model_name}] Memory bank fitted in {fit_elapsed:.1f}s "
+                  f"({len(train_files)} images)")
+        except Exception as e:
+            print(f"[Anomalib:{self.model_name}] Memory bank fitting failed: {e}")
 
     # ========================================================================
     # 单张图片推理

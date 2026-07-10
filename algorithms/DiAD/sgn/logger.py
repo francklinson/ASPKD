@@ -5,7 +5,10 @@ import torch
 import torchvision
 from PIL import Image
 from pytorch_lightning.callbacks import Callback
-from pytorch_lightning.utilities.distributed import rank_zero_only
+try:
+    from pytorch_lightning.utilities.rank_zero import rank_zero_only
+except ImportError:
+    from pytorch_lightning.utilities.distributed import rank_zero_only
 import cv2
 
 class ImageLogger(Callback):

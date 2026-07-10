@@ -277,13 +277,20 @@ class DinomalyDinoV2Inference(DinomalyBaseInferencer):
         arch_time = time.time() - start_time
         print(f"[Dinomaly] ✓ Model architecture created in {arch_time:.2f}s")
         
-        # 加载权重
+        # 加载权重（strict=False 以兼容 backbone-only 权重文件）
         print(f"[Dinomaly] Loading model weights from: {model_path}")
         weights_start = time.time()
-        model.load_state_dict(torch.load(model_path, map_location=self.device))
+        state_dict = torch.load(model_path, map_location=self.device)
+        model_dict = model.state_dict()
+        missing, unexpected = model.load_state_dict(state_dict, strict=False)
         weights_time = time.time() - weights_start
-        print(f"[Dinomaly] ✓ Weights loaded in {weights_time:.2f}s")
-        
+        if missing:
+            print(f"[Dinomaly] ⚠ Missing keys: {len(missing)} (ViTill layers will use random init)")
+        if unexpected:
+            print(f"[Dinomaly] ⚠ Unexpected keys: {len(unexpected)}")
+        print(f"[Dinomaly] ✓ Weights loaded in {weights_time:.2f}s "
+              f"(matched={len(model_dict)-len(missing)}/{len(model_dict)})")
+
         model = model.to(self.device)
         print(f"[Dinomaly] ✓ Model moved to device: {self.device}")
         return model
@@ -364,13 +371,20 @@ class DinomalyDinoV3Inference(DinomalyBaseInferencer):
         arch_time = time.time() - start_time
         print(f"[Dinomaly] ✓ Model architecture created in {arch_time:.2f}s")
         
-        # 加载权重
+        # 加载权重（strict=False 以兼容 backbone-only 权重文件）
         print(f"[Dinomaly] Loading model weights from: {model_path}")
         weights_start = time.time()
-        model.load_state_dict(torch.load(model_path, map_location=self.device))
+        state_dict = torch.load(model_path, map_location=self.device)
+        model_dict = model.state_dict()
+        missing, unexpected = model.load_state_dict(state_dict, strict=False)
         weights_time = time.time() - weights_start
-        print(f"[Dinomaly] ✓ Weights loaded in {weights_time:.2f}s")
-        
+        if missing:
+            print(f"[Dinomaly] ⚠ Missing keys: {len(missing)} (ViTill layers will use random init)")
+        if unexpected:
+            print(f"[Dinomaly] ⚠ Unexpected keys: {len(unexpected)}")
+        print(f"[Dinomaly] ✓ Weights loaded in {weights_time:.2f}s "
+              f"(matched={len(model_dict)-len(missing)}/{len(model_dict)})")
+
         model = model.to(self.device)
         print(f"[Dinomaly] ✓ Model moved to device: {self.device}")
         return model

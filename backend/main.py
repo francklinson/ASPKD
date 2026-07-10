@@ -15,11 +15,21 @@ if os.path.exists(config_path):
         import yaml
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
+        # 需要解析为绝对路径的环境变量
+        _PATH_ENV_KEYS = {
+            'DINOMALY_ENCODER_DIR', 'PRETRAINED_MODELS_DIR', 'TORCH_HOME',
+            'HF_HOME', 'TRANSFORMERS_CACHE', 'HUGGINGFACE_HUB_CACHE',
+            'OPEN_CLIP_CACHE_DIR',
+        }
         env_config = config.get('environments', {})
         for key, value in env_config.items():
             if value and key not in os.environ:
-                os.environ[key] = str(value)
-                print(f"[Main] Set environment variable: {key}={value}")
+                val_str = str(value)
+                # 将相对路径解析为绝对路径（相对于项目根目录）
+                if key in _PATH_ENV_KEYS and not os.path.isabs(val_str):
+                    val_str = os.path.join(project_root, val_str)
+                os.environ[key] = val_str
+                print(f"[Main] Set environment variable: {key}={val_str}")
     except Exception as e:
         print(f"[Main] Warning: Failed to load environment variables from config: {e}")
 
