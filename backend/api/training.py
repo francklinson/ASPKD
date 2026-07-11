@@ -899,11 +899,19 @@ def _run_ader_training(task_id: str, config: TrainingConfig, save_name: str):
         except ValueError:
             data_rel = data_abs  # 不同驱动器时回退到绝对路径
 
+        # 计算 models/saved/ 相对于 algorithms/ADer/ 的路径，让 ADer 直接输出到该目录
+        saved_results_abs = os.path.abspath(SAVED_RESULTS_DIR)
+        try:
+            checkpoint_rel = os.path.relpath(saved_results_abs, ader_abs)
+        except ValueError:
+            checkpoint_rel = saved_results_abs
+
         cmd = [
             sys.executable, script_path,
             "-c", cfg_path,
             "-m", "train",
             f"data.root={data_rel}",
+            f"trainer.checkpoint={checkpoint_rel}",
         ]
 
         _run_subprocess_with_logging(task_id, cmd, env=env, cwd=ader_cwd)
@@ -1043,21 +1051,6 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                     task["model_path"] = fpath
                     model_found = True
                     break
-
-        # ADer 训练输出在 algorithms/ADer/runs/ 下，需要拷贝到 models/saved/
-        if not model_found and task.get("algorithm_family") == "ader":
-            ader_runs = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "runs")
-            if os.path.exists(ader_runs):
-                import shutil
-                for run_dir in os.listdir(ader_runs):
-                    run_path = os.path.join(ader_runs, run_dir)
-                    if os.path.isdir(run_path) and task["save_name"].replace("ader_", "").split("_")[0].lower() in run_dir.lower():
-                        dest = os.path.join(save_dir, task["save_name"])
-                        if not os.path.exists(dest):
-                            shutil.copytree(run_path, dest)
-                        task["model_path"] = dest
-                        model_found = True
-                        break
     else:
         task["status"] = "failed"
         task["progress"] = f"训练失败 (退出码: {process.returncode})"
