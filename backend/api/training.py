@@ -35,171 +35,171 @@ TRAINING_TASKS: Dict[str, dict] = {}
 ALGORITHM_FAMILIES = {
     "dinomaly": {
         "name": "Dinomaly",
-        "description": "基于 DINOv2/v3 骨干网络的特征异常检测，支持多种模型规模",
+        "description": "基于 DINOv2/v3 骨干网络的特征异常检测（CVPR 2025）。核心思想：The less is more philosophy in multi-class unsupervised anomaly detection。采用 Context-Aware Recentering 将多类特征重新中心化到统一空间，Loose Constraint 放松正则化避免过拟合，Linear Attention 实现高效长距离特征交互。在 MVTec AD 上取得 SOTA 级别 AUROC。",
         "trainable": True,
         "param_schema": "encoder_size",
         "algorithms": [
             {"id": "dinomaly_dinov3_small", "name": "Dinomaly DINOv3 Small", "type": "feature_based",
-             "description": "基于 DINOv3 ViT-S/16 编码器，384维特征，快速训练",
+             "description": "基于 DINOv3 ViT-S/16 编码器，384维特征，Context-Aware Recentering + Linear Attention，快速训练",
              "performance": "MVTec AD AUROC ~96%，训练速度快，显存需求低", "gpu_memory": "~2GB", "input_size": "600x600"},
             {"id": "dinomaly_dinov3_base", "name": "Dinomaly DINOv3 Base", "type": "feature_based",
-             "description": "基于 DINOv3 ViT-B/16 编码器，768维特征，精度与速度均衡",
+             "description": "基于 DINOv3 ViT-B/16 编码器，768维特征，精度与速度均衡，Context-Aware Recentering 稳定训练",
              "performance": "MVTec AD AUROC ~98%，中等显存需求", "gpu_memory": "~4GB", "input_size": "600x600"},
             {"id": "dinomaly_dinov3_large", "name": "Dinomaly DINOv3 Large", "type": "feature_based",
-             "description": "基于 DINOv3 ViT-L/16 编码器，1024维特征，最高精度",
+             "description": "基于 DINOv3 ViT-L/16 编码器，1024维特征，最高精度，全特性支持",
              "performance": "MVTec AD AUROC ~99%，高精度但需大显存", "gpu_memory": "~8GB", "input_size": "600x600"},
             {"id": "dinomaly_dinov2_small", "name": "Dinomaly DINOv2 Small", "type": "feature_based",
-             "description": "基于 DINOv2 ViT-S/14 编码器，384维特征，轻量级",
+             "description": "基于 DINOv2 ViT-S/14 编码器，384维特征，轻量级快速验证",
              "performance": "MVTec AD AUROC ~95%，训练快，适合快速验证", "gpu_memory": "~2GB", "input_size": "600x600"},
             {"id": "dinomaly_dinov2_base", "name": "Dinomaly DINOv2 Base", "type": "feature_based",
-             "description": "基于 DINOv2 ViT-B/14 编码器，768维特征",
+             "description": "基于 DINOv2 ViT-B/14 编码器，768维特征，性价比较高",
              "performance": "MVTec AD AUROC ~97%，性价比较高", "gpu_memory": "~4GB", "input_size": "600x600"},
             {"id": "dinomaly_dinov2_large", "name": "Dinomaly DINOv2 Large", "type": "feature_based",
-             "description": "基于 DINOv2 ViT-L/14 编码器，1024维特征",
+             "description": "基于 DINOv2 ViT-L/14 编码器，1024维特征，高精度检测",
              "performance": "MVTec AD AUROC ~98%，高精度", "gpu_memory": "~8GB", "input_size": "600x600"},
         ],
     },
     "dinomaly2": {
         "name": "Dinomaly2",
-        "description": "Dinomaly2 — 统一全频谱异常检测，支持 Context-Aware Recentering + Linear Attention + Loose Constraint",
+        "description": "One Dinomaly2 Detect Them All：统一全频谱异常检测框架（arXiv 2025）。首个统一框架无缝处理多种数据模态（2D、多视角、RGB-3D、RGB-IR）、多种任务设置（单类、多类、推理统一多类、少样本）和应用领域（工业、生物、户外）。核心技术：Context-Aware Recentering + Linear Attention + Loose Constraint，在多个基准上取得前所未有的性能。",
         "trainable": True,
         "param_schema": "encoder_size",
         "algorithms": [
             {"id": "dinomaly2_dinov2_small", "name": "Dinomaly2 DINOv2 Small", "type": "feature_based",
-             "description": "基于 DINOv2-reg ViT-S/14 编码器，支持 Linear Attention 和 Loose Constraint",
+             "description": "基于 DINOv2-reg ViT-S/14 编码器，Linear Attention + Loose Constraint，比 Dinomaly v1 训练更稳定",
              "performance": "MVTec AD AUROC ~97%，比 Dinomaly v1 更稳定", "gpu_memory": "~2GB", "input_size": "448x448"},
             {"id": "dinomaly2_dinov2_base", "name": "Dinomaly2 DINOv2 Base", "type": "feature_based",
-             "description": "基于 DINOv2-reg ViT-B/14 编码器，Context-Aware Recentering",
+             "description": "基于 DINOv2-reg ViT-B/14 编码器，Context-Aware Recentering 稳定训练，精度与速度均衡",
              "performance": "MVTec AD AUROC ~98%，精度与速度均衡", "gpu_memory": "~4GB", "input_size": "448x448"},
             {"id": "dinomaly2_dinov2_large", "name": "Dinomaly2 DINOv2 Large", "type": "feature_based",
-             "description": "基于 DINOv2-reg ViT-L/14 编码器，全特性支持",
+             "description": "基于 DINOv2-reg ViT-L/14 编码器，全特性支持，当前 SOTA 级别性能",
              "performance": "MVTec AD AUROC ~99%，当前 SOTA 级别", "gpu_memory": "~8GB", "input_size": "448x448"},
         ],
     },
     "anomalib": {
         "name": "Anomalib",
-        "description": "Intel 开源异常检测库，支持 30+ 种算法，覆盖特征嵌入、重建、流模型等多种检测范式",
+        "description": "Intel 开源异常检测库（v2.5.0），覆盖 30+ 种算法。支持特征嵌入、重建、归一化流、知识蒸馏、生成式、视觉语言等多种检测范式。提供统一的训练/推理/评估管线，支持零样本、少样本和全监督设置。已训练模型自动保存为目录格式（含 .ckpt 权重文件）。",
         "trainable": True,
         "param_schema": "algorithm_select",
         "algorithms": [
             {"id": "patchcore", "name": "PatchCore", "type": "feature_embedding",
-             "description": "基于核心集的特征嵌入方法，无需训练梯度更新，内存库匹配",
-             "performance": "MVTec AD AUROC ~99.1%，工业异常检测经典 SOTA", "gpu_memory": "~4GB", "input_size": "256x256"},
+             "description": "基于核心集的补丁特征嵌入方法（CVPR 2022）。将图像划分为 patch，通过预训练网络提取中间层特征并存入记忆库，推理时通过核心集子采样近似最近邻搜索计算异常分数。无需梯度训练，MVTec AD 图像级 AUROC 98.0%（WRN-50）。",
+             "performance": "MVTec AD AUROC 98.0%（WRN-50），工业异常检测经典 SOTA", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "padim", "name": "PaDiM", "type": "feature_embedding",
-             "description": "基于参数化异常检测方法，使用多维度高斯分布建模正常特征（需下载预训练 backbone）",
+             "description": "参数化异常检测方法（ICPR 2021）。使用多维度高斯分布建模正常特征，通过对预训练特征进行参数化估计实现异常评分。训练极快但需下载预训练 backbone。",
              "performance": "MVTec AD AUROC ~95.3%，训练极快", "gpu_memory": "~2GB", "input_size": "256x256",
              "trainable": False},
             {"id": "efficient_ad", "name": "EfficientAD", "type": "lightweight",
-             "description": "轻量级异常检测，知识蒸馏 + 自编码器，推理速度极快（需 ImageNette 数据集做知识蒸馏，暂不可训练）",
+             "description": "轻量级异常检测（CVPR 2024）。知识蒸馏 + 自编码器，推理延迟 <1ms/图，适合实时检测场景。需 ImageNette 数据集做知识蒸馏，暂不可训练。",
              "performance": "MVTec AD AUROC ~97.2%，推理延迟 <1ms/图", "gpu_memory": "~1GB", "input_size": "256x256",
              "trainable": False},
             {"id": "cfa", "name": "CFA", "type": "feature_embedding",
-             "description": "耦合超球面特征适应，将正常特征映射到超球面",
+             "description": "耦合超球面特征适应方法（Access 2022）。通过可学习的补丁描述符将正常特征映射到超球面，结合可扩展记忆库实现目标导向的异常定位。",
              "performance": "MVTec AD AUROC ~96.5%", "gpu_memory": "~3GB", "input_size": "256x256"},
             {"id": "csflow", "name": "CS-Flow", "type": "flow_based",
-             "description": "跨尺度归一化流模型，多尺度特征联合建模",
+             "description": "跨尺度全卷积归一化流模型（WACV 2022）。联合处理多尺度特征，通过跨尺度耦合块提升细粒度表示能力，支持同时进行异常检测和定位。",
              "performance": "MVTec AD AUROC ~96.0%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "dfkde", "name": "DFKDE", "type": "feature_embedding",
-             "description": "深度特征核密度估计，非参数化异常评分（需下载预训练 backbone）",
+             "description": "深度特征核密度估计。非参数化异常评分方法，通过核密度估计建模正常特征分布。需下载预训练 backbone。",
              "performance": "MVTec AD AUROC ~93%", "gpu_memory": "~2GB", "input_size": "256x256",
              "trainable": False},
             {"id": "dfm", "name": "DFM", "type": "feature_embedding",
-             "description": "深度特征建模，基于 PCA 的特征降维与重建误差",
+             "description": "深度特征建模异常检测。基于 PCA 的特征降维与重建误差评估，简单高效的经典方法。",
              "performance": "MVTec AD AUROC ~94%", "gpu_memory": "~2GB", "input_size": "256x256"},
             {"id": "draem", "name": "DRAEM", "type": "reconstruction",
-             "description": "判别性异常检测重建，生成模拟异常样本训练",
+             "description": "判别性重建异常检测方法（ICCV 2021）。由重建子网络和判别子网络组成，使用 Perlin 噪声生成模拟异常样本训练，结合 L2+SSIM 损失和 Focal Loss，对弱缺陷检测效果显著。",
              "performance": "MVTec AD AUROC ~98.0%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "dsr", "name": "DSR", "type": "reconstruction",
-             "description": "双空间重构，同时建模特征空间和图像空间",
+             "description": "双空间重构异常检测。通过量化特征学习，使用编码器和双解码器架构，分别在特征空间和图像空间建模正常数据分布。",
              "performance": "MVTec AD AUROC ~95%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "fastflow", "name": "FastFlow", "type": "flow_based",
-             "description": "快速归一化流异常检测，2D 归一化流建模特征分布（需下载预训练 backbone）",
+             "description": "快速 2D 归一化流异常检测（CVPR 2021）。使用 2D 归一化流建模预训练特征的正常分布，训练速度快。需下载预训练 backbone。",
              "performance": "MVTec AD AUROC ~96.6%，训练快", "gpu_memory": "~3GB", "input_size": "256x256",
              "trainable": False},
             {"id": "fre", "name": "FRE", "type": "feature_embedding",
-             "description": "特征重建误差，基于自编码器重建预训练特征",
+             "description": "特征重建误差异常检测。基于自编码器重建预训练特征，通过重建误差评估异常，简单直接。",
              "performance": "MVTec AD AUROC ~94%", "gpu_memory": "~2GB", "input_size": "256x256"},
             {"id": "reverse_distillation", "name": "Reverse Distillation", "type": "knowledge_distillation",
-             "description": "反向蒸馏，学生网络从中间层反向学习教师特征",
+             "description": "反向蒸馏异常检测（CVPR 2022）。学生解码器从中间层反向学习教师特征提取器的特征表示，通过一类别瓶颈嵌入强制特征映射相似性，实现高精度定位。",
              "performance": "MVTec AD AUROC ~96.7%", "gpu_memory": "~3GB", "input_size": "256x256"},
             {"id": "stfpm", "name": "STFPM", "type": "knowledge_distillation",
-             "description": "师生特征金字塔匹配，多尺度特征蒸馏（需下载预训练 backbone）",
+             "description": "师生特征金字塔匹配。教师-学生网络结构，通过多尺度特征匹配和层级知识融合实现不同尺寸异常检测。需下载预训练 backbone。",
              "performance": "MVTec AD AUROC ~95.5%", "gpu_memory": "~3GB", "input_size": "256x256",
              "trainable": False},
             {"id": "ganomaly", "name": "GANomaly", "type": "generative",
-             "description": "基于 GAN 的异常检测，编码器-解码器-编码器结构",
+             "description": "基于条件 GAN 的异常检测（ACCV 2018）。编码器-解码器-编码器结构，通过比较潜在向量与重构向量的差异评估异常得分，较早期方法。",
              "performance": "MVTec AD AUROC ~76%，较早期方法", "gpu_memory": "~3GB", "input_size": "256x256"},
             {"id": "supersimplenet", "name": "SuperSimpleNet", "type": "feature_learning",
-             "description": "超简单网络，特征判别器 + 异常评分头",
+             "description": "超简单网络异常检测（ICPR 2024 / JIMS 2025）。特征提取+特征适配+特征级合成异常生成+分割检测模块，推理时跳过异常生成直接预测，轻量高效。",
              "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~2GB", "input_size": "256x256"},
             {"id": "uflow", "name": "U-Flow", "type": "flow_based",
-             "description": "U-Net 结构归一化流，多层级特征流建模（需下载预训练 backbone）",
+             "description": "U-Net 结构归一化流异常检测（WACV 2024）。多层级 U 形归一化流建模特征分布，通过 a contrario 框架自动计算异常阈值。需下载预训练 backbone。",
              "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~3GB", "input_size": "256x256",
              "trainable": False},
             {"id": "uninet", "name": "UniNet", "type": "unified",
-             "description": "统一异常检测网络，融合多种检测范式",
+             "description": "统一异常检测网络，融合特征嵌入、重建等多种检测范式的统一框架。",
              "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "vlm_ad", "name": "VLM-AD", "type": "vision_language",
-             "description": "基于视觉语言模型的异常检测，利用文本-图像对齐（需 Ollama 服务，仅推理可用）",
+             "description": "基于视觉语言模型的异常检测。利用 CLIP 等模型的文本-图像对齐能力进行零样本异常检测。需 Ollama 服务，仅推理可用。",
              "performance": "零样本检测 AUROC ~85%，需 CLIP 模型", "gpu_memory": "~4GB", "input_size": "256x256",
              "trainable": False},
             {"id": "winclip", "name": "WinCLIP", "type": "vision_language",
-             "description": "窗口级 CLIP 异常检测，多尺度窗口比较",
+             "description": "窗口级 CLIP 零样本/少样本异常检测（CVPR 2023）。利用预训练 CLIP 提取图像和文本嵌入，通过余弦相似度计算异常分数，多尺度滑动窗口实现像素级定位。",
              "performance": "零样本 AUROC ~91%，少样本进一步提升", "gpu_memory": "~4GB", "input_size": "256x256"},
             # Anomalib v2.5.0 新增
             {"id": "anomalyvfm", "name": "AnomalyVFM", "type": "zero_shot",
-             "description": "基于视觉基础模型的零样本异常检测，无需训练数据",
+             "description": "零样本视觉基础模型异常检测（CVPR 2026）。将预训练 VFM 转化为零样本异常检测器，先通过 FLUX 生成合成图像训练，直接预测异常分数和异常掩码。",
              "performance": "零样本 AUROC ~89%", "gpu_memory": "~6GB", "input_size": "256x256"},
             {"id": "cfm", "name": "CFM", "type": "cross_modal",
-             "description": "跨模态融合异常检测，结合视觉和文本信息（需下载预训练 backbone）",
+             "description": "跨模态融合异常检测。结合视觉和文本信息进行跨模态异常检测。需下载预训练 backbone。",
              "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256",
              "trainable": False},
             {"id": "general_ad", "name": "GeneralAD", "type": "feature_embedding",
-             "description": "通用异常检测框架，自适应特征选择",
+             "description": "跨域通用异常检测（arXiv 2024）。利用 ViT patch 结构，自监督构造伪异常样本（噪声注入、打乱、复制），注意力判别器逐 patch 评分，跨语义域和工业域均有效。",
              "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "glass", "name": "GLASS", "type": "synthesis",
-             "description": "基于合成异常的检测方法，GLocal Anomaly Synthesis",
+             "description": "统一异常合成策略 GLocal Anomaly Synthesis。三分支训练：正常分支提取适应特征，GAS 分支通过梯度上升合成近分布异常，LAS 分支叠加 Perlin 噪声纹理模拟远分布异常。",
              "performance": "MVTec AD AUROC ~98%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "inp_former", "name": "INP-Former", "type": "prototype",
-             "description": "基于原型的异常检测，学习正常原型特征",
+             "description": "固有正常原型检测（CVPR 2025）。从测试图像中直接提取固有正常原型（INP），通过交叉注意力聚合预训练 ViT 特征，INP 引导解码器约束输出为正常模式，无需存储训练集原型。",
              "performance": "MVTec AD AUROC ~98%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "l2bt", "name": "L2BT", "type": "feature_embedding",
-             "description": "Learn to Be Thorough，细粒度特征嵌入检测",
+             "description": "Learn to Be a Transformer 异常检测（IEEE Access）。将异常检测转化为 Transformer 学习任务，精确定位异常区域。",
              "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "patchflow", "name": "PatchFlow", "type": "flow_based",
-             "description": "Patch 级归一化流异常检测，结合 PatchCore 和 Flow",
+             "description": "基于 Patch 特征的归一化流异常检测（2025）。结合局部邻域感知 patch 特征与归一化流，引入适配器模块对齐预训练表示与工业图像分布，瓶颈耦合结构降低计算复杂度。",
              "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~3GB", "input_size": "256x256"},
             {"id": "anomaly_dino", "name": "AnomalyDINO", "type": "few_shot",
-             "description": "基于 DINO 的少样本异常检测，利用自监督特征",
+             "description": "基于 DINO 的少样本异常检测。利用 DINO 自监督特征的强泛化能力，在少样本设置下进行异常检测和定位。",
              "performance": "少样本 AUROC ~94%", "gpu_memory": "~4GB", "input_size": "256x256"},
         ],
     },
     "ader": {
         "name": "ADer",
-        "description": "异常检测框架，集成多种前沿算法（状态空间模型、Transformer、流模型等）",
+        "description": "ADer 异常检测工具箱（arXiv 2024）：A Comprehensive Benchmark for Multi-class Visual Anomaly Detection。集成多种前沿算法，覆盖增强式（DRAEM/SimpleNet）、嵌入式（CFA/PatchCore/CFlow/PyramidFlow）、重建式（ViTAD/InvAD/MambaAD）、混合式（UniAD）等范式。默认支持多类无监督异常检测（MUAD）设置，支持可视化和 DDP 训练。已训练模型保存为目录格式（含 net.pth 权重文件）。",
         "trainable": True,
         "param_schema": "algorithm_select",
         "algorithms": [
             {"id": "mambaad", "name": "MambaAD", "type": "state_space_model",
-             "description": "基于状态空间模型（Mamba）的异常检测，线性复杂度长序列建模",
+             "description": "基于状态空间模型 Mamba 的异常检测（arXiv 2024）。引入选择性扫描机制，在视觉 Transformer 和 CNN 中实现线性复杂度的长距离依赖建模，适合多类统一训练。",
              "performance": "MVTec AD AUROC ~97%，推理速度快", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "invad", "name": "InvAD", "type": "generative",
-             "description": "逆生成式异常检测，学习正常数据分布的逆向映射",
+             "description": "逆生成式异常检测（arXiv 2024 / COCO-AD）。Learning Feature Inversion for Multi-class Anomaly Detection，基于 StyleGAN2 架构学习正常数据分布的逆向映射，结合像素标准化和可学习风格映射层实现特征反转。",
              "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "vitad", "name": "ViTAD", "type": "transformer",
-             "description": "基于 Vision Transformer 的异常检测，全局注意力机制",
+             "description": "基于 Plain ViT 重建的异常检测（CVIU 2025）。Exploring Plain ViT Reconstruction for Multi-class Unsupervised Anomaly Detection，使用视觉 Transformer 作为骨干，结合融合模块和可变形注意力机制，实现多类统一异常检测与高精度定位。",
              "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "unad", "name": "UniAD", "type": "unified",
-             "description": "统一异常检测框架，单一模型处理多类别",
+             "description": "统一异常检测框架（NeurIPS 2022）。单一模型处理多类别，使用多尺度特征金字塔和模块化卷积网络，结合注意力机制融合不同尺度特征，支持多类别统一训练。",
              "performance": "MVTec AD AUROC ~96%，支持多类别统一训练", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "cflow", "name": "CFlow (ADer)", "type": "flow_based",
-             "description": "条件归一化流异常检测，ADer 框架实现版本",
+             "description": "条件归一化流异常检测（WACV 2022）ADer 框架实现版本。判别式预训练编码器 + 多尺度生成解码器，通过估计编码特征的似然性生成异常图，条件向量提供位置信息。",
              "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~3GB", "input_size": "256x256"},
             {"id": "pyramidflow", "name": "PyramidFlow", "type": "flow_based",
-             "description": "金字塔级归一化流，多尺度特征异常检测",
+             "description": "金字塔级归一化流异常检测（CVPR 2023）。多尺度特征金字塔上的归一化流，逐层建模特征分布实现多粒度异常检测，金字塔结构同时捕获全局和局部异常。",
              "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "simplenet", "name": "SimpleNet", "type": "feature_learning",
-             "description": "简单网络异常检测，特征空间判别器，轻量高效",
+             "description": "简单网络异常检测（CVPR 2023）。特征空间判别器方法：预训练特征提取+特征适配+高斯噪声合成异常+判别评分，轻量高效，训练快推理快。",
              "performance": "MVTec AD AUROC ~97%，训练快推理快", "gpu_memory": "~2GB", "input_size": "256x256"},
         ],
     },
@@ -305,8 +305,11 @@ class TrainedModel(BaseModel):
     size_mb: float
     created_at: str
     algorithm_family: str = "dinomaly"
+    algorithm_name: str = ""
     model_type: str = ""
     model_size: str = ""
+    category: str = ""
+    data_source: str = ""
 
 
 # ============================================================================
@@ -479,6 +482,43 @@ async def get_trained_models():
                 parts = entry.split("_")
                 if len(parts) >= 2:
                     algorithm_name = parts[1]
+            elif algorithm_family in ("dinomaly", "dinomaly2"):
+                algorithm_name = f"{model_type}_{model_size}"
+
+            # 推断训练类别和数据来源
+            category = ""
+            data_source = ""
+            parts = entry.split("_")
+            # 已知数据来源标识
+            source_keywords = {"mvtec", "visa", "spk"}
+            for i, p in enumerate(parts):
+                pl = p.lower()
+                if pl in source_keywords:
+                    data_source = pl
+                    # 数据来源前面的部分可能是类别
+                    if i > 0:
+                        candidate = parts[i - 1].lower()
+                        # 排除算法名和族名
+                        if candidate not in ("dinomaly", "dinomaly2", "anomalib", "ader",
+                                             "dinov2", "dinov3", "small", "base", "large",
+                                             algorithm_name.lower()):
+                            category = parts[i - 1]
+                    break
+            # 如果没找到数据来源标记，尝试从已知类别名推断
+            if not category:
+                known_categories = {"bottle", "cable", "capsule", "carpet", "grid",
+                                    "hazelnut", "leather", "metal_nut", "pill", "screw",
+                                    "tile", "toothbrush", "transistor", "wood", "zipper",
+                                    "candle", "capsules", "cashew", "chewinggum", "fryum",
+                                    "macaroni1", "pcb1", "pcb2", "pcb3", "pcb4", "pipe_fryum"}
+                for p in parts:
+                    if p.lower() in known_categories:
+                        category = p
+                        if not data_source:
+                            data_source = "mvtec" if p.lower() in {"bottle", "cable", "capsule", "carpet", "grid",
+                                                                     "hazelnut", "leather", "metal_nut", "pill", "screw",
+                                                                     "tile", "toothbrush", "transistor", "wood", "zipper"} else "spk"
+                        break
 
             models.append(TrainedModel(
                 name=entry,
@@ -486,8 +526,11 @@ async def get_trained_models():
                 size_mb=round(stat.st_size / (1024 * 1024), 2),
                 created_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
                 algorithm_family=algorithm_family,
+                algorithm_name=algorithm_name,
                 model_type=model_type,
-                model_size=model_size
+                model_size=model_size,
+                category=category,
+                data_source=data_source
             ))
 
     models.sort(key=lambda x: x.created_at, reverse=True)

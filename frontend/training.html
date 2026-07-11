@@ -197,16 +197,66 @@
 
         .model-list-item {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
             padding: 12px 16px;
             border: 1px solid #e8e8e8;
             border-radius: 8px;
             margin-bottom: 8px;
+            transition: all 0.2s;
         }
-        .model-list-item:hover { border-color: #667eea; }
-        .model-name { font-weight: 500; font-size: 14px; }
-        .model-meta { font-size: 12px; color: #666; margin-top: 4px; }
+        .model-list-item:hover { border-color: #667eea; background: #f8f9ff; }
+        .model-info { flex: 1; min-width: 0; }
+        .model-name { font-weight: 600; font-size: 14px; color: #333; }
+        .model-meta { font-size: 12px; color: #666; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+        .model-meta-item { display: inline-flex; align-items: center; gap: 3px; }
+        .model-badge {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .model-badge.dinomaly { background: #e6f7ff; color: #1890ff; }
+        .model-badge.dinomaly2 { background: #f0f5ff; color: #2f54eb; }
+        .model-badge.anomalib { background: #f6ffed; color: #52c41a; }
+        .model-badge.ader { background: #fff7e6; color: #fa8c16; }
+        .model-badge.source { background: #f9f0ff; color: #722ed1; }
+        .model-badge.source-mvtec { background: #fff7e6; color: #d46b08; }
+        .model-badge.trainable-no { background: #fff1f0; color: #ff4d4f; }
+
+        .model-filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+        .model-filter-btn {
+            padding: 4px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .model-filter-btn:hover { border-color: #667eea; }
+        .model-filter-btn.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        .model-search-input {
+            padding: 4px 10px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 12px;
+            width: 160px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .model-search-input:focus { border-color: #667eea; }
 
         .info-hint {
             background: #f0f7ff;
@@ -273,14 +323,21 @@
         }
         .info-value { color: #333; }
         .family-desc {
-            font-size: 12px;
-            color: #888;
+            font-size: 13px;
+            color: #555;
             margin-top: 4px;
             margin-bottom: 12px;
-            padding: 6px 10px;
+            padding: 10px 14px;
             background: #fafafa;
-            border-radius: 4px;
+            border-radius: 6px;
             border-left: 3px solid #667eea;
+            line-height: 1.6;
+        }
+        .algo-desc-detail {
+            font-size: 13px;
+            color: #444;
+            line-height: 1.6;
+            padding: 4px 0;
         }
     </style>
 </head>
@@ -421,7 +478,16 @@
                     </svg>
                     已训练模型
                 </h2>
-                <div id="modelList" style="max-height: 300px; overflow-y: auto;">
+                <!-- 筛选栏 -->
+                <div class="model-filter-bar" id="modelFilterBar">
+                    <button class="model-filter-btn active" data-filter="all" onclick="setModelFilter('all')">全部</button>
+                    <button class="model-filter-btn" data-filter="dinomaly" onclick="setModelFilter('dinomaly')">Dinomaly</button>
+                    <button class="model-filter-btn" data-filter="dinomaly2" onclick="setModelFilter('dinomaly2')">Dinomaly2</button>
+                    <button class="model-filter-btn" data-filter="anomalib" onclick="setModelFilter('anomalib')">Anomalib</button>
+                    <button class="model-filter-btn" data-filter="ader" onclick="setModelFilter('ader')">ADer</button>
+                    <input type="text" class="model-search-input" id="modelSearchInput" placeholder="搜索模型名称..." oninput="filterModels()">
+                </div>
+                <div id="modelList" style="max-height: 400px; overflow-y: auto;">
                     <div style="text-align: center; padding: 20px; color: #999;">加载中...</div>
                 </div>
             </div>
@@ -436,6 +502,8 @@
         let familiesData = null;
         let currentTaskId = null;
         let pollingInterval = null;
+        let allModels = [];  // 缓存所有模型数据
+        let modelFilterFamily = 'all';  // 当前筛选的算法族
         // 保留通用参数值，族切换时不丢失
         let savedTotalIters = '1000';
         let savedBatchSize = '8';
@@ -591,15 +659,16 @@
             html += `
                 <div class="algorithm-info-panel" id="algorithmInfoPanel">
                     <div class="algorithm-info-header" onclick="toggleAlgorithmInfo()">
-                        <span>算法详情</span>
-                        <span class="algorithm-info-toggle" id="algorithmInfoToggle">[展开]</span>
+                        <span id="algoInfoTitle">算法详情</span>
+                        <span class="algorithm-info-toggle" id="algorithmInfoToggle">[收起]</span>
                     </div>
-                    <div class="algorithm-info-content" id="algorithmInfoContent" style="display:none;">
+                    <div class="algorithm-info-content" id="algorithmInfoContent">
                         <div class="info-row"><span class="info-label">检测类型：</span><span class="info-value" id="algoType">-</span></div>
+                        <div class="info-row"><span class="info-label">可训练：</span><span class="info-value" id="algoTrainable">-</span></div>
                         <div class="info-row"><span class="info-label">性能特征：</span><span class="info-value" id="algoPerformance">-</span></div>
                         <div class="info-row"><span class="info-label">显存需求：</span><span class="info-value" id="algoGpuMemory">-</span></div>
                         <div class="info-row"><span class="info-label">输入尺寸：</span><span class="info-value" id="algoInputSize">-</span></div>
-                        <div class="info-row"><span class="info-label">说明：</span><span class="info-value" id="algoDescription">-</span></div>
+                        <div style="padding: 8px 0;"><span style="font-weight:500;color:#555;">方法说明：</span><div class="algo-desc-detail" id="algoDescription">-</div></div>
                     </div>
                 </div>
             `;
@@ -665,15 +734,29 @@
 
             if (!algo) return;
 
+            // 更新面板标题为当前选中的算法名
+            const titleEl = document.getElementById('algoInfoTitle');
+            if (titleEl) titleEl.textContent = algo.name + ' — 算法详情';
+
             const setOrHide = (elId, value) => {
                 const el = document.getElementById(elId);
                 if (el) el.textContent = value || '-';
             };
             setOrHide('algoType', _typeLabel(algo.type));
+            // 可训练状态
+            const trainableEl = document.getElementById('algoTrainable');
+            if (trainableEl) {
+                const canTrain = algo.trainable !== false;
+                trainableEl.innerHTML = canTrain
+                    ? '<span style="color:#52c41a;font-weight:500;">可训练</span>'
+                    : '<span style="color:#ff4d4f;font-weight:500;">不可训练</span>';
+            }
             setOrHide('algoPerformance', algo.performance);
             setOrHide('algoGpuMemory', algo.gpu_memory);
             setOrHide('algoInputSize', algo.input_size);
-            setOrHide('algoDescription', algo.description);
+            // 描述使用 div，支持多行显示
+            const descEl = document.getElementById('algoDescription');
+            if (descEl) descEl.textContent = algo.description || '-';
         }
 
         // ============ 数据集加载 ============
@@ -793,26 +876,78 @@
         async function loadModels() {
             try {
                 const resp = await apiFetch('/api/training/models');
-                const models = await resp.json();
-                const list = document.getElementById('modelList');
-                if (models.length === 0) {
-                    list.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">暂无已训练模型</div>';
-                    return;
-                }
-                list.innerHTML = models.map(m => `
-                    <div class="model-list-item">
-                        <div>
-                            <div class="model-name">${escapeHtml(m.name)}</div>
-                            <div class="model-meta">
-                                ${m.algorithm_family || 'dinomaly'} · ${m.model_type || '-'} · ${m.size_mb}MB · ${new Date(m.created_at).toLocaleString('zh-CN')}
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
+                allModels = await resp.json();
+                filterModels();
             } catch (e) {
                 document.getElementById('modelList').innerHTML =
                     '<div style="text-align: center; padding: 20px; color: #ff4d4f;">加载失败: ' + e.message + '</div>';
             }
+        }
+
+        function setModelFilter(family) {
+            modelFilterFamily = family;
+            document.querySelectorAll('#modelFilterBar .model-filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.filter === family);
+            });
+            filterModels();
+        }
+
+        function filterModels() {
+            const list = document.getElementById('modelList');
+            const searchText = (document.getElementById('modelSearchInput')?.value || '').toLowerCase();
+            let filtered = allModels;
+
+            // 按算法族筛选
+            if (modelFilterFamily !== 'all') {
+                filtered = filtered.filter(m => m.algorithm_family === modelFilterFamily);
+            }
+
+            // 按名称搜索
+            if (searchText) {
+                filtered = filtered.filter(m =>
+                    m.name.toLowerCase().includes(searchText) ||
+                    (m.algorithm_name || '').toLowerCase().includes(searchText) ||
+                    (m.category || '').toLowerCase().includes(searchText)
+                );
+            }
+
+            if (filtered.length === 0) {
+                list.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">暂无匹配的已训练模型</div>';
+                return;
+            }
+
+            list.innerHTML = filtered.map(m => {
+                const familyBadge = `<span class="model-badge ${m.algorithm_family}">${_familyLabel(m.algorithm_family)}</span>`;
+                const sourceBadge = m.data_source ? `<span class="model-badge source${m.data_source === 'mvtec' ? '-mvtec' : ''}">${_sourceLabel(m.data_source)}</span>` : '';
+                const algoName = m.algorithm_name ? `<span class="model-meta-item">算法: <strong>${escapeHtml(m.algorithm_name)}</strong></span>` : '';
+                const category = m.category ? `<span class="model-meta-item">类别: ${escapeHtml(m.category)}</span>` : '';
+                const modelSize = (m.model_type || m.model_size) ? `<span class="model-meta-item">${[m.model_type, m.model_size].filter(Boolean).join('/')}</span>` : '';
+                return `
+                    <div class="model-list-item">
+                        <div class="model-info">
+                            <div class="model-name">${escapeHtml(m.name)}</div>
+                            <div class="model-meta">
+                                ${familyBadge} ${sourceBadge}
+                                ${algoName}
+                                ${category}
+                                ${modelSize}
+                                <span class="model-meta-item">${m.size_mb}MB</span>
+                                <span class="model-meta-item">${new Date(m.created_at).toLocaleString('zh-CN')}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function _familyLabel(family) {
+            const map = { 'dinomaly': 'Dinomaly', 'dinomaly2': 'Dinomaly2', 'anomalib': 'Anomalib', 'ader': 'ADer' };
+            return map[family] || family;
+        }
+
+        function _sourceLabel(source) {
+            const map = { 'spk': 'SPK', 'mvtec': 'MVTec', 'visa': 'VisA' };
+            return map[source] || source;
         }
 
         // ============ 训练启动 ============
