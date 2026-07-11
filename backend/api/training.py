@@ -410,39 +410,85 @@ async def get_dataset_stats(category: str):
 
 @router.get("/models", response_model=List[TrainedModel])
 async def get_trained_models():
-    """获取已训练的模型列表（所有算法族）"""
+    """获取已训练的模型列表（所有算法族，支持 .pth 文件和目录形式）"""
     models = []
     if os.path.exists(SAVED_RESULTS_DIR):
-        for filename in os.listdir(SAVED_RESULTS_DIR):
-            if filename.endswith('.pth'):
-                filepath = os.path.join(SAVED_RESULTS_DIR, filename)
-                stat = os.stat(filepath)
-                # 从文件名推断算法族和类型
-                fname = filename.lower()
-                if "anomalib_" in fname:
-                    algorithm_family = "anomalib"
-                elif "ader_" in fname:
-                    algorithm_family = "ader"
-                elif "baseasd_" in fname:
-                    algorithm_family = "baseasd"
-                else:
-                    algorithm_family = "dinomaly"
+        for entry in os.listdir(SAVED_RESULTS_DIR):
+            entry_path = os.path.join(SAVED_RESULTS_DIR, entry)
 
-                model_type = ""
-                model_size = ""
-                if algorithm_family == "dinomaly":
-                    model_type = "dinov3" if "dinov3" in fname else "dinov2"
-                    model_size = "large" if "large" in fname else ("base" if "base" in fname else "small")
+            # 跳过临时训练脚本和日志
+            if entry.startswith('_') or entry.endswith('.txt') or entry == 'log.txt':
+                continue
 
-                models.append(TrainedModel(
-                    name=filename,
-                    path=filepath,
-                    size_mb=round(stat.st_size / (1024 * 1024), 2),
-                    created_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    algorithm_family=algorithm_family,
-                    model_type=model_type,
-                    model_size=model_size
-                ))
+            # 支持两种形式：.pth 文件 或 模型目录
+            if os.path.isfile(entry_path) and entry.endswith('.pth'):
+                is_dir = False
+                stat = os.stat(entry_path)
+            elif os.path.isdir(entry_path):
+                is_dir = True
+                # 计算目录总大小
+                total_size = 0
+                for root, dirs, files in os.walk(entry_path):
+                    for f in files:
+                        fp = os.path.join(root, f)
+                        if os.path.exists(fp):
+                            total_size += os.path.getsize(fp)
+                stat = type('stat', (), {
+                    'st_size': total_size,
+                    'st_mtime': os.path.getmtime(entry_path)
+                })()
+            else:
+                continue
+
+            # 从名称推断算法族
+            fname = entry.lower()
+            if fname.startswith("anomalib_"):
+                algorithm_family = "anomalib"
+            elif fname.startswith("ader_"):
+                algorithm_family = "ader"
+            elif fname.startswith("dinomaly2_"):
+                algorithm_family = "dinomaly2"
+            elif fname.startswith("dinomaly_"):
+                algorithm_family = "dinomaly"
+            elif "anomalib" in fname:
+                algorithm_family = "anomalib"
+            elif "ader" in fname:
+                algorithm_family = "ader"
+            else:
+                algorithm_family = "dinomaly"
+
+            # 推断模型类型和大小
+            model_type = ""
+            model_size = ""
+            if algorithm_family == "dinomaly":
+                model_type = "dinov3" if "dinov3" in fname else "dinov2"
+                model_size = "large" if "large" in fname else ("base" if "base" in fname else "small")
+            elif algorithm_family == "dinomaly2":
+                model_type = "dinov2"
+                model_size = "large" if "large" in fname else ("base" if "base" in fname else "small")
+
+            # 提取算法名称
+            algorithm_name = ""
+            if algorithm_family == "anomalib":
+                # anomalib_patchcore_bottle_... -> patchcore
+                parts = entry.split("_")
+                if len(parts) >= 2:
+                    algorithm_name = parts[1]
+            elif algorithm_family == "ader":
+                # ader_invad_bottle_... -> invad
+                parts = entry.split("_")
+                if len(parts) >= 2:
+                    algorithm_name = parts[1]
+
+            models.append(TrainedModel(
+                name=entry,
+                path=entry_path,
+                size_mb=round(stat.st_size / (1024 * 1024), 2),
+                created_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                algorithm_family=algorithm_family,
+                model_type=model_type,
+                model_size=model_size
+            ))
 
     models.sort(key=lambda x: x.created_at, reverse=True)
     return models
@@ -537,6 +583,7 @@ async def start_training(request: TrainingRequest):
         "status": "pending",
         "categories": valid_categories,
         "data_source": data_source,
+        "algorithm_family": request.algorithm_family,
         "algorithm_name": request.algorithm_name,
         "model_type": request.model_type,
         "model_size": request.model_size,
@@ -986,10 +1033,31 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
         task["status"] = "completed"
         task["progress"] = "训练完成"
         save_dir = SAVED_RESULTS_DIR
+
+        # 查找模型文件：优先 .pth 文件，其次目录
+        model_found = False
         for f in os.listdir(save_dir):
-            if task["save_name"] in f and f.endswith('.pth'):
-                task["model_path"] = os.path.join(save_dir, f)
-                break
+            if task["save_name"] in f:
+                fpath = os.path.join(save_dir, f)
+                if f.endswith('.pth') or os.path.isdir(fpath):
+                    task["model_path"] = fpath
+                    model_found = True
+                    break
+
+        # ADer 训练输出在 algorithms/ADer/runs/ 下，需要拷贝到 models/saved/
+        if not model_found and task.get("algorithm_family") == "ader":
+            ader_runs = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "runs")
+            if os.path.exists(ader_runs):
+                import shutil
+                for run_dir in os.listdir(ader_runs):
+                    run_path = os.path.join(ader_runs, run_dir)
+                    if os.path.isdir(run_path) and task["save_name"].replace("ader_", "").split("_")[0].lower() in run_dir.lower():
+                        dest = os.path.join(save_dir, task["save_name"])
+                        if not os.path.exists(dest):
+                            shutil.copytree(run_path, dest)
+                        task["model_path"] = dest
+                        model_found = True
+                        break
     else:
         task["status"] = "failed"
         task["progress"] = f"训练失败 (退出码: {process.returncode})"
