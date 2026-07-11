@@ -109,6 +109,7 @@ TASKS_LOCK = threading.Lock()
 UPLOAD_DIR = os.path.join(PROJECT_ROOT, "data", "uploads", "custom_detection")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "data", "output", "vis", "custom_detection")
 SPK_DIR = os.path.join(PROJECT_ROOT, "data", "spk")
+SAVED_MODELS_DIR = os.path.join(PROJECT_ROOT, "models", "saved")
 
 
 def _ensure_dirs():
@@ -118,6 +119,111 @@ def _ensure_dirs():
 
 
 # ---- API 端点 ----
+
+@router.get("/trained-models")
+async def list_trained_models():
+    """获取已训练模型列表，供推理选择"""
+    from datetime import datetime
+    models = []
+    if not os.path.exists(SAVED_MODELS_DIR):
+        return {"models": models}
+
+    for entry in os.listdir(SAVED_MODELS_DIR):
+        entry_path = os.path.join(SAVED_MODELS_DIR, entry)
+        if entry.startswith('_') or entry.endswith('.txt') or entry == 'log.txt':
+            continue
+
+        if os.path.isfile(entry_path) and entry.endswith('.pth'):
+            is_dir = False
+            stat = os.stat(entry_path)
+        elif os.path.isdir(entry_path):
+            is_dir = True
+            total_size = 0
+            for root, dirs, files in os.walk(entry_path):
+                for f in files:
+                    fp = os.path.join(root, f)
+                    if os.path.exists(fp):
+                        total_size += os.path.getsize(fp)
+            stat = type('stat', (), {
+                'st_size': total_size,
+                'st_mtime': os.path.getmtime(entry_path)
+            })()
+        else:
+            continue
+
+        # 推断算法族
+        fname = entry.lower()
+        if fname.startswith("anomalib_"):
+            algorithm_family = "anomalib"
+        elif fname.startswith("ader_"):
+            algorithm_family = "ader"
+        elif fname.startswith("dinomaly2_"):
+            algorithm_family = "dinomaly2"
+        elif fname.startswith("dinomaly_") or (not fname.startswith(("anomalib_", "ader_", "dinomaly2_")) and entry.endswith('.pth')):
+            algorithm_family = "dinomaly"
+        elif "anomalib" in fname:
+            algorithm_family = "anomalib"
+        elif "ader" in fname:
+            algorithm_family = "ader"
+        else:
+            algorithm_family = "dinomaly"
+
+        # 推断算法名称
+        algorithm_name = ""
+        parts = entry.split("_")
+        if algorithm_family == "anomalib" and len(parts) >= 2:
+            algorithm_name = parts[1]
+        elif algorithm_family == "ader" and len(parts) >= 2:
+            algorithm_name = parts[1]
+        elif algorithm_family in ("dinomaly", "dinomaly2") and len(parts) >= 3:
+            algorithm_name = f"{parts[1]}_{parts[2]}" if len(parts) > 2 else parts[1]
+
+        # 推断训练类别
+        category = ""
+        known_categories = {"bottle", "cable", "capsule", "carpet", "grid",
+                            "hazelnut", "leather", "metal_nut", "pill", "screw",
+                            "tile", "toothbrush", "transistor", "wood", "zipper"}
+        for p in parts:
+            if p.lower() in known_categories:
+                category = p
+                break
+
+        # 尝试匹配到可用算法 ID
+        matched_algorithm_id = ""
+        if algorithm_name:
+            # 在所有算法组中查找匹配
+            for group_algs in ALGORITHM_GROUPS.values():
+                for alg_id in group_algs:
+                    if alg_id == algorithm_name or alg_id.endswith(algorithm_name):
+                        matched_algorithm_id = alg_id
+                        break
+                if matched_algorithm_id:
+                    break
+            # 特殊处理：Dinomaly 族
+            if not matched_algorithm_id and algorithm_family in ("dinomaly", "dinomaly2"):
+                for group_algs in ALGORITHM_GROUPS.values():
+                    for alg_id in group_algs:
+                        if alg_id.startswith(algorithm_family):
+                            matched_algorithm_id = alg_id
+                            break
+                    if matched_algorithm_id:
+                        break
+
+        models.append({
+            "name": entry,
+            "path": entry_path,
+            "size_mb": round(stat.st_size / (1024 * 1024), 2),
+            "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "algorithm_family": algorithm_family,
+            "algorithm_name": algorithm_name,
+            "category": category,
+            "matched_algorithm_id": matched_algorithm_id,
+            "is_dir": is_dir,
+        })
+
+    models.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"models": models}
+
 
 @router.get("/algorithms", response_model=List[AlgorithmInfo])
 async def list_algorithms():
@@ -251,6 +357,7 @@ async def upload_and_detect(
     files: List[UploadFile] = File(...),
     algorithm: str = Form(...),
     threshold: float = Form(0.5),
+    model_path: str = Form(""),
 ):
     """
     上传图片并启动自定义异常检测
@@ -324,7 +431,7 @@ async def upload_and_detect(
         # 启动后台检测线程
         thread = threading.Thread(
             target=_run_detection_task,
-            args=(task_id, saved_paths, algorithm, threshold),
+            args=(task_id, saved_paths, algorithm, threshold, model_path),
             daemon=True
         )
         thread.start()
@@ -366,6 +473,7 @@ async def detect_from_dataset(
     image_paths = body.get("image_paths", [])
     algorithm = body.get("algorithm", "padim")
     threshold = body.get("threshold", 0.5)
+    model_path = body.get("model_path", "")
 
     if not image_paths:
         raise HTTPException(status_code=400, detail="请选择至少1张图片")
@@ -422,7 +530,7 @@ async def detect_from_dataset(
     # 启动后台检测线程
     thread = threading.Thread(
         target=_run_detection_task,
-        args=(task_id, copied_paths, algorithm, threshold),
+        args=(task_id, copied_paths, algorithm, threshold, model_path),
         daemon=True
     )
     thread.start()
@@ -441,6 +549,7 @@ def _run_detection_task(
     image_paths: List[str],
     algorithm: str,
     threshold: float,
+    model_path: str = "",
 ):
     """后台运行检测任务"""
     import cv2
@@ -449,7 +558,7 @@ def _run_detection_task(
     import matplotlib.pyplot as plt
     from matplotlib import cm
 
-    log_operation("TASK_START", f"task_id={task_id}, algorithm={algorithm}, images={len(image_paths)}")
+    log_operation("TASK_START", f"task_id={task_id}, algorithm={algorithm}, images={len(image_paths)}, model_path={model_path}")
 
     try:
         # 更新状态
@@ -464,7 +573,13 @@ def _run_detection_task(
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         from algorithms import create_detector
-        detector = create_detector(algorithm)
+
+        kwargs = {}
+        if model_path and os.path.exists(model_path):
+            kwargs["model_path"] = model_path
+            log_operation("MODEL_PATH", f"task_id={task_id}, using trained model: {model_path}")
+
+        detector = create_detector(algorithm, **kwargs)
         detector.threshold = threshold
 
         log_operation("MODEL_LOAD", f"task_id={task_id}, loading model for {algorithm}")

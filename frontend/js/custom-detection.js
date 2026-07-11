@@ -8,6 +8,9 @@
 let pollingInterval = null;
 let currentResults = [];
 let selectedHeatmapIndex = -1;
+let selectedModelPath = '';  // 已选已训练模型路径
+let selectedModelName = '';  // 已选已训练模型名称
+let allTrainedModels = [];  // 缓存已训练模型
 
 // ============ 页面初始化 ============
 
@@ -15,8 +18,10 @@ function initCustomDetectionPage() {
     console.log('[CustomDetection] 初始化页面...');
     // 不使用缓存标志，每次切换 Tab 都重新加载
     loadCustomAlgorithms();
+    loadCustomTrainedModels();
     loadCustomDatasets();
     setupCustomDropZone();
+    setupAlgorithmChangeListener();
 }
 
 // DOM 加载完成后自动初始化（以防 switchTab 未触发）
@@ -98,6 +103,164 @@ async function loadCustomAlgorithms() {
             select.innerHTML = `<option>⚠️ 加载失败: ${e.message}</option>`;
         }
     }
+}
+
+// 监听算法选择变更，显示算法描述
+function setupAlgorithmChangeListener() {
+    const select = document.getElementById('custom-algorithm');
+    if (select) {
+        select.addEventListener('change', updateAlgorithmInfo);
+    }
+}
+
+function updateAlgorithmInfo() {
+    const select = document.getElementById('custom-algorithm');
+    const infoPanel = document.getElementById('custom-algorithm-info');
+    const descEl = document.getElementById('custom-algo-desc');
+    if (!select || !infoPanel || !descEl) return;
+
+    const algoId = select.value;
+    if (!algoId || algoId.includes('加载') || algoId.includes('失败') || algoId.includes('没有')) {
+        infoPanel.style.display = 'none';
+        return;
+    }
+
+    // 从 training API 的 ALGORITHM_FAMILIES 获取描述
+    // 这里使用本地映射作为快速参考
+    const algoDescMap = {
+        'dinomaly_dinov3_small': 'Dinomaly DINOv3 Small — 基于 DINOv3 ViT-S/16，384维特征，快速训练',
+        'dinomaly_dinov3_base': 'Dinomaly DINOv3 Base — 基于 DINOv3 ViT-B/16，768维特征，精度与速度均衡',
+        'dinomaly_dinov3_large': 'Dinomaly DINOv3 Large — 基于 DINOv3 ViT-L/16，1024维特征，最高精度',
+        'dinomaly_dinov2_small': 'Dinomaly DINOv2 Small — 基于 DINOv2 ViT-S/14，384维特征，轻量级',
+        'dinomaly_dinov2_base': 'Dinomaly DINOv2 Base — 基于 DINOv2 ViT-B/14，768维特征',
+        'dinomaly_dinov2_large': 'Dinomaly DINOv2 Large — 基于 DINOv2 ViT-L/14，1024维特征，高精度',
+        'dinomaly2_dinov2_small': 'Dinomaly2 DINOv2 Small — Context-Aware Recentering + Linear Attention',
+        'dinomaly2_dinov2_base': 'Dinomaly2 DINOv2 Base — 精度与速度均衡',
+        'dinomaly2_dinov2_large': 'Dinomaly2 DINOv2 Large — 当前 SOTA 级别',
+        'patchcore': 'PatchCore (CVPR 2022) — 核心集补丁特征嵌入，MVTec AUROC 98.0%，无需梯度训练',
+        'cfa': 'CFA (Access 2022) — 耦合超球面特征适应，可学习补丁描述符+可扩展记忆库',
+        'csflow': 'CS-Flow (WACV 2022) — 跨尺度全卷积归一化流，多尺度特征联合建模',
+        'draem': 'DRAEM (ICCV 2021) — 判别性重建异常检测，Perlin噪声生成模拟异常训练',
+        'reverse_distillation': 'Reverse Distillation (CVPR 2022) — 反向蒸馏，学生解码器反向学习教师特征',
+        'stfpm': 'STFPM — 师生特征金字塔匹配，多尺度特征蒸馏',
+        'ganomaly': 'GANomaly (ACCV 2018) — 编码器-解码器-编码器GAN结构',
+        'supersimplenet': 'SuperSimpleNet (ICPR 2024) — 特征适配+合成异常+判别评分，轻量高效',
+        'uflow': 'U-Flow (WACV 2024) — U形归一化流，a contrario自动阈值',
+        'winclip': 'WinCLIP (CVPR 2023) — 窗口级CLIP零样本/少样本异常检测',
+        'glass': 'GLASS — GLocal Anomaly Synthesis，全局+局部异常合成三分支训练',
+        'inp_former': 'INP-Former (CVPR 2025) — 固有正常原型检测，交叉注意力聚合ViT特征',
+        'general_ad': 'GeneralAD (arXiv 2024) — 跨域通用异常检测，自监督伪异常构造',
+        'patchflow': 'PatchFlow (2025) — Patch特征+归一化流，适配器模块对齐预训练表示',
+        'anomaly_dino': 'AnomalyDINO — 基于DINO自监督特征的少样本异常检测',
+    };
+
+    const desc = algoDescMap[algoId];
+    if (desc) {
+        descEl.textContent = desc;
+        infoPanel.style.display = 'block';
+    } else {
+        infoPanel.style.display = 'none';
+    }
+}
+
+// ============ 已训练模型加载 ============
+async function loadCustomTrainedModels() {
+    const container = document.getElementById('custom-model-list');
+    if (!container) return;
+
+    try {
+        const resp = await fetch('/api/custom-detection/trained-models');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        allTrainedModels = data.models || [];
+
+        if (allTrainedModels.length === 0) {
+            container.innerHTML = '<div class="empty-hint">暂无已训练模型，请先在"模型训练"页面训练模型</div>';
+            return;
+        }
+
+        renderTrainedModels(allTrainedModels);
+    } catch (e) {
+        console.error('[CustomDetection] 加载已训练模型失败:', e);
+        container.innerHTML = '<div class="empty-hint">加载失败</div>';
+    }
+}
+
+function renderTrainedModels(models) {
+    const container = document.getElementById('custom-model-list');
+    if (!container) return;
+
+    container.innerHTML = models.map(m => {
+        const familyBadge = _familyBadgeHtml(m.algorithm_family);
+        const algoName = m.algorithm_name ? `<span style="color:#333;font-weight:500;">${_esc(m.algorithm_name)}</span>` : '';
+        const category = m.category ? `<span style="color:#888;">· ${_esc(m.category)}</span>` : '';
+        const selected = selectedModelPath === m.path ? 'selected' : '';
+        return `
+            <div class="custom-model-item ${selected}" onclick="selectTrainedModel('${_esc(m.path)}','${_esc(m.name)}','${_esc(m.matched_algorithm_id || '')}')" style="padding:10px 12px; border:1px solid ${selected ? '#667eea' : '#e8e8e8'}; border-radius:6px; margin-bottom:6px; cursor:pointer; transition:all 0.2s; ${selected ? 'background:#f0f3ff;' : ''}">
+                <div style="font-size:13px; font-weight:500; color:#333; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${_esc(m.name)}</div>
+                <div style="font-size:12px; color:#666; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    ${familyBadge} ${algoName} ${category}
+                    <span style="color:#aaa;">${m.size_mb}MB</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function _familyBadgeHtml(family) {
+    const colors = {
+        'dinomaly': 'background:#e6f7ff;color:#1890ff;',
+        'dinomaly2': 'background:#f0f5ff;color:#2f54eb;',
+        'anomalib': 'background:#f6ffed;color:#52c41a;',
+        'ader': 'background:#fff7e6;color:#fa8c16;',
+    };
+    const labels = {'dinomaly':'Dinomaly','dinomaly2':'Dinomaly2','anomalib':'Anomalib','ader':'ADer'};
+    const style = colors[family] || 'background:#f0f0f0;color:#666;';
+    return `<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:500;${style}">${labels[family]||family}</span>`;
+}
+
+function _esc(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function selectTrainedModel(path, name, matchedAlgoId) {
+    selectedModelPath = path;
+    selectedModelName = name;
+
+    // 如果模型匹配到算法ID，自动切换算法
+    if (matchedAlgoId) {
+        const select = document.getElementById('custom-algorithm');
+        if (select) {
+            // 查找对应 option
+            for (const opt of select.options) {
+                if (opt.value === matchedAlgoId) {
+                    select.value = matchedAlgoId;
+                    updateAlgorithmInfo();
+                    break;
+                }
+            }
+        }
+    }
+
+    // 更新已选模型信息
+    const infoPanel = document.getElementById('custom-selected-model-info');
+    const nameSpan = document.getElementById('custom-selected-model-name');
+    if (infoPanel && nameSpan) {
+        nameSpan.textContent = name;
+        infoPanel.style.display = 'block';
+    }
+
+    // 重新渲染模型列表高亮选中项
+    renderTrainedModels(allTrainedModels);
+}
+
+function clearSelectedModel() {
+    selectedModelPath = '';
+    selectedModelName = '';
+    const infoPanel = document.getElementById('custom-selected-model-info');
+    if (infoPanel) infoPanel.style.display = 'none';
+    renderTrainedModels(allTrainedModels);
 }
 
 // 辅助: 渲染一个算法组到 select
@@ -228,15 +391,20 @@ async function startDatasetDetection(datasetName, imagePaths) {
     showCustomStatus(`正在准备检测... 算法: ${algorithm}, 图片: ${imagePaths.length} 张`, 'info');
 
     try {
+        const body = {
+            dataset: datasetName,
+            image_paths: imagePaths,
+            algorithm: algorithm,
+            threshold: threshold
+        };
+        if (selectedModelPath) {
+            body.model_path = selectedModelPath;
+        }
+
         const resp = await fetch('/api/custom-detection/from-dataset', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                dataset: datasetName,
-                image_paths: imagePaths,
-                algorithm: algorithm,
-                threshold: threshold
-            })
+            body: JSON.stringify(body)
         });
 
         if (!resp.ok) {
@@ -347,6 +515,9 @@ async function startCustomDetection() {
         files.forEach(f => formData.append('files', f));
         formData.append('algorithm', algorithm);
         formData.append('threshold', threshold);
+        if (selectedModelPath) {
+            formData.append('model_path', selectedModelPath);
+        }
 
         const resp = await fetch('/api/custom-detection/upload', {
             method: 'POST',

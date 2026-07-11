@@ -939,8 +939,7 @@
                 </div>
             </div>
         </div>
-    </div>
-    
+        
     <!-- 数据集构建面板（嵌入） -->
     <div id="dataset-builder" class="content">
         <iframe class="embedded-panel" src="/dataset" id="datasetIframe"></iframe>
@@ -953,57 +952,82 @@
 
     <!-- 自定义检测面板 -->
     <div id="custom-detection" class="content">
-        <!-- 第一行：算法配置 + 状态 -->
-        <div class="row row-config">
+        <!-- 第一行：模型选择 + 算法配置 -->
+        <div class="row" style="grid-template-columns: 360px 1fr; gap:20px;">
+            <!-- 已训练模型 -->
+            <div class="card" style="display:flex; flex-direction:column;">
+                <div class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    已训练模型
+                </div>
+                <div id="custom-model-list" style="flex:1; max-height:300px; overflow-y:auto;">
+                    <div class="empty-hint">加载中...</div>
+                </div>
+                <div style="margin-top:8px; font-size:12px; color:#888; padding:4px 0;">
+                    选择已训练模型后，算法将自动切换为对应算法，并加载该模型权重进行推理
+                </div>
+            </div>
+
+            <!-- 检测配置 -->
             <div class="card">
-                <div class="card-title">🔧 检测配置</div>
+                <div class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-6"/></svg>
+                    检测配置
+                </div>
                 <div class="form-group">
                     <label>选择算法</label>
                     <select class="form-control" id="custom-algorithm">
                         <option>加载中...</option>
                     </select>
                 </div>
+                <div id="custom-algorithm-info" style="display:none; background:#f8f9fa; border-radius:6px; padding:10px 14px; margin-bottom:16px; font-size:13px; color:#555; border-left:3px solid #667eea;">
+                    <div id="custom-algo-desc"></div>
+                </div>
                 <div class="form-group">
                     <label>异常阈值</label>
-                    <input type="number" class="form-control" id="custom-threshold"
-                           value="0.5" min="0" max="1" step="0.01"
-                           style="width: 120px;">
-                    <small style="color: #999;">分数超过此值判定为异常 (0~1)</small>
-                </div>
-            </div>
-            <div class="card card-status">
-                <div class="card-title">📋 状态</div>
-                <div id="custom-status" class="custom-status" style="display:none;"></div>
-                <div id="custom-progress-container" style="display:none;">
-                    <div style="margin: 8px 0;">
-                        <div class="progress-bar" style="background: #e0e0e0; border-radius: 4px; height: 8px; overflow: hidden;">
-                            <div id="custom-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(135deg, #667eea, #764ba2); transition: width 0.3s;"></div>
-                        </div>
-                        <div id="custom-progress-text" style="text-align: center; font-size: 12px; color: #999; margin-top: 4px;">准备中...</div>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <input type="range" id="custom-threshold-range" min="0" max="1" step="0.01" value="0.5"
+                               style="flex:1;" oninput="document.getElementById('custom-threshold').value=this.value; document.getElementById('custom-threshold-val').textContent=this.value;">
+                        <input type="number" class="form-control" id="custom-threshold"
+                               value="0.5" min="0" max="1" step="0.01"
+                               style="width:80px;" oninput="document.getElementById('custom-threshold-range').value=this.value; document.getElementById('custom-threshold-val').textContent=this.value;">
+                        <span id="custom-threshold-val" style="font-size:13px; color:#666; min-width:30px;">0.5</span>
                     </div>
+                </div>
+                <div id="custom-selected-model-info" style="display:none; background:#f0f7ff; border:1px dashed #b3d4fc; border-radius:6px; padding:10px 14px; font-size:13px; color:#555;">
+                    <strong>已选模型：</strong><span id="custom-selected-model-name"></span>
+                    <button onclick="clearSelectedModel()" style="margin-left:8px; border:none; background:#ff4d4f; color:white; padding:2px 8px; border-radius:3px; font-size:11px; cursor:pointer;">清除</button>
+                </div>
+                <!-- 状态 -->
+                <div id="custom-status" class="custom-status" style="display:none; margin-top:12px;"></div>
+                <div id="custom-progress-container" style="display:none; margin-top:12px;">
+                    <div class="progress-bar" style="background:#e0e0e0; border-radius:4px; height:8px; overflow:hidden;">
+                        <div id="custom-progress-bar" style="width:0%; height:100%; background:linear-gradient(135deg,#667eea,#764ba2); transition:width 0.3s;"></div>
+                    </div>
+                    <div id="custom-progress-text" style="text-align:center; font-size:12px; color:#999; margin-top:4px;">准备中...</div>
                 </div>
             </div>
         </div>
 
         <!-- 第二行：上传方式 -->
-        <div class="row">
+        <div class="row" style="gap:20px;">
             <!-- 手动上传 -->
             <div class="card">
                 <div class="card-title">📤 手动上传图片</div>
-                <div class="dropzone" id="custom-dropzone" style="padding: 30px; border: 2px dashed #ccc; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.2s;">
+                <div class="dropzone" id="custom-dropzone" style="padding:30px; border:2px dashed #ccc; border-radius:8px; text-align:center; cursor:pointer; transition:all 0.2s;">
                     <div>📁 拖拽图片到此处，或点击选择</div>
-                    <div style="color: #999; font-size: 14px; margin-top: 6px;">支持 PNG, JPG, BMP, WebP</div>
-                    <input type="file" id="custom-file-input" multiple accept="image/png,image/jpeg,image/bmp,image/webp" style="display: none;">
+                    <div style="color:#999; font-size:14px; margin-top:6px;">支持 PNG, JPG, BMP, WebP</div>
+                    <input type="file" id="custom-file-input" multiple accept="image/png,image/jpeg,image/bmp,image/webp" style="display:none;">
                 </div>
-                <div id="custom-file-list" style="margin-top: 10px;"></div>
+                <div id="custom-file-list" style="margin-top:10px;"></div>
                 <button id="custom-upload-btn" class="btn btn-primary" onclick="startCustomDetection()"
-                        style="margin-top: 10px; width: 100%;" disabled>🚀 开始检测</button>
+                        style="margin-top:10px; width:100%;" disabled>🚀 开始检测</button>
             </div>
 
             <!-- 从数据集 -->
             <div class="card">
                 <div class="card-title">📁 从数据集选择</div>
-                <div id="custom-dataset-list" style="max-height: 300px; overflow-y: auto;">
+                <div id="custom-dataset-list" style="max-height:300px; overflow-y:auto;">
                     <div class="empty-hint">加载中...</div>
                 </div>
             </div>
@@ -1011,19 +1035,20 @@
 
         <!-- 检测结果 -->
         <div id="custom-results" style="display:none;">
-            <div class="card">
+            <div class="card" style="margin-top:20px;">
                 <div class="card-title">📊 检测结果摘要</div>
                 <div class="stats-grid">
                     <div class="stat-item"><strong>算法</strong><br><span id="custom-result-algorithm">-</span></div>
                     <div class="stat-item"><strong>总数</strong><br><span id="custom-result-total">0</span></div>
-                    <div class="stat-item"><strong>异常</strong><br><span id="custom-result-anomaly" style="color: #e74c3c;">0</span></div>
-                    <div class="stat-item"><strong>正常</strong><br><span id="custom-result-normal" style="color: #27ae60;">0</span></div>
+                    <div class="stat-item"><strong>异常</strong><br><span id="custom-result-anomaly" style="color:#e74c3c;">0</span></div>
+                    <div class="stat-item"><strong>正常</strong><br><span id="custom-result-normal" style="color:#27ae60;">0</span></div>
                     <div class="stat-item"><strong>平均分数</strong><br><span id="custom-result-avg-score">-</span></div>
                     <div class="stat-item"><strong>推理时间</strong><br><span id="custom-result-avg-time">-</span></div>
                 </div>
             </div>
             <div id="custom-result-grid" class="result-grid"></div>
         </div>
+    </div>
     </div>
 
     <!-- 数据集图片选择模态框 -->
