@@ -125,7 +125,7 @@ class AnomalibAdapter(BaseDetector):
         # 检查是否需要 fit
         if not hasattr(self._model, 'learning_type'):
             return
-        from Anomalib.types import LearningType
+        from Anomalib import LearningType
         if self._model.learning_type != LearningType.ONE_CLASS:
             return
         if not hasattr(self._model, 'fit') or not callable(self._model.fit):
@@ -133,62 +133,10 @@ class AnomalibAdapter(BaseDetector):
         if getattr(self._model, '_is_fitted', False):
             return
 
-        # 需要参考数据目录
-        if not self.reference_dir or not os.path.isdir(self.reference_dir):
-            print(f"[Anomalib:{self.model_name}] Memory bank needs fitting "
-                  f"but reference_dir not found: {self.reference_dir}")
-            return
-
-        print(f"[Anomalib:{self.model_name}] Fitting memory bank with {self.reference_dir}...")
-        try:
-            from torch.utils.data import DataLoader
-            from torchvision import transforms
-            from torchvision.datasets import ImageFolder
-            from PIL import Image
-            import torch
-
-            # 构建简单的训练数据集
-            input_size = getattr(self._model, 'input_size', (256, 256))
-            transform = transforms.Compose([
-                transforms.Resize(input_size),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                    std=[0.229, 0.224, 0.225]),
-            ])
-
-            # 收集训练图片
-            train_files = sorted([
-                os.path.join(self.reference_dir, f)
-                for f in os.listdir(self.reference_dir)
-                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
-            ])[:64]  # 最多 64 张用于拟合
-
-            if not train_files:
-                print(f"[Anomalib:{self.model_name}] No training images found")
-                return
-
-            # 构建 DataLoader
-            class ImageDataset(torch.utils.data.Dataset):
-                def __init__(self, files, transform):
-                    self.files = files
-                    self.transform = transform
-                def __len__(self):
-                    return len(self.files)
-                def __getitem__(self, idx):
-                    img = Image.open(self.files[idx]).convert('RGB')
-                    return self.transform(img)
-
-            dataset = ImageDataset(train_files, transform)
-            dataloader = DataLoader(dataset, batch_size=8, shuffle=False,
-                                    num_workers=0, pin_memory=True)
-
-            fit_start = time.time()
-            self._model.fit(dataloader)
-            fit_elapsed = time.time() - fit_start
-            print(f"[Anomalib:{self.model_name}] Memory bank fitted in {fit_elapsed:.1f}s "
-                  f"({len(train_files)} images)")
-        except Exception as e:
-            print(f"[Anomalib:{self.model_name}] Memory bank fitting failed: {e}")
+        # Memory bank 模型需要通过 Engine.fit() 完成训练后才能填充
+        # 这里仅做标记，不执行实际拟合
+        print(f"[Anomalib:{self.model_name}] ONE_CLASS model, "
+              f"memory bank fitting deferred to training (Engine.fit())")
 
     # ========================================================================
     # 单张图片推理
@@ -374,6 +322,22 @@ class AnomalibAdapter(BaseDetector):
         else:
             print(f"[Anomalib:{self.model_name}] Training {max_epochs} epochs...")
             engine.fit(model=self._model, datamodule=datamodule)
+
+            # 对 ONE_CLASS 模型，训练后需要填充 memory bank
+            if self._model.learning_type == LearningType.ONE_CLASS:
+                print(f"[Anomalib:{self.model_name}] Populating memory bank...")
+                try:
+                    if hasattr(self._model, 'fit') and callable(self._model.fit):
+                        import inspect
+                        sig = inspect.signature(self._model.fit)
+                        if len(sig.parameters) == 0:
+                            self._model.fit()
+                            print(f"[Anomalib:{self.model_name}] Memory bank populated")
+                        else:
+                            print(f"[Anomalib:{self.model_name}] model.fit() requires args, skipping")
+                except Exception as e:
+                    print(f"[Anomalib:{self.model_name}] Memory bank population failed: {e}")
+
             result = engine.test(model=self._model, datamodule=datamodule)
 
         # 训练后确保模型在正确设备上
