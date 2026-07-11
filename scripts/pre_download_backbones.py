@@ -28,7 +28,7 @@ os.environ['HF_HOME'] = os.path.join(
 
 def download_model(model_name: str) -> bool:
     """加载模型触发 backbone 下载"""
-    from Anomalib.models import get_model
+    from anomalib.models import get_model
     import torch
 
     print(f'  [{model_name}] Loading...', end=' ', flush=True)

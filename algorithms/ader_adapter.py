@@ -26,6 +26,22 @@ if _ader_dir not in sys.path:
 from backend.core import BaseDetector, DetectionResult, register_algorithm
 
 
+def _import_ader():
+    """延迟导入 ADer 模块，确保 CWD 正确
+
+    ADer 内部的 configs/__base__/__init__.py 和 trainer/__init__.py
+    使用 glob.glob('configs/__base__/...') 等基于 CWD 的路径，
+    必须在 CWD 为 ADer 目录时才能正确导入。
+    """
+    _prev = os.getcwd()
+    try:
+        os.chdir(_ader_dir)
+        from ADer import ADerTaskAssigner
+        return ADerTaskAssigner
+    finally:
+        os.chdir(_prev)
+
+
 class ADerBaseAdapter(BaseDetector):
     """ADer框架基础适配器 (v2)
 
@@ -52,7 +68,7 @@ class ADerBaseAdapter(BaseDetector):
 
     def load_model(self) -> None:
         """加载ADer模型"""
-        from ADer import ADerTaskAssigner
+        ADerTaskAssigner = _import_ader()
 
         start_time = time.time()
         print(f"[ADer:{self.method}] Loading model...")
@@ -83,6 +99,13 @@ class ADerBaseAdapter(BaseDetector):
         from ADer.util.util import run_pre
         from model import get_model as ader_get_model
 
+        # 设置 HF 离线模式，避免网络不可达时下载卡死
+        _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        _hf_cache = os.path.join(_project_root, "models", "pre_trained", "huggingface")
+        os.environ.setdefault('HF_HUB_OFFLINE', '1')
+        os.environ.setdefault('HUGGINGFACE_HUB_CACHE', _hf_cache)
+        os.environ.setdefault('TRANSFORMERS_CACHE', _hf_cache)
+
         # 保存并切换工作目录
         _prev_cwd = os.getcwd()
         os.chdir(_ader_dir)
@@ -110,7 +133,7 @@ class ADerBaseAdapter(BaseDetector):
         self._image_size = getattr(cfg, 'image_size', getattr(cfg, 'size', 256))
 
         # 创建模型
-        print(f"[ADer:{self.method}] Creating model: {cfg.model.type}")
+        print(f"[ADer:{self.method}] Creating model: {cfg.model.name}")
         self._net = ader_get_model(cfg.model)
         self._net.eval()
 
@@ -218,6 +241,10 @@ class ADerBaseAdapter(BaseDetector):
 
         inference_dir = tempfile.mkdtemp(prefix='ader_inference_')
 
+        # ADer inference 需要 CWD 为 ADer 目录
+        _prev = os.getcwd()
+        os.chdir(_ader_dir)
+
         try:
             dst_path = os.path.join(inference_dir, os.path.basename(image_path))
             shutil.copy(image_path, dst_path)
@@ -232,6 +259,7 @@ class ADerBaseAdapter(BaseDetector):
             score = 0.5
             is_anomaly = False
         finally:
+            os.chdir(_prev)
             if os.path.exists(inference_dir):
                 shutil.rmtree(inference_dir, ignore_errors=True)
 

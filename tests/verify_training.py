@@ -398,7 +398,7 @@ def test_anomalib(alg_name: str, config: dict, result: TestResult):
         if is_trainable:
             log(f"  [{alg_name}] 开始训练 (max_epochs=1)...")
             try:
-                from Anomalib.data import MVTecAD
+                from anomalib.data import MVTecAD
 
                 datamodule = MVTecAD(
                     root=MVTEC_ROOT,

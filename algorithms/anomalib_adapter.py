@@ -66,10 +66,17 @@ class AnomalibAdapter(BaseDetector):
 
     def load_model(self) -> None:
         """加载 Anomalib 模型"""
+        # 设置 HuggingFace 离线模式和缓存路径，避免网络不可达时卡死
+        _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        _hf_cache = os.path.join(_project_root, "models", "pre_trained", "huggingface")
+        os.environ.setdefault('HF_HUB_OFFLINE', '1')
+        os.environ.setdefault('HUGGINGFACE_HUB_CACHE', _hf_cache)
+        os.environ.setdefault('TRANSFORMERS_CACHE', _hf_cache)
+
         start_time = time.time()
         print(f"[Anomalib:{self.model_name}] Loading model...")
 
-        from Anomalib.models import get_model
+        from anomalib.models import get_model
 
         # 1. 创建模型架构
         self._model = get_model(self.model_name)
@@ -125,7 +132,7 @@ class AnomalibAdapter(BaseDetector):
         # 检查是否需要 fit
         if not hasattr(self._model, 'learning_type'):
             return
-        from Anomalib import LearningType
+        from anomalib import LearningType
         if self._model.learning_type != LearningType.ONE_CLASS:
             return
         if not hasattr(self._model, 'fit') or not callable(self._model.fit):
@@ -277,7 +284,7 @@ class AnomalibAdapter(BaseDetector):
     def _get_engine(self, **kwargs) -> 'Engine':
         """延迟创建 Engine（仅训练时使用）"""
         if self._engine is None:
-            from Anomalib.engine import Engine
+            from anomalib.engine import Engine
             self._engine = Engine(
                 default_root_dir=os.path.join(
                     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -300,12 +307,12 @@ class AnomalibAdapter(BaseDetector):
         Returns:
             训练结果摘要
         """
-        from Anomalib import LearningType
+        from anomalib import LearningType
 
         if datamodule is None:
             raise ValueError(
                 "datamodule is required. "
-                "Example: from Anomalib.data import MVTecAD; "
+                "Example: from anomalib.data import MVTecAD; "
                 "datamodule = MVTecAD(root='data/public_dataset/mvtec', category='bottle')"
             )
 

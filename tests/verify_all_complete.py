@@ -144,9 +144,9 @@ def test_dinomaly2(alg_name, test_img, ref_imgs):
 
 def test_anomalib(alg_name, test_img, train_dir):
     """测试 Anomalib 算法 — 使用 Engine API"""
-    from Anomalib.models import get_model
-    from Anomalib.engine import Engine
-    from Anomalib.data import MVTecAD
+    from anomalib.models import get_model
+    from anomalib.engine import Engine
+    from anomalib.data import MVTecAD
 
     result = {"algorithm": alg_name, "family": "anomalib"}
     try:
@@ -180,7 +180,7 @@ def test_anomalib(alg_name, test_img, train_dir):
         result["fit_ms"] = round(fit_time)
 
         # 4. Predict on single image
-        from Anomalib.data import PredictDataset
+        from anomalib.data import PredictDataset
         dataset = PredictDataset(test_img)
         t0 = time.time()
         predictions = engine.predict(model=model, dataset=dataset)

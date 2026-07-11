@@ -78,9 +78,9 @@ def test_dinomaly2(alg, img):
         clear_gpu()
 
 def test_anomalib(alg):
-    from Anomalib.models import get_model
-    from Anomalib.engine import Engine
-    from Anomalib.data import MVTecAD
+    from anomalib.models import get_model
+    from anomalib.engine import Engine
+    from anomalib.data import MVTecAD
 
     model = get_model(alg)
     bottle_dir = os.path.dirname(os.path.dirname(TRAIN_GOOD))

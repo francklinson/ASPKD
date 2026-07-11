@@ -155,7 +155,7 @@ def verify_training():
 
     # 2. Anomalib 训练
     try:
-        from Anomalib.engine import Engine
+        from anomalib.engine import Engine
         results["anomalib_engine"] = {"training": "pass", "note": "Anomalib Engine 可导入"}
     except Exception as e:
         results["anomalib_engine"] = {"training": "fail", "error": str(e)}

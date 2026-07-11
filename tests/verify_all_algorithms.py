@@ -392,7 +392,7 @@ def test_training(alg_name: str, family: str, quick: bool = False) -> dict:
 
         elif family == "anomalib":
             # 检查 Anomalib CLI 和模型
-            from Anomalib.models import get_model
+            from anomalib.models import get_model
             try:
                 model = get_model(alg_name)
                 print(f"   ✅ Anomalib 模型 '{alg_name}' 可创建")
