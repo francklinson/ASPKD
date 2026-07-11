@@ -4,41 +4,41 @@ from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
 
 from configs.__base__ import *
-from configs.__base__ import cfg_common, cfg_dataset_default, cfg_model_uniad
+from configs.__base__.cfg_model_pyramidflow import cfg_model_pyramidflow
 
 
-class cfg(cfg_common, cfg_dataset_default, cfg_model_uniad):
+class cfg(cfg_common, cfg_dataset_default, cfg_model_pyramidflow):
 
 	def __init__(self):
 		cfg_common.__init__(self)
 		cfg_dataset_default.__init__(self)
-		cfg_model_uniad.__init__(self)
+		cfg_model_pyramidflow.__init__(self)
 
 		self.seed = 42
 		self.size = 256
+		self.test_size = 256
 		self.epoch_full = 20
 		self.warmup_epochs = 0
 		self.test_start_epoch = self.epoch_full
 		self.test_per_epoch = self.epoch_full // 10
 		self.batch_train = 8
 		self.batch_test_per = 8
-		self.lr = 1e-4 * self.batch_train / 8
-		self.weight_decay = 0.0001
+		self.lr = 2e-4 * self.batch_train / 2
+		self.weight_decay = 0.01
 		self.metrics = [
 			'bAUROC_sp_max',
 			'bAUROC_sp_mean',
-			# 'mAUROC_sp_max', 'mAP_sp_max', 'mF1_max_sp_max',
-			# 'mAUPRO_px',
-			# 'mAUROC_px', 'mAP_px', 'mF1_max_px',
-			# 'mF1_px_0.2_0.8_0.1', 'mAcc_px_0.2_0.8_0.1', 'mIoU_px_0.2_0.8_0.1',
-			# 'mIoU_max_px',
 		]
+		self.use_adeval = False
 
 		# ==> data
 		self.data.type = 'DefaultAD'
 		self.data.root = 'data/spk'
 		self.data.meta = 'meta.json'
 		self.data.cls_names = []
+
+		self.data.anomaly_source_path = 'data/dtd/images/'
+		self.data.resize_shape = [self.size, self.size]
 
 		self.data.train_transforms = [
 			dict(type='Resize', size=(self.size, self.size), interpolation=F.InterpolationMode.BILINEAR),
@@ -53,38 +53,26 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_uniad):
 			dict(type='ToTensor'),
 		]
 
-		checkpoint_path = 'model/pretrain/tf_efficientnet_b4_aa-818f208c.pth'
+		# ==> modal
 		self.model_backbone = Namespace()
-		self.model_backbone.name = 'timm_tf_efficientnet_b4'
-		self.model_backbone.kwargs = dict(pretrained=True,
-										  checkpoint_path='',
-										  strict=False,
-										  hf=None, features_only=True, out_indices=[0, 1, 2, 3])
-
-		inplanes = [24, 32, 56, 160]
-		self.model_decoder = dict(
-			inplanes=inplanes,
-			outplanes=[sum(inplanes)],
-			instrides=[16],
-			feature_size=[self.size // 16, self.size // 16],
-			neighbor_size=[self.size // 32, self.size // 32]
-		)
+		self.model_backbone.name = 'tv_resnet18'
+		self.model_backbone.kwargs = dict(pretrained=True, checkpoint_path='', strict=False)
 		self.model = Namespace()
-		self.model.name = 'uniad'
-		self.model.kwargs = dict(pretrained=False,
-									 checkpoint_path = "",
-									 strict=True, model_backbone=self.model_backbone,
-									 model_decoder=self.model_decoder)
+		self.model.name = 'pyramidflow'
+		self.model.kwargs = dict(pretrained=False, checkpoint_path='', strict=True,
+								 model_backbone=self.model_backbone, batchsize=self.batch_train)
 
 		# ==> evaluator
-		self.evaluator.kwargs = dict(metrics=self.metrics, pooling_ks=[16, 16], max_step_aupro=100)
+		self.evaluator.kwargs = dict(metrics=self.metrics, pooling_ks=None, max_step_aupro=100, use_adeval=self.use_adeval)
 
 		# ==> optimizer
 		self.optim.lr = self.lr
-		self.optim.kwargs = dict(name='adamw', betas=(0.9, 0.999), eps=1e-8, weight_decay=self.weight_decay, amsgrad=False)
+		self.optim.kwargs = dict(name='adam', betas=(0.5, 0.9), eps=1e-4,
+								 weight_decay=self.weight_decay * 1e-3, amsgrad=False)
+
 
 		# ==> trainer
-		self.trainer.name = 'UniADTrainer'
+		self.trainer.name = 'PyramidFlowTrainer'
 		self.trainer.logdir_sub = ''
 		self.trainer.resume_dir = ''
 		self.trainer.epoch_full = self.epoch_full
@@ -101,7 +89,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_uniad):
 
 		# ==> loss
 		self.loss.loss_terms = [
-			dict(type='L2Loss', name='pixel', lam=1.0),
+			dict(type='FFTLoss', name='fft'),
 		]
 
 		# ==> logging
@@ -110,9 +98,9 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_uniad):
 			dict(name='data_t', fmt=':>5.3f'),
 			dict(name='optim_t', fmt=':>5.3f'),
 			dict(name='lr', fmt=':>7.6f'),
-			dict(name='pixel', suffixes=[''], fmt=':>5.3f', add_name='avg'),
+			dict(name='cos', suffixes=[''], fmt=':>5.3f', add_name='avg'),
 		]
 		self.logging.log_terms_test = [
 			dict(name='batch_t', fmt=':>5.3f', add_name='avg'),
-			dict(name='pixel', suffixes=[''], fmt=':>5.3f', add_name='avg'),
+			dict(name='cos', suffixes=[''], fmt=':>5.3f', add_name='avg'),
 		]

@@ -22,6 +22,12 @@ DATASET_ROOT = os.path.join(PROJECT_ROOT, "data", "spk")
 SAVED_RESULTS_DIR = os.path.join(PROJECT_ROOT, "models", "saved")
 os.makedirs(SAVED_RESULTS_DIR, exist_ok=True)
 
+# 开源数据集配置: key -> (显示名, 数据目录)
+# 注意：仅支持 train/good + test/{good,defect_type} 标准目录结构的数据集
+PUBLIC_DATASETS = {
+    "mvtec": ("MVTec AD", os.path.join(PROJECT_ROOT, "data", "public_dataset", "mvtec")),
+}
+
 # 训练任务状态存储
 TRAINING_TASKS: Dict[str, dict] = {}
 
@@ -29,22 +35,173 @@ TRAINING_TASKS: Dict[str, dict] = {}
 ALGORITHM_FAMILIES = {
     "dinomaly": {
         "name": "Dinomaly",
-        "algorithms": ["dinomaly_dinov3_small", "dinomaly_dinov3_base", "dinomaly_dinov3_large",
-                       "dinomaly_dinov2_small", "dinomaly_dinov2_base", "dinomaly_dinov2_large"],
+        "description": "基于 DINOv2/v3 骨干网络的特征异常检测，支持多种模型规模",
         "trainable": True,
+        "param_schema": "encoder_size",
+        "algorithms": [
+            {"id": "dinomaly_dinov3_small", "name": "Dinomaly DINOv3 Small", "type": "feature_based",
+             "description": "基于 DINOv3 ViT-S/16 编码器，384维特征，快速训练",
+             "performance": "MVTec AD AUROC ~96%，训练速度快，显存需求低", "gpu_memory": "~2GB", "input_size": "600x600"},
+            {"id": "dinomaly_dinov3_base", "name": "Dinomaly DINOv3 Base", "type": "feature_based",
+             "description": "基于 DINOv3 ViT-B/16 编码器，768维特征，精度与速度均衡",
+             "performance": "MVTec AD AUROC ~98%，中等显存需求", "gpu_memory": "~4GB", "input_size": "600x600"},
+            {"id": "dinomaly_dinov3_large", "name": "Dinomaly DINOv3 Large", "type": "feature_based",
+             "description": "基于 DINOv3 ViT-L/16 编码器，1024维特征，最高精度",
+             "performance": "MVTec AD AUROC ~99%，高精度但需大显存", "gpu_memory": "~8GB", "input_size": "600x600"},
+            {"id": "dinomaly_dinov2_small", "name": "Dinomaly DINOv2 Small", "type": "feature_based",
+             "description": "基于 DINOv2 ViT-S/14 编码器，384维特征，轻量级",
+             "performance": "MVTec AD AUROC ~95%，训练快，适合快速验证", "gpu_memory": "~2GB", "input_size": "600x600"},
+            {"id": "dinomaly_dinov2_base", "name": "Dinomaly DINOv2 Base", "type": "feature_based",
+             "description": "基于 DINOv2 ViT-B/14 编码器，768维特征",
+             "performance": "MVTec AD AUROC ~97%，性价比较高", "gpu_memory": "~4GB", "input_size": "600x600"},
+            {"id": "dinomaly_dinov2_large", "name": "Dinomaly DINOv2 Large", "type": "feature_based",
+             "description": "基于 DINOv2 ViT-L/14 编码器，1024维特征",
+             "performance": "MVTec AD AUROC ~98%，高精度", "gpu_memory": "~8GB", "input_size": "600x600"},
+        ],
+    },
+    "dinomaly2": {
+        "name": "Dinomaly2",
+        "description": "Dinomaly2 — 统一全频谱异常检测，支持 Context-Aware Recentering + Linear Attention + Loose Constraint",
+        "trainable": True,
+        "param_schema": "encoder_size",
+        "algorithms": [
+            {"id": "dinomaly2_dinov2_small", "name": "Dinomaly2 DINOv2 Small", "type": "feature_based",
+             "description": "基于 DINOv2-reg ViT-S/14 编码器，支持 Linear Attention 和 Loose Constraint",
+             "performance": "MVTec AD AUROC ~97%，比 Dinomaly v1 更稳定", "gpu_memory": "~2GB", "input_size": "448x448"},
+            {"id": "dinomaly2_dinov2_base", "name": "Dinomaly2 DINOv2 Base", "type": "feature_based",
+             "description": "基于 DINOv2-reg ViT-B/14 编码器，Context-Aware Recentering",
+             "performance": "MVTec AD AUROC ~98%，精度与速度均衡", "gpu_memory": "~4GB", "input_size": "448x448"},
+            {"id": "dinomaly2_dinov2_large", "name": "Dinomaly2 DINOv2 Large", "type": "feature_based",
+             "description": "基于 DINOv2-reg ViT-L/14 编码器，全特性支持",
+             "performance": "MVTec AD AUROC ~99%，当前 SOTA 级别", "gpu_memory": "~8GB", "input_size": "448x448"},
+        ],
     },
     "anomalib": {
         "name": "Anomalib",
-        "algorithms": ["patchcore", "padim", "cfa", "csflow", "dfkde", "dfm", "draem",
-                       "dsr", "efficient_ad", "fastflow", "fre", "reverse_distillation",
-                       "stfpm", "ganomaly", "supersimplenet", "uflow", "uninet",
-                       "general_ad", "glass", "inp_former", "l2bt", "patchflow"],
+        "description": "Intel 开源异常检测库，支持 30+ 种算法，覆盖特征嵌入、重建、流模型等多种检测范式",
         "trainable": True,
+        "param_schema": "algorithm_select",
+        "algorithms": [
+            {"id": "patchcore", "name": "PatchCore", "type": "feature_embedding",
+             "description": "基于核心集的特征嵌入方法，无需训练梯度更新，内存库匹配",
+             "performance": "MVTec AD AUROC ~99.1%，工业异常检测经典 SOTA", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "padim", "name": "PaDiM", "type": "feature_embedding",
+             "description": "基于参数化异常检测方法，使用多维度高斯分布建模正常特征（需下载预训练 backbone）",
+             "performance": "MVTec AD AUROC ~95.3%，训练极快", "gpu_memory": "~2GB", "input_size": "256x256",
+             "trainable": False},
+            {"id": "efficient_ad", "name": "EfficientAD", "type": "lightweight",
+             "description": "轻量级异常检测，知识蒸馏 + 自编码器，推理速度极快（需 ImageNette 数据集做知识蒸馏，暂不可训练）",
+             "performance": "MVTec AD AUROC ~97.2%，推理延迟 <1ms/图", "gpu_memory": "~1GB", "input_size": "256x256",
+             "trainable": False},
+            {"id": "cfa", "name": "CFA", "type": "feature_embedding",
+             "description": "耦合超球面特征适应，将正常特征映射到超球面",
+             "performance": "MVTec AD AUROC ~96.5%", "gpu_memory": "~3GB", "input_size": "256x256"},
+            {"id": "csflow", "name": "CS-Flow", "type": "flow_based",
+             "description": "跨尺度归一化流模型，多尺度特征联合建模",
+             "performance": "MVTec AD AUROC ~96.0%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "dfkde", "name": "DFKDE", "type": "feature_embedding",
+             "description": "深度特征核密度估计，非参数化异常评分（需下载预训练 backbone）",
+             "performance": "MVTec AD AUROC ~93%", "gpu_memory": "~2GB", "input_size": "256x256",
+             "trainable": False},
+            {"id": "dfm", "name": "DFM", "type": "feature_embedding",
+             "description": "深度特征建模，基于 PCA 的特征降维与重建误差",
+             "performance": "MVTec AD AUROC ~94%", "gpu_memory": "~2GB", "input_size": "256x256"},
+            {"id": "draem", "name": "DRAEM", "type": "reconstruction",
+             "description": "判别性异常检测重建，生成模拟异常样本训练",
+             "performance": "MVTec AD AUROC ~98.0%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "dsr", "name": "DSR", "type": "reconstruction",
+             "description": "双空间重构，同时建模特征空间和图像空间",
+             "performance": "MVTec AD AUROC ~95%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "fastflow", "name": "FastFlow", "type": "flow_based",
+             "description": "快速归一化流异常检测，2D 归一化流建模特征分布（需下载预训练 backbone）",
+             "performance": "MVTec AD AUROC ~96.6%，训练快", "gpu_memory": "~3GB", "input_size": "256x256",
+             "trainable": False},
+            {"id": "fre", "name": "FRE", "type": "feature_embedding",
+             "description": "特征重建误差，基于自编码器重建预训练特征",
+             "performance": "MVTec AD AUROC ~94%", "gpu_memory": "~2GB", "input_size": "256x256"},
+            {"id": "reverse_distillation", "name": "Reverse Distillation", "type": "knowledge_distillation",
+             "description": "反向蒸馏，学生网络从中间层反向学习教师特征",
+             "performance": "MVTec AD AUROC ~96.7%", "gpu_memory": "~3GB", "input_size": "256x256"},
+            {"id": "stfpm", "name": "STFPM", "type": "knowledge_distillation",
+             "description": "师生特征金字塔匹配，多尺度特征蒸馏（需下载预训练 backbone）",
+             "performance": "MVTec AD AUROC ~95.5%", "gpu_memory": "~3GB", "input_size": "256x256",
+             "trainable": False},
+            {"id": "ganomaly", "name": "GANomaly", "type": "generative",
+             "description": "基于 GAN 的异常检测，编码器-解码器-编码器结构",
+             "performance": "MVTec AD AUROC ~76%，较早期方法", "gpu_memory": "~3GB", "input_size": "256x256"},
+            {"id": "supersimplenet", "name": "SuperSimpleNet", "type": "feature_learning",
+             "description": "超简单网络，特征判别器 + 异常评分头",
+             "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~2GB", "input_size": "256x256"},
+            {"id": "uflow", "name": "U-Flow", "type": "flow_based",
+             "description": "U-Net 结构归一化流，多层级特征流建模（需下载预训练 backbone）",
+             "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~3GB", "input_size": "256x256",
+             "trainable": False},
+            {"id": "uninet", "name": "UniNet", "type": "unified",
+             "description": "统一异常检测网络，融合多种检测范式",
+             "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "vlm_ad", "name": "VLM-AD", "type": "vision_language",
+             "description": "基于视觉语言模型的异常检测，利用文本-图像对齐（需 Ollama 服务，仅推理可用）",
+             "performance": "零样本检测 AUROC ~85%，需 CLIP 模型", "gpu_memory": "~4GB", "input_size": "256x256",
+             "trainable": False},
+            {"id": "winclip", "name": "WinCLIP", "type": "vision_language",
+             "description": "窗口级 CLIP 异常检测，多尺度窗口比较",
+             "performance": "零样本 AUROC ~91%，少样本进一步提升", "gpu_memory": "~4GB", "input_size": "256x256"},
+            # Anomalib v2.5.0 新增
+            {"id": "anomalyvfm", "name": "AnomalyVFM", "type": "zero_shot",
+             "description": "基于视觉基础模型的零样本异常检测，无需训练数据",
+             "performance": "零样本 AUROC ~89%", "gpu_memory": "~6GB", "input_size": "256x256"},
+            {"id": "cfm", "name": "CFM", "type": "cross_modal",
+             "description": "跨模态融合异常检测，结合视觉和文本信息（需下载预训练 backbone）",
+             "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256",
+             "trainable": False},
+            {"id": "general_ad", "name": "GeneralAD", "type": "feature_embedding",
+             "description": "通用异常检测框架，自适应特征选择",
+             "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "glass", "name": "GLASS", "type": "synthesis",
+             "description": "基于合成异常的检测方法，GLocal Anomaly Synthesis",
+             "performance": "MVTec AD AUROC ~98%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "inp_former", "name": "INP-Former", "type": "prototype",
+             "description": "基于原型的异常检测，学习正常原型特征",
+             "performance": "MVTec AD AUROC ~98%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "l2bt", "name": "L2BT", "type": "feature_embedding",
+             "description": "Learn to Be Thorough，细粒度特征嵌入检测",
+             "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "patchflow", "name": "PatchFlow", "type": "flow_based",
+             "description": "Patch 级归一化流异常检测，结合 PatchCore 和 Flow",
+             "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~3GB", "input_size": "256x256"},
+            {"id": "anomaly_dino", "name": "AnomalyDINO", "type": "few_shot",
+             "description": "基于 DINO 的少样本异常检测，利用自监督特征",
+             "performance": "少样本 AUROC ~94%", "gpu_memory": "~4GB", "input_size": "256x256"},
+        ],
     },
     "ader": {
         "name": "ADer",
-        "algorithms": ["mambaad", "invad", "vitad", "unad", "cflow", "pyramidflow", "simplenet"],
+        "description": "异常检测框架，集成多种前沿算法（状态空间模型、Transformer、流模型等）",
         "trainable": True,
+        "param_schema": "algorithm_select",
+        "algorithms": [
+            {"id": "mambaad", "name": "MambaAD", "type": "state_space_model",
+             "description": "基于状态空间模型（Mamba）的异常检测，线性复杂度长序列建模",
+             "performance": "MVTec AD AUROC ~97%，推理速度快", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "invad", "name": "InvAD", "type": "generative",
+             "description": "逆生成式异常检测，学习正常数据分布的逆向映射",
+             "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "vitad", "name": "ViTAD", "type": "transformer",
+             "description": "基于 Vision Transformer 的异常检测，全局注意力机制",
+             "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "unad", "name": "UniAD", "type": "unified",
+             "description": "统一异常检测框架，单一模型处理多类别",
+             "performance": "MVTec AD AUROC ~96%，支持多类别统一训练", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "cflow", "name": "CFlow (ADer)", "type": "flow_based",
+             "description": "条件归一化流异常检测，ADer 框架实现版本",
+             "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~3GB", "input_size": "256x256"},
+            {"id": "pyramidflow", "name": "PyramidFlow", "type": "flow_based",
+             "description": "金字塔级归一化流，多尺度特征异常检测",
+             "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "simplenet", "name": "SimpleNet", "type": "feature_learning",
+             "description": "简单网络异常检测，特征空间判别器，轻量高效",
+             "performance": "MVTec AD AUROC ~97%，训练快推理快", "gpu_memory": "~2GB", "input_size": "256x256"},
+        ],
     },
 }
 
@@ -57,14 +214,17 @@ class DatasetInfo(BaseModel):
     test_anomaly_count: int
     total_count: int
     trainable: bool
+    source: str = "spk"          # spk / mvtec / visa
+    source_label: str = "SPK"    # 显示名
 
 
 class TrainingRequest(BaseModel):
     """训练请求 - 支持多算法族"""
     categories: List[str]
-    algorithm_family: str = "dinomaly"  # dinomaly, anomalib, ader
+    data_source: str = "spk"           # spk / mvtec / visa — 数据来源
+    algorithm_family: str = "dinomaly"  # dinomaly, dinomaly2, anomalib, ader
     algorithm_name: str = ""           # 具体算法名，为空则使用默认
-    model_type: str = "dinov3"         # (Dinomaly) dinov2 或 dinov3
+    model_type: str = "dinov3"         # (Dinomaly/Dinomaly2) dinov2 或 dinov3
     model_size: str = "small"          # (Dinomaly) small, base, large
     total_iters: int = 1000
     batch_size: int = 8
@@ -77,6 +237,7 @@ class TrainingRequest(BaseModel):
 class TrainingConfig(BaseModel):
     """训练配置"""
     categories: List[str]
+    data_source: str = "spk"
     algorithm_family: str = "dinomaly"
     algorithm_name: str = ""
     model_type: str
@@ -160,12 +321,17 @@ async def get_algorithm_families():
 
 @router.get("/datasets", response_model=List[DatasetInfo])
 async def get_training_datasets():
-    """获取可用于训练的数据集列表"""
+    """获取可用于训练的数据集列表（含本地开源数据集）"""
     datasets = []
-    if os.path.exists(DATASET_ROOT):
-        for category in os.listdir(DATASET_ROOT):
-            category_path = os.path.join(DATASET_ROOT, category)
-            if not os.path.isdir(category_path) or category == "split_log.jsonl":
+
+    def _scan_dir(root: str, source: str, source_label: str):
+        """扫描指定目录下的数据集类别"""
+        results = []
+        if not os.path.exists(root):
+            return results
+        for category in os.listdir(root):
+            category_path = os.path.join(root, category)
+            if not os.path.isdir(category_path) or category in ("split_log.jsonl", "license.txt", "readme.txt", "meta.json"):
                 continue
 
             train_good = os.path.join(category_path, "train", "good")
@@ -173,24 +339,52 @@ async def get_training_datasets():
             test_anomaly = os.path.join(category_path, "test", "anomaly")
             test_bad = os.path.join(category_path, "test", "bad")
 
-            train_count = len([f for f in os.listdir(train_good) if f.endswith(('.png', '.jpg', '.bmp', '.JPG'))]) if os.path.exists(train_good) else 0
-            test_normal = len([f for f in os.listdir(test_good) if f.endswith(('.png', '.jpg', '.bmp', '.JPG'))]) if os.path.exists(test_good) else 0
-            test_anomaly_count = len([f for f in os.listdir(test_anomaly) if f.endswith(('.png', '.jpg', '.bmp', '.JPG'))]) if os.path.exists(test_anomaly) else 0
-            test_bad_count = len([f for f in os.listdir(test_bad) if f.endswith(('.png', '.jpg', '.bmp', '.JPG'))]) if os.path.exists(test_bad) else 0
-            test_anomaly_count += test_bad_count
+            # MVTec 的异常子目录不是 bad/anomaly，而是具体缺陷名
+            if not os.path.exists(test_anomaly) and not os.path.exists(test_bad):
+                # 扫描 test/ 下非 good 的子目录
+                anomaly_count = 0
+                test_path = os.path.join(category_path, "test")
+                if os.path.exists(test_path):
+                    for sub in os.listdir(test_path):
+                        sub_path = os.path.join(test_path, sub)
+                        if sub != "good" and os.path.isdir(sub_path):
+                            anomaly_count += len([f for f in os.listdir(sub_path)
+                                                  if f.lower().endswith(('.png', '.jpg', '.bmp'))])
+                test_anomaly_count = anomaly_count
+            else:
+                test_anomaly_count = len([f for f in os.listdir(test_anomaly)
+                                          if f.lower().endswith(('.png', '.jpg', '.bmp'))]) if os.path.exists(test_anomaly) else 0
+                test_bad_count = len([f for f in os.listdir(test_bad)
+                                      if f.lower().endswith(('.png', '.jpg', '.bmp'))]) if os.path.exists(test_bad) else 0
+                test_anomaly_count += test_bad_count
+
+            train_count = len([f for f in os.listdir(train_good)
+                               if f.lower().endswith(('.png', '.jpg', '.bmp'))]) if os.path.exists(train_good) else 0
+            test_normal = len([f for f in os.listdir(test_good)
+                               if f.lower().endswith(('.png', '.jpg', '.bmp'))]) if os.path.exists(test_good) else 0
 
             trainable = train_count >= 10
 
-            datasets.append(DatasetInfo(
+            results.append(DatasetInfo(
                 name=category,
                 train_normal_count=train_count,
                 test_normal_count=test_normal,
                 test_anomaly_count=test_anomaly_count,
                 total_count=train_count + test_normal + test_anomaly_count,
-                trainable=trainable
+                trainable=trainable,
+                source=source,
+                source_label=source_label,
             ))
+        return results
 
-    datasets.sort(key=lambda x: x.name)
+    # 扫描 SPK 自建数据集
+    datasets.extend(_scan_dir(DATASET_ROOT, "spk", "SPK"))
+
+    # 扫描本地开源数据集
+    for ds_key, (ds_label, ds_path) in PUBLIC_DATASETS.items():
+        datasets.extend(_scan_dir(ds_path, ds_key, ds_label))
+
+    datasets.sort(key=lambda x: (x.source, x.name))
     return datasets
 
 
@@ -279,19 +473,30 @@ async def start_training(request: TrainingRequest):
         raise HTTPException(status_code=400, detail=f"不支持的算法族: {family}")
 
     # 验证算法名称
-    if request.algorithm_name and request.algorithm_name not in ALGORITHM_FAMILIES[family]["algorithms"]:
+    family_algorithms = ALGORITHM_FAMILIES[family]["algorithms"]
+    family_algo_ids = [a["id"] if isinstance(a, dict) else a for a in family_algorithms]
+    if request.algorithm_name and request.algorithm_name not in family_algo_ids:
         raise HTTPException(status_code=400, detail=f"算法 '{request.algorithm_name}' 不属于 {family} 族")
+
+    # 确定数据根目录
+    data_source = request.data_source
+    if data_source == "spk":
+        data_root = DATASET_ROOT
+    elif data_source in PUBLIC_DATASETS:
+        data_root = PUBLIC_DATASETS[data_source][1]
+    else:
+        raise HTTPException(status_code=400, detail=f"不支持的数据来源: {data_source}")
 
     # 验证数据集类别
     valid_categories = []
     dataset_stats = {}
     for cat in request.categories:
-        cat_path = os.path.join(DATASET_ROOT, cat)
+        cat_path = os.path.join(data_root, cat)
         if not os.path.exists(cat_path):
-            raise HTTPException(status_code=400, detail=f"类别 '{cat}' 不存在")
+            raise HTTPException(status_code=400, detail=f"类别 '{cat}' 在 {data_source} 数据集中不存在")
 
         train_dir = os.path.join(cat_path, "train", "good")
-        train_count = len([f for f in os.listdir(train_dir) if f.endswith(('.png', '.jpg', '.bmp', '.JPG'))]) if os.path.exists(train_dir) else 0
+        train_count = len([f for f in os.listdir(train_dir) if f.lower().endswith(('.png', '.jpg', '.bmp'))]) if os.path.exists(train_dir) else 0
 
         if train_count < 10:
             raise HTTPException(
@@ -314,6 +519,7 @@ async def start_training(request: TrainingRequest):
     # 创建训练配置
     config = TrainingConfig(
         categories=valid_categories,
+        data_source=data_source,
         algorithm_family=family,
         algorithm_name=request.algorithm_name,
         model_type=request.model_type,
@@ -330,7 +536,7 @@ async def start_training(request: TrainingRequest):
         "task_id": task_id,
         "status": "pending",
         "categories": valid_categories,
-        "algorithm_family": family,
+        "data_source": data_source,
         "algorithm_name": request.algorithm_name,
         "model_type": request.model_type,
         "model_size": request.model_size,
@@ -378,6 +584,8 @@ def _dispatch_training(task_id: str, config: TrainingConfig, save_name: str):
     family = config.algorithm_family
     if family == "dinomaly":
         _run_dinomaly_training(task_id, config, save_name)
+    elif family == "dinomaly2":
+        _run_dinomaly2_training(task_id, config, save_name)
     elif family == "anomalib":
         _run_anomalib_training(task_id, config, save_name)
     elif family == "ader":
@@ -387,6 +595,33 @@ def _dispatch_training(task_id: str, config: TrainingConfig, save_name: str):
         if task:
             task["status"] = "failed"
             task["progress"] = f"不支持的算法族: {family}"
+
+
+# Anomalib 训练 API 算法名 → anomalib 注册名映射
+# Anomalib 的 snake_case 转换会将缩写拆开: VFM→v_f_m, CFM→c_f_m 等
+_ANOMALIB_NAME_MAP = {
+    "anomalyvfm": "anomaly_v_f_m",
+    "cfm": "c_f_m",
+    "general_ad": "general_a_d",
+    "glass": "glass",
+    "inp_former": "inp_former",
+    "l2bt": "l2_b_t",
+    "patchflow": "patchflow",
+    "anomaly_dino": "anomaly_d_i_n_o",
+    "winclip": "win_clip",
+    "uninet": "uni_net",
+    "vlm_ad": "vlm_ad",
+    "efficient_ad": "efficient_ad",
+}
+
+
+def _resolve_data_root(data_source: str) -> str:
+    """根据 data_source 返回对应的数据根目录"""
+    if data_source == "spk":
+        return DATASET_ROOT
+    if data_source in PUBLIC_DATASETS:
+        return PUBLIC_DATASETS[data_source][1]
+    return DATASET_ROOT
 
 
 # ============================================================================
@@ -406,7 +641,7 @@ def _run_dinomaly_training(task_id: str, config: TrainingConfig, save_name: str)
     task["progress"] = "正在初始化 Dinomaly 训练环境..."
 
     try:
-        data_path = DATASET_ROOT
+        data_path = _resolve_data_root(config.data_source)
         save_dir = SAVED_RESULTS_DIR
 
         cmd = [
@@ -421,8 +656,63 @@ def _run_dinomaly_training(task_id: str, config: TrainingConfig, save_name: str)
             "--categories",
         ] + config.categories
 
-        if config.enable_augmentation:
-            cmd.append("--enable_augmentation")
+        _run_subprocess_with_logging(task_id, cmd)
+
+    except Exception as e:
+        task = TRAINING_TASKS.get(task_id)
+        if task:
+            task["status"] = "failed"
+            task["progress"] = f"训练异常: {str(e)}"
+            task["log"] += f"\n[错误] {str(e)}"
+
+
+# Dinomaly2 backbone 映射 (仅支持 DINOv2)
+_D2_BACKBONE_MAP = {
+    ("dinov2", "small"): "dinov2reg_vit_small_14",
+    ("dinov2", "base"): "dinov2reg_vit_base_14",
+    ("dinov2", "large"): "dinov2reg_vit_large_14",
+}
+
+
+def _run_dinomaly2_training(task_id: str, config: TrainingConfig, save_name: str):
+    """Dinomaly2 训练执行器"""
+    import time
+    task = TRAINING_TASKS.get(task_id)
+    if not task:
+        return
+
+    task["status"] = "running"
+    task["started_at"] = datetime.now().isoformat()
+    task["start_time"] = time.time()
+    task["progress"] = "正在初始化 Dinomaly2 训练环境..."
+
+    try:
+        data_path = _resolve_data_root(config.data_source)
+        save_dir = SAVED_RESULTS_DIR
+
+        backbone = _D2_BACKBONE_MAP.get(
+            (config.model_type, config.model_size),
+            "dinov2reg_vit_small_14"
+        )
+
+        script_path = os.path.join(PROJECT_ROOT, "algorithms", "Dinomaly2", "dinomaly_2D.py")
+        gpu_id = int(os.environ.get("CUDA_VISIBLE_DEVICES", "0").split(",")[0])
+        categories_str = ",".join(config.categories)
+        cmd = [
+            sys.executable, script_path,
+            "--data_path", data_path,
+            "--save_dir", save_dir,
+            "--save_name", save_name,
+            "--backbone", backbone,
+            "--cuda", str(gpu_id),
+            "--categories", categories_str,
+            "--total_iters", str(config.total_iters),
+            "--image_size", "448",
+            "--crop_size", "392",
+            "--la", "1",
+            "--lc", "2",
+            "--cr", "1",
+        ]
 
         _run_subprocess_with_logging(task_id, cmd)
 
@@ -435,7 +725,7 @@ def _run_dinomaly_training(task_id: str, config: TrainingConfig, save_name: str)
 
 
 def _run_anomalib_training(task_id: str, config: TrainingConfig, save_name: str):
-    """Anomalib 训练执行器（通过 Anomalib CLI/Engine）"""
+    """Anomalib 训练执行器（通过 anomalib Engine API）"""
     import time
     task = TRAINING_TASKS.get(task_id)
     if not task:
@@ -447,16 +737,47 @@ def _run_anomalib_training(task_id: str, config: TrainingConfig, save_name: str)
     task["progress"] = "正在初始化 Anomalib 训练环境..."
 
     try:
-        # 使用 Anomalib CLI 进行训练
-        cmd = [
-            sys.executable, "-m", "Anomalib.cli",
-            "--model", config.algorithm_name or "padim",
-            "--data", DATASET_ROOT,
-            "--train_batch_size", str(config.batch_size),
-            "--max_epochs", str(max(1, config.total_iters // 100)),
-        ]
+        data_root = _resolve_data_root(config.data_source)
+        algorithm = config.algorithm_name or "patchcore"
+        max_epochs = max(1, config.total_iters // 100)
+        batch_size = config.batch_size
 
+        # 映射训练 API 算法名到 Anomalib 注册名（snake_case 缩写转换差异）
+        anomalib_algo = _ANOMALIB_NAME_MAP.get(algorithm, algorithm)
+
+        # EfficientAD 要求 batch_size=1
+        if algorithm == "efficient_ad" and batch_size != 1:
+            batch_size = 1
+
+        category = config.categories[0] if config.categories else "bottle"
+        algorithms_dir = os.path.join(PROJECT_ROOT, "algorithms")
+        train_script = f"""
+import sys
+sys.path.insert(0, '{PROJECT_ROOT}')
+sys.path.insert(0, '{algorithms_dir}')
+from anomalib.engine import Engine
+from anomalib.models import get_model
+
+model = get_model('{anomalib_algo}')
+engine = Engine(
+    max_epochs={max_epochs},
+    default_root_dir='{SAVED_RESULTS_DIR}/{save_name}',
+)
+from anomalib.data import MVTecAD
+datamodule = MVTecAD(root='{data_root}', category='{category}', train_batch_size={batch_size})
+engine.fit(model=model, datamodule=datamodule)
+print(f'Training completed: {algorithm}')
+"""
+        script_path = os.path.join(SAVED_RESULTS_DIR, f"_anomalib_train_{task_id}.py")
+        with open(script_path, 'w') as f:
+            f.write(train_script)
+
+        cmd = [sys.executable, script_path]
         _run_subprocess_with_logging(task_id, cmd)
+
+        # 清理临时脚本
+        if os.path.exists(script_path):
+            os.remove(script_path)
 
     except Exception as e:
         task = TRAINING_TASKS.get(task_id)
@@ -481,15 +802,64 @@ def _run_ader_training(task_id: str, config: TrainingConfig, save_name: str):
     try:
         # ADer 训练通过调用 ADer 内置的训练脚本
         method_name = _ader_method_name(config.algorithm_name or "mambaad")
+        data_root = _resolve_data_root(config.data_source)
 
         script_path = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "run.py")
+        ader_root = os.path.join(PROJECT_ROOT, "algorithms")
+        ader_cwd = os.path.join(PROJECT_ROOT, "algorithms", "ADer")
+
+        # 配置路径检查: ADer 用 importlib 导入配置，需要模块路径
+        # 格式: ADer/configs/{method}/{method}_spk.py → ADer.configs.{method}.{method}_spk
+        cfg_dir = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "configs", method_name.lower())
+        cfg_file = os.path.join(cfg_dir, f"{method_name.lower()}_spk.py")
+
+        if not os.path.isfile(cfg_file):
+            # 降级到 benchmark 配置（如果存在）
+            # benchmark 配置命名格式: {method}_256_100e.py 或 {method}_mvtec.py
+            benchmark_dir = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "configs",
+                                         "benchmark", method_name.lower())
+            benchmark_cfg = None
+            for candidate in [f"{method_name.lower()}_mvtec.py", f"{method_name.lower()}_256_100e.py"]:
+                path = os.path.join(benchmark_dir, candidate)
+                if os.path.isfile(path):
+                    benchmark_cfg = path
+                    break
+            if benchmark_cfg:
+                os.makedirs(cfg_dir, exist_ok=True)
+                import shutil
+                shutil.copy2(benchmark_cfg, cfg_file)
+                task["log"] += f"\n[INFO] 从 benchmark 配置创建: {cfg_file}"
+            else:
+                raise FileNotFoundError(f"ADer 配置文件不存在: {cfg_file}")
+
+        # 设置 PYTHONPATH 使 ADer 内部模块可导入
+        env = os.environ.copy()
+        python_path = f"{ader_root}:{env.get('PYTHONPATH', '')}"
+        env["PYTHONPATH"] = python_path
+
+        # CWD 必须是 algorithms/ADer/ 目录，这样：
+        # - ADer 内部所有相对导入（from util.xxx, from model.xxx, from configs.xxx）正常工作
+        # - trainer/model 注册到正确的 TRAINER/MODEL 实例，避免实例分裂
+        # - glob 路径（trainer/[!_]*.py 等）正确匹配
+        cfg_path = f"configs/{method_name.lower()}/{method_name.lower()}_spk.py"
+
+        # 计算数据目录相对于 algorithms/ADer/ 的路径
+        # ADer 内部 data.root 是相对于 CWD (algorithms/ADer/) 的
+        ader_abs = os.path.abspath(ader_cwd)
+        data_abs = os.path.abspath(data_root)
+        try:
+            data_rel = os.path.relpath(data_abs, ader_abs)
+        except ValueError:
+            data_rel = data_abs  # 不同驱动器时回退到绝对路径
+
         cmd = [
             sys.executable, script_path,
-            "-c", f"ADer/configs/{method_name.lower()}/{method_name.lower()}_spk.py",
+            "-c", cfg_path,
             "-m", "train",
+            f"data.root={data_rel}",
         ]
 
-        _run_subprocess_with_logging(task_id, cmd)
+        _run_subprocess_with_logging(task_id, cmd, env=env, cwd=ader_cwd)
 
     except Exception as e:
         task = TRAINING_TASKS.get(task_id)
@@ -517,7 +887,7 @@ def _ader_method_name(algo_name: str) -> str:
 # 子进程管理
 # ============================================================================
 
-def _run_subprocess_with_logging(task_id: str, cmd: List[str]):
+def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None, cwd: str = None):
     """运行子进程并实时解析日志"""
     import time
     task = TRAINING_TASKS.get(task_id)
@@ -532,6 +902,8 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str]):
 
     # 设置环境变量
     env_vars = {**os.environ}
+    if env:
+        env_vars.update(env)
     env_vars["CUDA_VISIBLE_DEVICES"] = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
     env_vars["DINOMALY_ENCODER_DIR"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
     env_vars["PRETRAINED_MODELS_DIR"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
@@ -554,7 +926,7 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str]):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        cwd=PROJECT_ROOT,
+        cwd=cwd or PROJECT_ROOT,
         env=env_vars
     )
 

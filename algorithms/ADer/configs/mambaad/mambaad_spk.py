@@ -3,8 +3,8 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
 
-from ADer.configs.__base__ import *
-from ADer.configs.__base__.cfg_model_mambaad import cfg_model_mambaad
+from configs.__base__ import *
+from configs.__base__.cfg_model_mambaad import cfg_model_mambaad
 
 
 class cfg(cfg_common, cfg_dataset_default, cfg_model_mambaad):
@@ -70,7 +70,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_mambaad):
         self.model = Namespace()
         self.model.name = 'mambaad'
         self.model.kwargs = dict(pretrained=True,
-                                 checkpoint_path='runs/MAMBAADTrainer_ADer_configs_mambaad_mambaad_spk_20250903-222031/ckpt.pth',
+                                 checkpoint_path='',
                                  strict=True, model_t=self.model_t,
                                  model_s=self.model_s)
 

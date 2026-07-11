@@ -465,12 +465,16 @@ class BatchDiffLoss(nn.Module):
     """
     def __init__(self, batchsize=2, p=2) -> None:
         super().__init__()
-        self.idx0, self.idx1 = np.triu_indices(n=batchsize, k=1)
+        self.batchsize = batchsize
         self.p = p
     def forward(self, pyramid):
         diffes = []
         for input in pyramid:
-            diff = (input[self.idx0] - input[self.idx1]).abs()**self.p
+            b = input.shape[0]
+            idx0, idx1 = np.triu_indices(n=b, k=1)
+            idx0 = torch.from_numpy(idx0).to(input.device)
+            idx1 = torch.from_numpy(idx1).to(input.device)
+            diff = (input[idx0] - input[idx1]).abs()**self.p
             diffes.append(diff)
         return diffes
 

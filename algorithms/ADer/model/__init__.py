@@ -83,4 +83,8 @@ def get_model(cfg_model):
 
 files = glob.glob('model/[!_]*.py')
 for file in files:
-	model_lib = importlib.import_module(file.split('.')[0].replace('/', '.'))
+    try:
+        model_lib = importlib.import_module(file.split('.')[0].replace('/', '.'))
+    except (ImportError, AttributeError) as e:
+        import warnings
+        warnings.warn(f"Skip loading model module {file}: {e}")

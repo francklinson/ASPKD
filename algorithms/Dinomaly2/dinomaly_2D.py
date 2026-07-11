@@ -174,8 +174,9 @@ def train(item_list, args):
                              {'params': bottleneck[1].parameters()},
                              {'params': decoder.parameters()}],
                             lr=2e-3, betas=(0.9, 0.999), weight_decay=1e-4, amsgrad=False, eps=1e-10)
+    warmup_epochs = min(100, max(1, total_iters // 10))
     lr_scheduler = WarmupCosineScheduler(optimizer, final_ratio=args.lr_decay_ratio, total_epochs=total_iters,
-                                         warmup_epochs=100)
+                                         warmup_epochs=warmup_epochs)
 
     print_fn('train image number:{}'.format(len(train_data)))
 
@@ -278,9 +279,12 @@ if __name__ == '__main__':
     parser.add_argument('--total_iters', type=int, default=40000)
     parser.add_argument('--lr_decay_ratio', type=float, default=1.)
     parser.add_argument('--cuda', type=int, default=3)
+    parser.add_argument('--categories', type=str, default='', help='Comma-separated category list (overrides auto-detect)')
     args = parser.parse_args()
     #
-    if 'mvtec' in args.data_path.lower():
+    if args.categories:
+        item_list = [c.strip() for c in args.categories.split(',') if c.strip()]
+    elif 'mvtec' in args.data_path.lower():
         item_list = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule',
                      'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
     elif 'visa' in args.data_path.lower():
