@@ -19,7 +19,11 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 from einops import rearrange, repeat
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_scan_ref
+try:
+    from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_scan_ref
+except ImportError:
+    selective_scan_fn = None
+    selective_scan_ref = None
 import numpy as np
 from hilbert import decode, encode
 from pyzorder import ZOrderIndexer

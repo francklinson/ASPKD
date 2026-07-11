@@ -101,10 +101,11 @@ class ADerBaseAdapter(BaseDetector):
 
         # 设置 HF 离线模式，避免网络不可达时下载卡死
         _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        _hf_cache = os.path.join(_project_root, "models", "pre_trained", "huggingface")
+        _hf_cache = os.path.join(_project_root, "models", "pre_trained", "huggingface", "hub")
         os.environ.setdefault('HF_HUB_OFFLINE', '1')
         os.environ.setdefault('HUGGINGFACE_HUB_CACHE', _hf_cache)
         os.environ.setdefault('TRANSFORMERS_CACHE', _hf_cache)
+        os.environ.setdefault('HF_HOME', os.path.join(_project_root, "models", "pre_trained", "huggingface"))
 
         # 保存并切换工作目录
         _prev_cwd = os.getcwd()

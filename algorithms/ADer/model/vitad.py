@@ -139,15 +139,20 @@ def _create_vision_transformer(variant, pretrained=False, **kwargs):
 		_filter_fn = partial(checkpoint_filter_fn, interpolation='bilinear', antialias=False)
 	else:
 		_filter_fn = checkpoint_filter_fn
-	finish = False
-	while not finish:
+	max_retries = 10
+	for attempt in range(max_retries):
 		try:
 			model = build_model_with_cfg(ViT_Encoder, variant, pretrained, pretrained_filter_fn=_filter_fn, **kwargs)
-			finish = True
-		except:
-			print('Try load model for ViTAD')
+			return model
+		except Exception as e:
+			err_msg = str(e)
+			print(f'Try load model for ViTAD (attempt {attempt+1}/{max_retries}): {err_msg}')
+			if 'LocalEntryNotFoundError' in type(e).__name__ or 'Offline' in err_msg or 'Connection' in err_msg:
+				print(f'ViTAD: pretrained weights unavailable offline, loading without pretrained weights')
+				model = build_model_with_cfg(ViT_Encoder, variant, pretrained=False, pretrained_filter_fn=_filter_fn, **kwargs)
+				return model
 			time.sleep(1)
-	return model
+	raise RuntimeError(f'Failed to load ViTAD model after {max_retries} attempts')
 
 ### ViT
 @MODEL.register_module

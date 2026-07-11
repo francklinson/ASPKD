@@ -5,7 +5,10 @@ import matplotlib.cm as cm
 import torch.nn as nn
 import cv2
 from PIL import Image
-import accimage
+try:
+    import accimage
+except ImportError:
+    accimage = None
 import torchvision
 import torchvision.transforms as transforms
 from skimage import color

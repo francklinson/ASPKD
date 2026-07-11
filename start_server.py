@@ -184,6 +184,57 @@ if failed_deps:
     print_info("请运行: pip install -r requirements.txt")
     sys.exit(1)
 
+# ── 算法扩展依赖检查 ──
+print_info("算法扩展依赖检查（缺失不影响启动，但对应模型不可用）")
+
+ext_deps = [
+    ("mamba_ssm", "MambaAD 状态空间模型", False),
+    ("causal_conv1d", "MambaAD 因果卷积", False),
+    ("open_clip", "WinClip 零样本检测", False),
+    ("tensorboardX", "ADer 训练日志", False),
+    ("fvcore", "ADer 模型组件", False),
+    ("imgaug", "ADer 数据增强", False),
+    ("timm", "多种 backbone", False),
+]
+
+for module_name, description, required in ext_deps:
+    try:
+        module = __import__(module_name)
+        version = getattr(module, '__version__', 'OK')
+        print_success(f"{description}: {module_name} ({version})")
+    except ImportError:
+        print_warning(f"{description}: {module_name} — 未安装，对应模型不可用")
+
+# mamba_ssm CUDA 扩展深度检查
+try:
+    from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
+    print_success("mamba_ssm CUDA 扩展加载正常 — MambaAD 完整可用")
+except ImportError:
+    try:
+        import mamba_ssm
+        print_warning("mamba_ssm 已安装但 CUDA 扩展加载失败 — MambaAD 不可用 (torch 版本不匹配?)")
+    except ImportError:
+        pass  # already reported above
+
+# imgaug + NumPy 2.0 兼容性检查
+try:
+    import imgaug
+    import numpy as np
+    _ = np.sctypes  # NumPy < 2.0 有此属性
+except AttributeError:
+    print_warning("imgaug 与 NumPy 2.0 不兼容 (np.sctypes 已移除) — ADer 数据增强可能报错")
+except ImportError:
+    pass
+
+# torch + CUDA 版本信息
+try:
+    import torch
+    cuda_ver = torch.version.cuda or "CPU"
+    cxx11abi = torch._C._GLIBCXX_USE_CXX11_ABI
+    print_info(f"PyTorch {torch.__version__} | CUDA {cuda_ver} | CXX11_ABI={cxx11abi}")
+except ImportError:
+    pass
+
 # ========== 第5步：初始化内存数据库 ==========
 print_step(5, 7, "初始化Shazam内存数据库")
 

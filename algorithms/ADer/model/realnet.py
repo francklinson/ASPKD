@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -427,7 +428,14 @@ class Backbone(torch.nn.Module):
         self.feature_extractor = timm.create_model(self.backbone, features_only=True,pretrained=False,
                                                   out_indices=[layers_idx[outlayer] for outlayer in self.outlayers])
         # ckpt_path = 'model/pretrain/wide_resnet50_racm-8234f177.pth'
-        self.feature_extractor.load_state_dict(torch.load(ckpt_path), strict=False)
+        if ckpt_path and os.path.isfile(ckpt_path):
+            self.feature_extractor.load_state_dict(torch.load(ckpt_path), strict=False)
+        else:
+            # fallback: load pretrained weights via timm
+            pretrained_model = timm.create_model(self.backbone, features_only=True, pretrained=True,
+                                                  out_indices=[layers_idx[outlayer] for outlayer in self.outlayers])
+            self.feature_extractor.load_state_dict(pretrained_model.state_dict(), strict=False)
+            del pretrained_model
         self.feature_extractor.eval()
         self.layers_strides=layers_strides
         self.layers_planes=layers_planes

@@ -31,6 +31,8 @@ See Also:
 from collections.abc import Callable
 from copy import copy
 
+import os
+
 import torch
 from torch import nn
 from torch.nn.modules.linear import Identity
@@ -53,6 +55,8 @@ except ImportError:
 
 BACKBONE = "ViT-B-16-plus-240"
 PRETRAINED = "laion400m_e31"
+_LOCAL_WEIGHTS = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..", "models", "pre_trained", "open_clip",
+                              "vit_b_16_plus_240-laion400m_e31-8fb26589.pt")
 TEMPERATURE = 0.07  # temperature hyperparameter from the clip paper
 
 
@@ -123,8 +127,12 @@ class WinClipModel(DynamicBufferMixin, BufferListMixin, nn.Module):
         self.apply_transform = apply_transform
         self.k_shot = 0
 
-        # initialize CLIP model
-        self.clip, _, self._transform = open_clip.create_model_and_transforms(self.backbone, pretrained=self.pretrained)
+        # initialize CLIP model (prefer local weights in offline mode)
+        pretrained_source = self.pretrained
+        local_weights = os.path.normpath(os.path.abspath(_LOCAL_WEIGHTS))
+        if os.path.isfile(local_weights):
+            pretrained_source = local_weights
+        self.clip, _, self._transform = open_clip.create_model_and_transforms(self.backbone, pretrained=pretrained_source)
         self.clip.visual.output_tokens = True
         self.grid_size = self.clip.visual.grid_size
 

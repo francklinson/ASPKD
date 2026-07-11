@@ -195,6 +195,66 @@ check_dependencies() {
         print_error "缺少依赖: ${failed[*]}"
         exit 1
     fi
+
+    # ── 算法扩展依赖（缺失不影响启动，但对应模型不可用） ──
+    echo ""
+    echo -e "  ${BLUE}▸ 算法扩展依赖检查${NC}"
+
+    # MambaAD: mamba_ssm + causal_conv1d (CUDA 扩展，需匹配 torch 版本)
+    local mamba_ok=true
+    if $VENV_PYTHON -c "import mamba_ssm" 2>/dev/null; then
+        local mamba_ver=$($VENV_PYTHON -c "import mamba_ssm; print(mamba_ssm.__version__)" 2>/dev/null)
+        # 验证 CUDA 扩展能正常加载
+        if $VENV_PYTHON -c "from mamba_ssm.ops.selective_scan_interface import selective_scan_fn" 2>/dev/null; then
+            print_success "mamba_ssm ($mamba_ver) — MambaAD 可用"
+        else
+            print_warning "mamba_ssm ($mamba_ver) CUDA 扩展加载失败 — MambaAD 不可用 (torch 版本不匹配?)"
+            mamba_ok=false
+        fi
+    else
+        print_warning "mamba_ssm 未安装 — MambaAD 不可用 (需离线 whl 安装)"
+        mamba_ok=false
+    fi
+    if $mamba_ok && $VENV_PYTHON -c "import causal_conv1d" 2>/dev/null; then
+        local cconv_ver=$($VENV_PYTHON -c "import causal_conv1d; print(causal_conv1d.__version__)" 2>/dev/null)
+        print_success "causal_conv1d ($cconv_ver)"
+    elif $mamba_ok; then
+        print_warning "causal_conv1d 未安装 — MambaAD 可能不稳定"
+    fi
+
+    # WinClip: open_clip
+    if $VENV_PYTHON -c "import open_clip" 2>/dev/null; then
+        local oc_ver=$($VENV_PYTHON -c "import open_clip; print(open_clip.__version__)" 2>/dev/null || echo "unknown")
+        print_success "open_clip ($oc_ver) — WinClip 可用"
+    else
+        print_warning "open_clip 未安装 — WinClip 不可用 (pip install open_clip_torch)"
+    fi
+
+    # ADer 框架依赖
+    local ader_deps=("tensorboardX:tensorboardX:ADer 训练日志" "fvcore:fvcore:ADer 模型" "imgaug:imgaug:ADer 数据增强" "timm:timm:多种 backbone")
+    for entry in "${ader_deps[@]}"; do
+        local pkg="${entry%%:*}"; local rest="${entry#*:}"
+        local imp="${rest%%:*}"; local desc="${rest#*:}"
+        if $VENV_PYTHON -c "import $imp" 2>/dev/null; then
+            local ver=$($VENV_PYTHON -c "import $imp; print(getattr($imp, '__version__', 'OK'))" 2>/dev/null)
+            print_success "$pkg ($ver) — $desc"
+        else
+            print_warning "$pkg 未安装 — $desc 受限"
+        fi
+    done
+
+    # imgaug + NumPy 2.0 兼容性检查
+    if $VENV_PYTHON -c "import imgaug; import numpy as np; np.sctypes" 2>/dev/null; then
+        : # OK
+    elif $VENV_PYTHON -c "import imgaug" 2>/dev/null; then
+        print_warning "imgaug 与当前 NumPy 不兼容 (np.sctypes 已移除) — ADer 数据增强不可用"
+    fi
+
+    # torch + CUDA 版本
+    local torch_ver=$($VENV_PYTHON -c "import torch; print(torch.__version__)" 2>/dev/null || echo "N/A")
+    local cuda_ver=$($VENV_PYTHON -c "import torch; print(torch.version.cuda or 'CPU')" 2>/dev/null || echo "N/A")
+    local cxx11abi=$($VENV_PYTHON -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)" 2>/dev/null || echo "N/A")
+    print_info "PyTorch $torch_ver | CUDA $cuda_ver | CXX11_ABI=$cxx11abi"
 }
 
 # 检查数据库
@@ -473,6 +533,101 @@ check_models() {
         echo ""
         echo -e "  ${NC}下载后放入: ${BLUE}${PRETRAINED_DIR}${NC}"
         echo -e "  ${NC}缺失模型将在首次运行时尝试自动下载${NC}"
+    fi
+
+    # ═══════════════════════════════════════════
+    # 7. ADer 预训练 backbone + HF 缓存 + open_clip
+    # ═══════════════════════════════════════════
+    echo ""
+    echo -e "  ${BLUE}▸ ADer 预训练 backbone（算法/ADer/model/pretrain/）${NC}"
+    echo ""
+
+    local ADER_PRETRAIN="$PROJECT_DIR/algorithms/ADer/model/pretrain"
+    if [ -d "$ADER_PRETRAIN" ]; then
+        local ader_files=()
+        while IFS= read -r -d '' f; do ader_files+=("$f"); done < \
+            <(find "$ADER_PRETRAIN" -maxdepth 1 \( -name "*.pth" -o -name "*.safetensors" \) -print0 2>/dev/null | sort -z)
+        if [ ${#ader_files[@]} -gt 0 ]; then
+            for f in "${ader_files[@]}"; do
+                local rp=$(_rel_path "$f")
+                local sz=$(du -h "$f" 2>/dev/null | cut -f1)
+                local link=""
+                if [ -L "$f" ]; then
+                    link=" → $(basename "$(readlink "$f")")"
+                fi
+                echo -e "  ${GREEN}✓${NC} ${BLUE}${rp}${NC}  ${sz}${link}"
+            done
+        else
+            echo -e "  ${YELLOW}⚠${NC} ADer pretrain 目录为空 — RealNet/RD++/PyramidFlow 需要预训练 backbone"
+        fi
+    else
+        echo -e "  ${YELLOW}⚠${NC} ADer pretrain 目录不存在 — 创建中"
+        mkdir -p "$ADER_PRETRAIN"
+    fi
+
+    # HuggingFace 缓存目录
+    echo ""
+    echo -e "  ${BLUE}▸ HuggingFace 缓存（Anomalib backbone）${NC}"
+    echo ""
+
+    local HF_CACHE_DIR="$PRETRAINED_DIR/huggingface"
+    if [ -d "$HF_CACHE_DIR/hub" ]; then
+        local hf_models=()
+        while IFS= read -r -d '' d; do hf_models+=("$d"); done < \
+            <(find "$HF_CACHE_DIR/hub" -maxdepth 1 -type d -name 'models--*' -print0 2>/dev/null | sort -z)
+        if [ ${#hf_models[@]} -gt 0 ]; then
+            local hf_sz=$(du -sh "$HF_CACHE_DIR" 2>/dev/null | cut -f1)
+            echo -e "  ${GREEN}✓${NC} ${BLUE}huggingface/hub/${NC} — ${#hf_models[@]} 个缓存模型, ${hf_sz}"
+            for d in "${hf_models[@]}"; do
+                local model_name=$(basename "$d" | sed 's/models--//;s/--/\//')
+                echo -e "    ${model_name}"
+            done
+        else
+            echo -e "  ${YELLOW}⚠${NC} HuggingFace 缓存为空 — 首次运行 Anomalib 模型需联网下载"
+        fi
+    else
+        echo -e "  ${YELLOW}⚠${NC} HuggingFace 缓存目录不存在 — Anomalib 离线模式不可用"
+    fi
+
+    # open_clip 本地权重
+    echo ""
+    echo -e "  ${BLUE}▸ WinClip open_clip 权重${NC}"
+    echo ""
+
+    local OPENCLIP_DIR="$PRETRAINED_DIR/open_clip"
+    if [ -d "$OPENCLIP_DIR" ]; then
+        local oc_files=()
+        while IFS= read -r -d '' f; do oc_files+=("$f"); done < \
+            <(find "$OPENCLIP_DIR" -maxdepth 1 \( -name "*.pt" -o -name "*.pth" \) -print0 2>/dev/null | sort -z)
+        if [ ${#oc_files[@]} -gt 0 ]; then
+            for f in "${oc_files[@]}"; do _ls_model "$f"; done
+        else
+            echo -e "  ${YELLOW}⚠${NC} open_clip 权重为空 — WinClip 离线模式不可用"
+        fi
+    else
+        echo -e "  ${YELLOW}⚠${NC} open_clip 目录不存在 — WinClip 离线模式不可用"
+    fi
+
+    # ViTAD DINO 权重
+    local VITAD_DIR="$PRETRAINED_DIR/vitad"
+    if [ -d "$VITAD_DIR" ]; then
+        local va_files=()
+        while IFS= read -r -d '' f; do va_files+=("$f"); done < \
+            <(find "$VITAD_DIR" -maxdepth 1 \( -name "*.safetensors" -o -name "*.pth" \) -print0 2>/dev/null | sort -z)
+        if [ ${#va_files[@]} -gt 0 ]; then
+            for f in "${va_files[@]}"; do _ls_model "$f"; done
+        fi
+    fi
+
+    # CFM Point-MAE 权重
+    local CFM_DIR="$PRETRAINED_DIR/pointmae"
+    if [ -d "$CFM_DIR" ]; then
+        local cfm_files=()
+        while IFS= read -r -d '' f; do cfm_files+=("$f"); done < \
+            <(find "$CFM_DIR" -maxdepth 1 -name "*.pth" -print0 2>/dev/null | sort -z)
+        if [ ${#cfm_files[@]} -gt 0 ]; then
+            for f in "${cfm_files[@]}"; do _ls_model "$f"; done
+        fi
     fi
 
     unset -f _model_line _ls_model
