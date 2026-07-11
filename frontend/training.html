@@ -84,6 +84,9 @@
         .dataset-badge.train { background: #e6f7ff; color: #1890ff; }
         .dataset-badge.test { background: #f6ffed; color: #52c41a; }
         .dataset-badge.anomaly { background: #fff2f0; color: #ff4d4f; }
+        .dataset-badge.source { background: #f9f0ff; color: #722ed1; }
+        .dataset-badge.source-mvtec { background: #fff7e6; color: #d46b08; }
+        .dataset-badge.source-visa { background: #e6fffb; color: #08979c; }
 
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
@@ -101,9 +104,11 @@
         .model-type-group {
             display: flex;
             gap: 8px;
+            flex-wrap: wrap;
         }
         .model-type-btn {
             flex: 1;
+            min-width: 80px;
             padding: 10px;
             border: 2px solid #d9d9d9;
             background: white;
@@ -228,6 +233,55 @@
             padding: 12px;
         }
         .chart-box canvas { width: 100% !important; max-height: 200px; }
+
+        /* 算法详情面板 */
+        .algorithm-info-panel {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .algorithm-info-header {
+            padding: 10px 14px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 500;
+            color: #555;
+            background: #f0f2f5;
+            user-select: none;
+        }
+        .algorithm-info-header:hover { background: #e8eaf0; }
+        .algorithm-info-toggle { font-size: 12px; color: #999; }
+        .algorithm-info-content { padding: 10px 14px; }
+        .info-row {
+            padding: 6px 0;
+            font-size: 13px;
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-label {
+            font-weight: 500;
+            color: #555;
+            min-width: 80px;
+            flex-shrink: 0;
+        }
+        .info-value { color: #333; }
+        .family-desc {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+            margin-bottom: 12px;
+            padding: 6px 10px;
+            background: #fafafa;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+        }
     </style>
 </head>
 <body>
@@ -239,7 +293,7 @@
             返回主页面
         </a>
         <h1>模型训练</h1>
-        <p>选择训练集、配置模型参数，启动 Dinomaly 训练任务</p>
+        <p>选择训练集、配置模型参数，启动模型训练任务</p>
     </div>
 
     <div class="container">
@@ -260,7 +314,7 @@
                     已选择: <strong id="selectedCount">0</strong> 个类别
                 </div>
                 <div class="info-hint">
-                    提示：至少需要选择一个类别，且该类别训练集需有至少 10 张图像。数据集需先通过"数据集构建"页面生成时频图。
+                    提示：至少需要选择一个类别，且该类别训练集需有至少 10 张图像。SPK 数据集需先通过"数据集构建"页面生成时频图。MVTec AD、VisA 等开源数据集自动从本地加载。一次训练仅支持同一数据来源的类别。
                 </div>
             </div>
 
@@ -276,84 +330,13 @@
                 <div class="form-group">
                     <label>算法族</label>
                     <div class="model-type-group" id="algoFamilyGroup">
-                        <button class="model-type-btn selected" id="btnFamilyDinomaly" onclick="selectFamily('dinomaly')">Dinomaly</button>
-                        <button class="model-type-btn" id="btnFamilyAnomalib" onclick="selectFamily('anomalib')">Anomalib</button>
-                        <button class="model-type-btn" id="btnFamilyAder" onclick="selectFamily('ader')">ADer</button>
+                        <!-- 由 loadFamilies() 动态填充 -->
                     </div>
+                    <div class="family-desc" id="familyDesc" style="display:none;"></div>
                 </div>
 
-                <div class="form-group" id="dinomaly-algo-options">
-                    <label>编码器类型</label>
-                    <div class="model-type-group">
-                        <button class="model-type-btn selected" id="btnDinov3" onclick="selectModelType('dinov3')">
-                            DINOv3
-                        </button>
-                        <button class="model-type-btn" id="btnDinov2" onclick="selectModelType('dinov2')">
-                            DINOv2
-                        </button>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>模型大小</label>
-                    <select class="form-control" id="modelSize">
-                        <option value="small">Small (快速训练，适合小数据集)</option>
-                        <option value="base">Base (中等精度)</option>
-                        <option value="large">Large (高精度，需要更多显存)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>训练迭代次数</label>
-                    <select class="form-control" id="totalIters">
-                        <option value="500">500 (快速测试)</option>
-                        <option value="1000" selected>1000 (标准训练)</option>
-                        <option value="2000">2000 (充分训练)</option>
-                        <option value="5000">5000 (深度训练)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>批次大小</label>
-                    <select class="form-control" id="batchSize">
-                        <option value="4">4 (低显存模式)</option>
-                        <option value="8" selected>8 (标准)</option>
-                        <option value="16">16 (需要较大显存)</option>
-                        <option value="32">32 (需要大显存)</option>
-                    </select>
-                </div>
-
-                </div> <!-- end dinomaly-algo-options -->
-
-                <!-- Anomalib 特有参数 -->
-                <div class="form-group" id="anomalib-algo-options" style="display:none;">
-                    <label>选择算法</label>
-                    <select class="form-control" id="anomalibAlgorithm">
-                        <option value="padim">PaDiM — 特征嵌入</option>
-                        <option value="patchcore">PatchCore — 特征嵌入</option>
-                        <option value="efficient_ad">EfficientAD — 轻量级</option>
-                        <option value="cfa">CFA — 特征嵌入</option>
-                        <option value="cflow">CFlow — 流模型</option>
-                        <option value="draem">DRAEM — 重建</option>
-                        <option value="fastflow">FastFlow — 流模型</option>
-                        <option value="reverse_distillation">Reverse Distillation</option>
-                        <option value="ganomaly">GANomaly</option>
-                        <option value="stfpm">STFPM</option>
-                    </select>
-                </div>
-
-                <!-- ADer 特有参数 -->
-                <div class="form-group" id="ader-algo-options" style="display:none;">
-                    <label>选择算法</label>
-                    <select class="form-control" id="aderAlgorithm">
-                        <option value="mambaad">MambaAD — 状态空间模型</option>
-                        <option value="invad">InvAD — 生成式</option>
-                        <option value="vitad">ViTAD — Transformer</option>
-                        <option value="unad">UniAD — 统一模型</option>
-                        <option value="cflow">CFlow — 流模型</option>
-                        <option value="pyramidflow">PyramidFlow — 流模型</option>
-                        <option value="simplenet">SimpleNet — 特征学习</option>
-                    </select>
+                <div id="dynamicParamsContainer">
+                    <!-- 由 selectFamily() 动态填充 -->
                 </div>
 
                 <button class="btn btn-primary" id="btnStartTraining" onclick="startTraining()">
@@ -446,24 +429,18 @@
     </div>
 
     <script>
-        let selectedCategories = new Set();
+        // ============ 全局状态 ============
+        let selectedCategories = new Map();  // name -> source
         let selectedModelType = 'dinov3';
         let selectedFamily = 'dinomaly';
-
-        function selectFamily(family) {
-            selectedFamily = family;
-            // 更新按钮状态
-            document.getElementById('btnFamilyDinomaly').classList.toggle('selected', family === 'dinomaly');
-            document.getElementById('btnFamilyAnomalib').classList.toggle('selected', family === 'anomalib');
-            document.getElementById('btnFamilyAder').classList.toggle('selected', family === 'ader');
-            // 切换参数区域
-            document.getElementById('dinomaly-algo-options').style.display = family === 'dinomaly' ? 'block' : 'none';
-            document.getElementById('anomalib-algo-options').style.display = family === 'anomalib' ? 'block' : 'none';
-            document.getElementById('ader-algo-options').style.display = family === 'ader' ? 'block' : 'none';
-        }
+        let familiesData = null;
         let currentTaskId = null;
         let pollingInterval = null;
+        // 保留通用参数值，族切换时不丢失
+        let savedTotalIters = '1000';
+        let savedBatchSize = '8';
 
+        // ============ API 辅助 ============
         function getToken() {
             return sessionStorage.getItem('token') || '';
         }
@@ -475,12 +452,231 @@
             return fetch(url, { ...options, headers });
         }
 
-        function selectModelType(type) {
-            selectedModelType = type;
-            document.getElementById('btnDinov3').classList.toggle('selected', type === 'dinov3');
-            document.getElementById('btnDinov2').classList.toggle('selected', type === 'dinov2');
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
+        // ============ 算法族加载 ============
+        async function loadFamilies() {
+            try {
+                const resp = await apiFetch('/api/training/families');
+                familiesData = await resp.json();
+                renderFamilyButtons();
+                // 默认选中第一个可训练族
+                const firstTrainable = Object.entries(familiesData).find(([_, v]) => v.trainable);
+                if (firstTrainable) {
+                    selectFamily(firstTrainable[0]);
+                }
+            } catch (e) {
+                console.error('加载算法族失败:', e);
+                document.getElementById('algoFamilyGroup').innerHTML =
+                    '<div style="color: #ff4d4f; padding: 10px;">加载算法族失败: ' + e.message + '</div>';
+            }
+        }
+
+        function renderFamilyButtons() {
+            const group = document.getElementById('algoFamilyGroup');
+            group.innerHTML = '';
+            const trainableFamilies = Object.entries(familiesData).filter(([_, v]) => v.trainable);
+            trainableFamilies.forEach(([key, family]) => {
+                const btn = document.createElement('button');
+                btn.className = 'model-type-btn';
+                btn.id = `btnFamily_${key}`;
+                btn.textContent = family.name;
+                btn.onclick = () => selectFamily(key);
+                group.appendChild(btn);
+            });
+        }
+
+        function selectFamily(familyKey) {
+            // 保存当前通用参数
+            _saveCommonParams();
+
+            selectedFamily = familyKey;
+            // 更新按钮选中状态
+            document.querySelectorAll('#algoFamilyGroup .model-type-btn').forEach(btn =>
+                btn.classList.remove('selected'));
+            const activeBtn = document.getElementById(`btnFamily_${familyKey}`);
+            if (activeBtn) activeBtn.classList.add('selected');
+
+            // 显示族描述
+            const family = familiesData[familyKey];
+            const descEl = document.getElementById('familyDesc');
+            if (family && family.description) {
+                descEl.textContent = family.description;
+                descEl.style.display = 'block';
+            } else {
+                descEl.style.display = 'none';
+            }
+
+            // 渲染参数区域
+            renderParamsForFamily(familyKey);
+        }
+
+        function _saveCommonParams() {
+            const itersEl = document.getElementById('totalIters');
+            const batchEl = document.getElementById('batchSize');
+            if (itersEl) savedTotalIters = itersEl.value;
+            if (batchEl) savedBatchSize = batchEl.value;
+        }
+
+        // ============ 动态参数渲染 ============
+        function renderParamsForFamily(familyKey) {
+            const container = document.getElementById('dynamicParamsContainer');
+            const family = familiesData[familyKey];
+            if (!family) { container.innerHTML = ''; return; }
+
+            let html = '';
+
+            if (family.param_schema === 'encoder_size') {
+                // Dinomaly / Dinomaly2 模式：编码器选择 + 模型大小
+                html += `
+                    <div class="form-group">
+                        <label>编码器类型</label>
+                        <div class="model-type-group">
+                            <button class="model-type-btn ${selectedModelType === 'dinov3' ? 'selected' : ''}"
+                                    onclick="selectModelType('dinov3')">DINOv3</button>
+                            <button class="model-type-btn ${selectedModelType === 'dinov2' ? 'selected' : ''}"
+                                    onclick="selectModelType('dinov2')">DINOv2</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>模型大小</label>
+                        <select class="form-control" id="modelSize" onchange="updateAlgorithmInfo()">
+                            <option value="small">Small (快速训练，适合小数据集)</option>
+                            <option value="base">Base (中等精度)</option>
+                            <option value="large">Large (高精度，需要更多显存)</option>
+                        </select>
+                    </div>
+                `;
+            } else if (family.param_schema === 'algorithm_select') {
+                // Anomalib / ADer 模式：算法选择下拉框
+                html += `
+                    <div class="form-group">
+                        <label>选择算法</label>
+                        <select class="form-control" id="algorithmSelect" onchange="updateAlgorithmInfo()">
+                            ${family.algorithms.map(alg =>
+                                `<option value="${alg.id}">${alg.name} — ${_typeLabel(alg.type)}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+
+            // 通用训练参数
+            html += `
+                <div class="form-group">
+                    <label>训练迭代次数</label>
+                    <select class="form-control" id="totalIters">
+                        <option value="500" ${savedTotalIters === '500' ? 'selected' : ''}>500 (快速测试)</option>
+                        <option value="1000" ${savedTotalIters === '1000' ? 'selected' : ''}>1000 (标准训练)</option>
+                        <option value="2000" ${savedTotalIters === '2000' ? 'selected' : ''}>2000 (充分训练)</option>
+                        <option value="5000" ${savedTotalIters === '5000' ? 'selected' : ''}>5000 (深度训练)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>批次大小</label>
+                    <select class="form-control" id="batchSize">
+                        <option value="4" ${savedBatchSize === '4' ? 'selected' : ''}>4 (低显存模式)</option>
+                        <option value="8" ${savedBatchSize === '8' ? 'selected' : ''}>8 (标准)</option>
+                        <option value="16" ${savedBatchSize === '16' ? 'selected' : ''}>16 (需要较大显存)</option>
+                        <option value="32" ${savedBatchSize === '32' ? 'selected' : ''}>32 (需要大显存)</option>
+                    </select>
+                </div>
+            `;
+
+            // 算法详情面板
+            html += `
+                <div class="algorithm-info-panel" id="algorithmInfoPanel">
+                    <div class="algorithm-info-header" onclick="toggleAlgorithmInfo()">
+                        <span>算法详情</span>
+                        <span class="algorithm-info-toggle" id="algorithmInfoToggle">[展开]</span>
+                    </div>
+                    <div class="algorithm-info-content" id="algorithmInfoContent" style="display:none;">
+                        <div class="info-row"><span class="info-label">检测类型：</span><span class="info-value" id="algoType">-</span></div>
+                        <div class="info-row"><span class="info-label">性能特征：</span><span class="info-value" id="algoPerformance">-</span></div>
+                        <div class="info-row"><span class="info-label">显存需求：</span><span class="info-value" id="algoGpuMemory">-</span></div>
+                        <div class="info-row"><span class="info-label">输入尺寸：</span><span class="info-value" id="algoInputSize">-</span></div>
+                        <div class="info-row"><span class="info-label">说明：</span><span class="info-value" id="algoDescription">-</span></div>
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML = html;
+
+            // 初始更新算法详情
+            updateAlgorithmInfo();
+        }
+
+        function _typeLabel(type) {
+            const map = {
+                'feature_based': '特征检测', 'feature_embedding': '特征嵌入',
+                'lightweight': '轻量级', 'flow_based': '流模型',
+                'reconstruction': '重建', 'knowledge_distillation': '知识蒸馏',
+                'generative': '生成式', 'feature_learning': '特征学习',
+                'unified': '统一框架', 'vision_language': '视觉语言',
+                'zero_shot': '零样本', 'few_shot': '少样本',
+                'cross_modal': '跨模态', 'synthesis': '合成',
+                'prototype': '原型', 'state_space_model': '状态空间',
+                'transformer': 'Transformer', 'autoencoder': '自编码器',
+            };
+            return map[type] || type;
+        }
+
+        function selectModelType(type) {
+            selectedModelType = type;
+            // 更新编码器按钮状态
+            const btns = document.querySelectorAll('#dynamicParamsContainer .model-type-btn');
+            btns.forEach(btn => {
+                if (btn.textContent.trim() === 'DINOv3') {
+                    btn.classList.toggle('selected', type === 'dinov3');
+                } else if (btn.textContent.trim() === 'DINOv2') {
+                    btn.classList.toggle('selected', type === 'dinov2');
+                }
+            });
+            updateAlgorithmInfo();
+        }
+
+        // ============ 算法详情面板 ============
+        function toggleAlgorithmInfo() {
+            const content = document.getElementById('algorithmInfoContent');
+            const toggle = document.getElementById('algorithmInfoToggle');
+            if (!content) return;
+            const visible = content.style.display !== 'none';
+            content.style.display = visible ? 'none' : 'block';
+            toggle.textContent = visible ? '[展开]' : '[收起]';
+        }
+
+        function updateAlgorithmInfo() {
+            const family = familiesData[selectedFamily];
+            if (!family || !family.algorithms) return;
+
+            let algo = null;
+            if (family.param_schema === 'encoder_size') {
+                const size = document.getElementById('modelSize')?.value || 'small';
+                const algoId = `${selectedFamily}_${selectedModelType}_${size}`;
+                algo = family.algorithms.find(a => a.id === algoId);
+            } else {
+                const algoId = document.getElementById('algorithmSelect')?.value;
+                algo = family.algorithms.find(a => a.id === algoId);
+            }
+
+            if (!algo) return;
+
+            const setOrHide = (elId, value) => {
+                const el = document.getElementById(elId);
+                if (el) el.textContent = value || '-';
+            };
+            setOrHide('algoType', _typeLabel(algo.type));
+            setOrHide('algoPerformance', algo.performance);
+            setOrHide('algoGpuMemory', algo.gpu_memory);
+            setOrHide('algoInputSize', algo.input_size);
+            setOrHide('algoDescription', algo.description);
+        }
+
+        // ============ 数据集加载 ============
         async function loadDatasets() {
             try {
                 const resp = await apiFetch('/api/training/datasets');
@@ -493,6 +689,10 @@
             }
         }
 
+        function _sourceBadgeClass(source) {
+            return { 'spk': 'source', 'mvtec': 'source-mvtec', 'visa': 'source-visa' }[source] || 'source';
+        }
+
         function renderDatasetList(datasets) {
             const list = document.getElementById('datasetList');
             if (datasets.length === 0) {
@@ -500,43 +700,57 @@
                 return;
             }
 
-            list.innerHTML = datasets.map(d => `
-                <div class="dataset-item ${d.trainable ? '' : 'unavailable'}"
-                     onclick="${d.trainable ? `toggleDataset('${d.name}')` : ''}"
-                     data-name="${d.name}">
-                    <input type="checkbox" class="dataset-checkbox"
-                           ${selectedCategories.has(d.name) ? 'checked' : ''}
-                           ${d.trainable ? '' : 'disabled'}>
-                    <div class="dataset-info">
-                        <div class="dataset-name">${d.name}</div>
-                        <div class="dataset-stats">
-                            <span class="dataset-badge train">训练集正常: ${d.train_normal_count}</span>
-                            <span class="dataset-badge test">测试集正常: ${d.test_normal_count}</span>
-                            <span class="dataset-badge anomaly">测试集异常: ${d.test_anomaly_count}</span>
+            // 按来源分组
+            const groups = {};
+            datasets.forEach(d => {
+                const key = d.source || 'spk';
+                if (!groups[key]) groups[key] = { label: d.source_label || key, items: [] };
+                groups[key].items.push(d);
+            });
+
+            let html = '';
+            for (const [source, group] of Object.entries(groups)) {
+                html += `<div style="font-size:13px;font-weight:600;color:#555;margin:10px 0 6px;padding-left:4px;border-left:3px solid ${
+                    {spk:'#722ed1',mvtec:'#d46b08',visa:'#08979c'}[source] || '#722ed1'
+                };">${group.label}</div>`;
+                group.items.forEach(d => {
+                    html += `
+                    <div class="dataset-item ${d.trainable ? '' : 'unavailable'}"
+                         onclick="${d.trainable ? `toggleDataset('${d.name}','${d.source || 'spk'}')` : ''}"
+                         data-name="${d.name}">
+                        <input type="checkbox" class="dataset-checkbox"
+                               ${selectedCategories.has(d.name) ? 'checked' : ''}
+                               ${d.trainable ? '' : 'disabled'}>
+                        <div class="dataset-info">
+                            <div class="dataset-name">${d.name}</div>
+                            <div class="dataset-stats">
+                                <span class="dataset-badge train">训练: ${d.train_normal_count}</span>
+                                <span class="dataset-badge test">测试正常: ${d.test_normal_count}</span>
+                                <span class="dataset-badge anomaly">测试异常: ${d.test_anomaly_count}</span>
+                            </div>
                         </div>
-                    </div>
-                    ${d.trainable
-                        ? `<span style="color: #52c41a; font-size: 12px;">可训练</span>`
-                        : `<span style="color: #ff4d4f; font-size: 12px;">数据不足</span>`}
-                </div>
-            `).join('');
+                        ${d.trainable
+                            ? `<span style="color: #52c41a; font-size: 12px;">可训练</span>`
+                            : `<span style="color: #ff4d4f; font-size: 12px;">数据不足</span>`}
+                    </div>`;
+                });
+            }
+            list.innerHTML = html;
         }
 
-        function toggleDataset(name) {
+        function toggleDataset(name, source) {
             if (selectedCategories.has(name)) {
                 selectedCategories.delete(name);
             } else {
-                selectedCategories.add(name);
+                selectedCategories.set(name, source || 'spk');
             }
             document.getElementById('selectedCount').textContent = selectedCategories.size;
-            // Refresh list to update checkboxes
             loadDatasets();
         }
 
         function renderCharts(datasets) {
             const trainable = datasets.filter(d => d.trainable);
 
-            // Distribution chart
             const distCtx = document.getElementById('distChart').getContext('2d');
             if (window._distChart) window._distChart.destroy();
             window._distChart = new Chart(distCtx, {
@@ -544,35 +758,18 @@
                 data: {
                     labels: trainable.map(d => d.name),
                     datasets: [
-                        {
-                            label: '训练集正常',
-                            data: trainable.map(d => d.train_normal_count),
-                            backgroundColor: '#1890ff'
-                        },
-                        {
-                            label: '测试集正常',
-                            data: trainable.map(d => d.test_normal_count),
-                            backgroundColor: '#52c41a'
-                        },
-                        {
-                            label: '测试集异常',
-                            data: trainable.map(d => d.test_anomaly_count),
-                            backgroundColor: '#ff4d4f'
-                        }
+                        { label: '训练集正常', data: trainable.map(d => d.train_normal_count), backgroundColor: '#1890ff' },
+                        { label: '测试集正常', data: trainable.map(d => d.test_normal_count), backgroundColor: '#52c41a' },
+                        { label: '测试集异常', data: trainable.map(d => d.test_anomaly_count), backgroundColor: '#ff4d4f' }
                     ]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { position: 'top', labels: { font: { size: 10 } } } },
-                    scales: {
-                        x: { stacked: true },
-                        y: { stacked: true, beginAtZero: true }
-                    }
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
                 }
             });
 
-            // Ratio chart
             const ratioCtx = document.getElementById('ratioChart').getContext('2d');
             if (window._ratioChart) window._ratioChart.destroy();
             window._ratioChart = new Chart(ratioCtx, {
@@ -586,13 +783,13 @@
                     }]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { position: 'right', labels: { font: { size: 10 } } } }
                 }
             });
         }
 
+        // ============ 已训练模型 ============
         async function loadModels() {
             try {
                 const resp = await apiFetch('/api/training/models');
@@ -618,40 +815,49 @@
             }
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
+        // ============ 训练启动 ============
         async function startTraining() {
             if (selectedCategories.size === 0) {
                 alert('请至少选择一个训练类别');
                 return;
             }
 
-            const modelSize = document.getElementById('modelSize').value;
-            const totalIters = parseInt(document.getElementById('totalIters').value);
-            const batchSize = parseInt(document.getElementById('batchSize').value);
-            const family = selectedFamily;
-
-            // 获取算法族对应的算法名
-            let algorithmName = '';
-            if (family === 'anomalib') {
-                algorithmName = document.getElementById('anomalibAlgorithm').value;
-            } else if (family === 'ader') {
-                algorithmName = document.getElementById('aderAlgorithm').value;
+            // 验证所有类别来自同一数据源
+            const sources = new Set(selectedCategories.values());
+            if (sources.size > 1) {
+                alert('一次训练任务仅支持同一数据源的类别，请取消其他来源的选项');
+                return;
             }
+            const dataSource = Array.from(sources)[0];
+
+            _saveCommonParams();
+            const family = selectedFamily;
+            const familyData = familiesData[family];
+            let algorithmName = '';
+            let modelType = '';
+            let modelSize = '';
+
+            if (familyData.param_schema === 'encoder_size') {
+                modelType = selectedModelType;
+                modelSize = document.getElementById('modelSize').value;
+                algorithmName = `${family}_${modelType}_${modelSize}`;
+            } else {
+                algorithmName = document.getElementById('algorithmSelect').value;
+            }
+
+            const totalIters = parseInt(savedTotalIters);
+            const batchSize = parseInt(savedBatchSize);
 
             try {
                 const resp = await apiFetch('/api/training/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        categories: Array.from(selectedCategories),
+                        categories: Array.from(selectedCategories.keys()),
+                        data_source: dataSource,
                         algorithm_family: family,
                         algorithm_name: algorithmName,
-                        model_type: selectedModelType,
+                        model_type: modelType,
                         model_size: modelSize,
                         total_iters: totalIters,
                         batch_size: batchSize
@@ -665,8 +871,10 @@
                     document.getElementById('taskPanel').style.display = 'block';
                     document.getElementById('btnStartTraining').disabled = true;
                     document.getElementById('btnStopTraining').style.display = 'block';
+                    const familyName = familyData.name || family;
+                    const sourceLabel = {spk:'SPK',mvtec:'MVTec AD',visa:'VisA'}[dataSource] || dataSource;
                     document.getElementById('taskCategories').textContent =
-                        `类别: ${Array.from(selectedCategories).join(', ')} | 族: ${family} | 模型: ${selectedModelType}/${modelSize}`;
+                        `[${sourceLabel}] 类别: ${Array.from(selectedCategories.keys()).join(', ')} | ${familyName} | ${algorithmName || modelType + '/' + modelSize}`;
                     document.getElementById('logConsole').textContent = '';
                     startPolling();
                 } else {
@@ -689,6 +897,7 @@
             }
         }
 
+        // ============ 训练状态轮询 ============
         function startPolling() {
             stopPolling();
             pollingInterval = setInterval(pollStatus, 2000);
@@ -714,13 +923,11 @@
 
                 document.getElementById('progressText').textContent = status.progress;
 
-                // Update progress bar
                 let percentage = 0;
                 if (status.status === 'completed') percentage = 100;
                 else if (status.status === 'running') percentage = 50;
                 document.getElementById('progressFill').style.width = percentage + '%';
 
-                // Update log
                 if (status.log) {
                     const logConsole = document.getElementById('logConsole');
                     logConsole.textContent = status.log;
@@ -736,7 +943,7 @@
                     stopPolling();
 
                     if (status.status === 'completed') {
-                        loadModels(); // Refresh model list
+                        loadModels();
                     }
                 }
             } catch (e) {
@@ -744,7 +951,7 @@
             }
         }
 
-        // Check for running tasks on page load
+        // ============ 恢复运行中的任务 ============
         async function checkRunningTasks() {
             try {
                 const resp = await apiFetch('/api/training/status');
@@ -755,25 +962,27 @@
                     document.getElementById('noTaskPanel').style.display = 'none';
                     document.getElementById('taskPanel').style.display = 'block';
                     document.getElementById('btnStartTraining').disabled = true;
+                    const family = running.algorithm_family || 'dinomaly';
+                    const familyName = familiesData?.[family]?.name || family;
                     document.getElementById('taskCategories').textContent =
-                        `类别: ${running.categories.join(', ')} | 模型: ${running.model_type}/${running.model_size}`;
+                        `类别: ${running.categories.join(', ')} | ${familyName} | ${running.model_type || '-'}${running.model_size ? '/' + running.model_size : ''}`;
                     startPolling();
                 }
             } catch (e) {}
         }
 
+        // ============ 初始化 ============
         document.addEventListener('DOMContentLoaded', function() {
-            // 在 iframe 中嵌入时隐藏头部导航
             if (window !== window.parent) {
                 const header = document.querySelector('.header');
                 if (header) header.style.display = 'none';
             }
+            loadFamilies();
             loadDatasets();
             loadModels();
             checkRunningTasks();
         });
 
-        // Clean up polling on page unload
         window.addEventListener('beforeunload', stopPolling);
     </script>
 </body>

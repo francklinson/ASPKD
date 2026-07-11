@@ -121,6 +121,20 @@ if 'CUDA_VISIBLE_DEVICES' not in os.environ:
 else:
     print_info(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
 
+# 确保 cuDNN 找到正确的 CUDA runtime（PyTorch 2.7+cu128 需要）
+_nvidia_base = os.path.join(os.path.dirname(sys.executable), '..', 'lib',
+                            f'python{sys.version_info.major}.{sys.version_info.minor}',
+                            'site-packages', 'nvidia')
+# 也检查 user-level 安装
+_user_site = os.path.expanduser('~/.local/lib/python3.12/site-packages/nvidia')
+for _base in [_nvidia_base, _user_site]:
+    for _sub in ['cudnn/lib', 'cuda_runtime/lib', 'cublas/lib']:
+        _lib_dir = os.path.normpath(os.path.join(_base, _sub))
+        if os.path.isdir(_lib_dir):
+            os.environ['LD_LIBRARY_PATH'] = _lib_dir + ':' + os.environ.get('LD_LIBRARY_PATH', '')
+if os.environ.get('LD_LIBRARY_PATH'):
+    print_success(f"LD_LIBRARY_PATH 已设置 (cuDNN/cuBLAS/CUDA runtime)")
+
 # ========== 第3步：检查GPU状态 ==========
 print_step(3, 7, "检查GPU状态")
 
@@ -202,18 +216,18 @@ for module_name, description, required in ext_deps:
         module = __import__(module_name)
         version = getattr(module, '__version__', 'OK')
         print_success(f"{description}: {module_name} ({version})")
-    except ImportError:
-        print_warning(f"{description}: {module_name} — 未安装，对应模型不可用")
+    except Exception:
+        print_warning(f"{description}: {module_name} — 未安装或加载失败，对应模型不可用")
 
 # mamba_ssm CUDA 扩展深度检查
 try:
     from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
     print_success("mamba_ssm CUDA 扩展加载正常 — MambaAD 完整可用")
-except ImportError:
+except Exception:
     try:
         import mamba_ssm
         print_warning("mamba_ssm 已安装但 CUDA 扩展加载失败 — MambaAD 不可用 (torch 版本不匹配?)")
-    except ImportError:
+    except Exception:
         pass  # already reported above
 
 # imgaug + NumPy 2.0 兼容性检查

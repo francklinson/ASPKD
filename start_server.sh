@@ -672,6 +672,20 @@ load_environment() {
     # 设置 CUDA 环境变量（必须在启动 Python 之前设置）
     export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
     print_info "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+
+    # 设置 LD_LIBRARY_PATH 以确保 cuDNN 找到正确的 CUDA runtime
+    local _NVIDIA_BASE="$VENV_SITE_PACKAGES/nvidia"
+    local _CUDNN_LIB="$_NVIDIA_BASE/cudnn/lib"
+    local _CUDA_RT_LIB="$_NVIDIA_BASE/cuda_runtime/lib"
+    local _CUBLAS_LIB="$_NVIDIA_BASE/cublas/lib"
+    for _lib_dir in "$_CUDNN_LIB" "$_CUDA_RT_LIB" "$_CUBLAS_LIB"; do
+        if [ -d "$_lib_dir" ]; then
+            export LD_LIBRARY_PATH="$_lib_dir:${LD_LIBRARY_PATH:-}"
+        fi
+    done
+    if [ -n "${LD_LIBRARY_PATH:-}" ]; then
+        print_success "LD_LIBRARY_PATH 已设置 (cuDNN/cuBLAS/CUDA runtime)"
+    fi
     
     # 打印环境信息
     echo ""

@@ -390,12 +390,19 @@ async def detect_from_dataset(
     # 复制图片到任务目录
     task_upload_dir = os.path.join(UPLOAD_DIR, task_id)
     os.makedirs(task_upload_dir, exist_ok=True)
+    os.chmod(task_upload_dir, 0o777)
 
     copied_paths = []
     for src_path in valid_paths:
         fname = os.path.basename(src_path)
         dst = os.path.join(task_upload_dir, fname)
+        # 避免同名文件冲突：添加序号前缀
+        if os.path.exists(dst):
+            base, ext = os.path.splitext(fname)
+            idx = len(copied_paths)
+            dst = os.path.join(task_upload_dir, f"{base}_{idx}{ext}")
         shutil.copy2(src_path, dst)
+        os.chmod(dst, 0o644)  # 确保文件可读写
         copied_paths.append(dst)
 
     # 初始化任务状态
@@ -453,6 +460,9 @@ def _run_detection_task(
                 CUSTOM_TASKS[task_id]["message"] = "正在初始化检测器..."
 
         # 创建检测器
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         from algorithms import create_detector
         detector = create_detector(algorithm)
         detector.threshold = threshold
