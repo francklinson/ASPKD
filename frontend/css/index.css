@@ -1018,3 +1018,19 @@ body {
 #training.content.active {
     display: block;
 }
+
+.custom-filter-btn {
+    padding: 4px 10px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s;
+}
+.custom-filter-btn:hover { border-color: #667eea; }
+.custom-filter-btn.active {
+    border-color: #667eea;
+    background: #667eea;
+    color: white;
+}

@@ -576,8 +576,24 @@ def _run_detection_task(
 
         kwargs = {}
         if model_path and os.path.exists(model_path):
-            kwargs["model_path"] = model_path
-            log_operation("MODEL_PATH", f"task_id={task_id}, using trained model: {model_path}")
+            # 如果是目录，查找其中的权重文件
+            actual_path = model_path
+            if os.path.isdir(model_path):
+                # 优先查找：.ckpt (Anomalib) > net.pth (ADer) > .pth 文件
+                found = None
+                for target in ['*.ckpt', 'net.pth', '*.pth']:
+                    import glob
+                    matches = glob.glob(os.path.join(model_path, '**', target), recursive=True)
+                    if matches:
+                        found = matches[0]
+                        break
+                if found:
+                    actual_path = found
+                    log_operation("MODEL_PATH_RESOLVE", f"task_id={task_id}, directory resolved to: {found}")
+                else:
+                    log_operation("MODEL_PATH_WARN", f"task_id={task_id}, no weight file found in directory: {model_path}", "WARNING")
+            kwargs["model_path"] = actual_path
+            log_operation("MODEL_PATH", f"task_id={task_id}, using trained model: {actual_path}")
 
         detector = create_detector(algorithm, **kwargs)
         detector.threshold = threshold

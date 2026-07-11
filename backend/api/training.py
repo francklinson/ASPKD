@@ -422,6 +422,9 @@ async def get_trained_models():
             # 跳过临时训练脚本和日志
             if entry.startswith('_') or entry.endswith('.txt') or entry == 'log.txt':
                 continue
+            # 跳过调试/测试目录
+            if entry.startswith('test_') or entry.startswith('debug_'):
+                continue
 
             # 支持两种形式：.pth 文件 或 模型目录
             if os.path.isfile(entry_path) and entry.endswith('.pth'):
@@ -431,11 +434,18 @@ async def get_trained_models():
                 is_dir = True
                 # 计算目录总大小
                 total_size = 0
+                has_weight_file = False
                 for root, dirs, files in os.walk(entry_path):
                     for f in files:
                         fp = os.path.join(root, f)
                         if os.path.exists(fp):
-                            total_size += os.path.getsize(fp)
+                            fsize = os.path.getsize(fp)
+                            total_size += fsize
+                            if f.endswith(('.pth', '.ckpt', '.pt')):
+                                has_weight_file = True
+                # 跳过没有权重文件的空目录（训练失败产物）
+                if not has_weight_file:
+                    continue
                 stat = type('stat', (), {
                     'st_size': total_size,
                     'st_mtime': os.path.getmtime(entry_path)
