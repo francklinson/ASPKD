@@ -17,10 +17,8 @@ import argparse
 import gc
 import json
 import os
-import shutil
 import subprocess
 import sys
-import tempfile
 import time
 import traceback
 from collections import OrderedDict
@@ -36,6 +34,10 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "algorithms"))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "backend"))
+
+# 模型持久化保存目录
+SAVED_DIR = os.path.join(PROJECT_ROOT, "models", "saved", "verify")
+os.makedirs(SAVED_DIR, exist_ok=True)
 
 # ==============================================================================
 # 环境变量设置 (离线模式, 使用本地缓存)
@@ -272,52 +274,55 @@ def test_dinomaly(alg_name: str, config: dict, result: TestResult):
 
     # Step 1: 训练 (子进程)
     log(f"  [{alg_name}] 开始训练 (total_iters=10)...")
-    with tempfile.TemporaryDirectory(prefix="verify_dinomaly_") as tmpdir:
-        save_name = f"verify_{alg_name}"
-        t0 = time.time()
-        try:
-            cmd = [
-                sys.executable, "-m", "algorithms.Dinomaly.dinomaly_train_evaluate",
-                "--data_path", MVTEC_ROOT,
-                "--save_dir", tmpdir,
-                "--save_name", save_name,
-                "--model_size", model_size,
-                "--model_type", model_type,
-                "--batch_size", "4",
-                "--total_iters", "10",
-                "--categories", CATEGORY,
-            ]
-            proc = run_subprocess(cmd, TIMEOUT_TRAINING)
-            train_time = time.time() - t0
+    save_name = f"verify_{alg_name}_{datetime.now():%Y%m%d_%H%M%S}"
+    t0 = time.time()
+    try:
+        cmd = [
+            sys.executable, "-m", "algorithms.Dinomaly.dinomaly_train_evaluate",
+            "--data_path", MVTEC_ROOT,
+            "--save_dir", SAVED_DIR,
+            "--save_name", save_name,
+            "--model_size", model_size,
+            "--model_type", model_type,
+            "--batch_size", "4",
+            "--total_iters", "10",
+            "--categories", CATEGORY,
+        ]
+        proc = run_subprocess(cmd, TIMEOUT_TRAINING)
+        train_time = time.time() - t0
 
-            if proc.returncode != 0:
-                err = proc.stderr[-800:] if proc.stderr else "Unknown error"
-                result.training = {"status": "fail", "time_s": train_time, "error": err}
-                result.status = "fail"
-                result.error = f"训练失败: {err[:300]}"
-                return
-
-            # 找保存的模型
-            pth_files = [f for f in os.listdir(tmpdir) if f.endswith(".pth")]
-            saved_model = os.path.join(tmpdir, pth_files[0]) if pth_files else None
-
-            result.training = {
-                "status": "ok", "time_s": round(train_time, 1),
-                "model_saved": bool(saved_model),
-                "model_path": saved_model,
-            }
-            log(f"  [{alg_name}] 训练完成 ({train_time:.0f}s), 模型保存: {bool(saved_model)}")
-
-        except subprocess.TimeoutExpired:
-            result.training = {"status": "timeout", "time_s": TIMEOUT_TRAINING}
+        if proc.returncode != 0:
+            err = proc.stderr[-800:] if proc.stderr else "Unknown error"
+            result.training = {"status": "fail", "time_s": train_time, "error": err}
             result.status = "fail"
-            result.error = "训练超时"
+            result.error = f"训练失败: {err[:300]}"
             return
-        except Exception as e:
-            result.training = {"status": "fail", "time_s": time.time() - t0, "error": str(e)}
-            result.status = "fail"
-            result.error = f"训练异常: {str(e)[:300]}"
-            return
+
+        # 找保存的模型 (按修改时间找最新的)
+        pth_files = sorted(
+            [f for f in os.listdir(SAVED_DIR) if f.endswith(".pth")],
+            key=lambda f: os.path.getmtime(os.path.join(SAVED_DIR, f)),
+            reverse=True
+        )
+        saved_model = os.path.join(SAVED_DIR, pth_files[0]) if pth_files else None
+
+        result.training = {
+            "status": "ok", "time_s": round(train_time, 1),
+            "model_saved": bool(saved_model),
+            "model_path": saved_model,
+        }
+        log(f"  [{alg_name}] 训练完成 ({train_time:.0f}s), 模型: {saved_model}")
+
+    except subprocess.TimeoutExpired:
+        result.training = {"status": "timeout", "time_s": TIMEOUT_TRAINING}
+        result.status = "fail"
+        result.error = "训练超时"
+        return
+    except Exception as e:
+        result.training = {"status": "fail", "time_s": time.time() - t0, "error": str(e)}
+        result.status = "fail"
+        result.error = f"训练异常: {str(e)[:300]}"
+        return
 
     gpu_cleanup()
 
@@ -377,118 +382,119 @@ def test_anomalib(alg_name: str, config: dict, result: TestResult):
     import warnings
     warnings.filterwarnings("ignore")
 
-    with tempfile.TemporaryDirectory(prefix="verify_anomalib_") as tmpdir:
-        t0 = time.time()
-        try:
-            from algorithms import create_detector
+    t0 = time.time()
+    try:
+        from algorithms import create_detector
 
-            # Step 1: 加载模型
-            log(f"  [{alg_name}] 加载模型...")
-            detector = create_detector(alg_name)
-            if is_one_class:
-                detector.reference_dir = TRAIN_GOOD
-            detector.load_model()
-            load_time = time.time() - t0
+        # Step 1: 加载模型
+        log(f"  [{alg_name}] 加载模型...")
+        detector = create_detector(alg_name)
+        if is_one_class:
+            detector.reference_dir = TRAIN_GOOD
+        detector.load_model()
+        load_time = time.time() - t0
 
-            # Step 2: 训练 (如果是可训练模型)
-            if is_trainable:
-                log(f"  [{alg_name}] 开始训练 (max_epochs=1)...")
-                try:
-                    from Anomalib.data import MVTecAD
-
-                    datamodule = MVTecAD(
-                        root=MVTEC_ROOT,
-                        category=CATEGORY,
-                        train_batch_size=4,
-                        eval_batch_size=4,
-                        num_workers=2,
-                    )
-                    datamodule.setup()
-
-                    train_t0 = time.time()
-                    detector.fit(datamodule=datamodule, max_epochs=1)
-                    train_time = time.time() - train_t0
-
-                    # 保存模型
-                    saved_path = os.path.join(tmpdir, f"{alg_name}.pth")
-                    try:
-                        import torch
-                        model = detector._model
-                        if hasattr(model, 'module'):
-                            model = model.module
-                        torch.save(model.state_dict(), saved_path)
-                        model_saved = True
-                    except Exception as e:
-                        log(f"  [{alg_name}] 保存模型失败: {e}")
-                        model_saved = False
-
-                    result.training = {
-                        "status": "ok", "time_s": round(train_time, 1),
-                        "model_saved": model_saved,
-                    }
-                    log(f"  [{alg_name}] 训练完成 ({train_time:.0f}s)")
-                except Exception as train_e:
-                    train_time = time.time() - t0
-                    result.training = {
-                        "status": "fail", "time_s": round(train_time, 1),
-                        "error": str(train_e)[:500],
-                    }
-                    log(f"  [{alg_name}] 训练失败 (将在推理阶段继续): {str(train_e)[:200]}")
-            else:
-                result.training = {"status": "skipped", "reason": "zero_shot_or_few_shot"}
-                log(f"  [{alg_name}] 零/少样本, 跳过训练")
-
-            # Step 3: 推理 (即使训练失败也尝试)
+        # Step 2: 训练 (如果是可训练模型)
+        if is_trainable:
+            log(f"  [{alg_name}] 开始训练 (max_epochs=1)...")
             try:
-                if test_good and os.path.exists(test_good):
-                    r_good = detector.predict(test_good)
-                    score_good = r_good.anomaly_score
-                else:
-                    score_good = -1
+                from Anomalib.data import MVTecAD
 
-                if test_anomaly and os.path.exists(test_anomaly):
-                    r_anom = detector.predict(test_anomaly)
-                    score_anom = r_anom.anomaly_score
-                else:
-                    score_anom = -1
+                datamodule = MVTecAD(
+                    root=MVTEC_ROOT,
+                    category=CATEGORY,
+                    train_batch_size=4,
+                    eval_batch_size=4,
+                    num_workers=2,
+                )
+                datamodule.setup()
 
-                infer_time = time.time() - t0
-                result.inference = {
-                    "status": "ok", "load_time_s": round(load_time, 1),
-                    "infer_time_s": round(infer_time - load_time, 1),
-                    "score_good": round(score_good, 4),
-                    "score_anomaly": round(score_anom, 4),
+                train_t0 = time.time()
+                detector.fit(datamodule=datamodule, max_epochs=1)
+                train_time = time.time() - train_t0
+
+                # 保存模型到持久化目录
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                saved_path = os.path.join(SAVED_DIR, f"{alg_name}_verify_{ts}.pth")
+                try:
+                    import torch
+                    model = detector._model
+                    if hasattr(model, 'module'):
+                        model = model.module
+                    torch.save(model.state_dict(), saved_path)
+                    model_saved = True
+                except Exception as e:
+                    log(f"  [{alg_name}] 保存模型失败: {e}")
+                    model_saved = False
+
+                result.training = {
+                    "status": "ok", "time_s": round(train_time, 1),
+                    "model_saved": model_saved,
+                    "model_path": saved_path,
                 }
-                log(f"  [{alg_name}] 推理: good={score_good:.4f} anomaly={score_anom:.4f}")
+                log(f"  [{alg_name}] 训练完成 ({train_time:.0f}s), 模型: {saved_path}")
+            except Exception as train_e:
+                train_time = time.time() - t0
+                result.training = {
+                    "status": "fail", "time_s": round(train_time, 1),
+                    "error": str(train_e)[:500],
+                }
+                log(f"  [{alg_name}] 训练失败 (将在推理阶段继续): {str(train_e)[:200]}")
+        else:
+            result.training = {"status": "skipped", "reason": "zero_shot_or_few_shot"}
+            log(f"  [{alg_name}] 零/少样本, 跳过训练")
 
-                # 判定最终状态
-                if result.training and result.training.get("status") == "fail":
-                    result.status = "pass"  # 推理成功，部分通过
-                    result.error = f"训练失败但推理成功: {result.training.get('error', '')[:100]}"
-                else:
-                    result.status = "pass"
-            except Exception as infer_e:
-                result.inference = {"status": "fail", "time_s": time.time() - t0, "error": str(infer_e)[:300]}
-                if result.training and result.training.get("status") == "ok":
-                    result.status = "pass"  # 训练成功但推理失败
-                    result.error = f"推理失败但训练成功: {str(infer_e)[:100]}"
-                else:
-                    result.status = "fail"
-                    result.error = f"训练和推理均失败: {str(infer_e)[:150]}"
-                log(f"  [{alg_name}] 推理失败: {infer_e}")
+        # Step 3: 推理 (即使训练失败也尝试)
+        try:
+            if test_good and os.path.exists(test_good):
+                r_good = detector.predict(test_good)
+                score_good = r_good.anomaly_score
+            else:
+                score_good = -1
 
-            detector.release()
+            if test_anomaly and os.path.exists(test_anomaly):
+                r_anom = detector.predict(test_anomaly)
+                score_anom = r_anom.anomaly_score
+            else:
+                score_anom = -1
 
-        except Exception as e:
-            traceback.print_exc()
-            elapsed = time.time() - t0
-            if result.training is None:
-                result.training = {"status": "fail", "time_s": elapsed, "error": str(e)[:300]}
-            if result.inference is None:
-                result.inference = {"status": "fail", "time_s": 0, "error": str(e)[:300]}
-            result.status = "fail"
-            result.error = f"{str(e)[:300]}"
-            log(f"  [{alg_name}] 失败: {e}")
+            infer_time = time.time() - t0
+            result.inference = {
+                "status": "ok", "load_time_s": round(load_time, 1),
+                "infer_time_s": round(infer_time - load_time, 1),
+                "score_good": round(score_good, 4),
+                "score_anomaly": round(score_anom, 4),
+            }
+            log(f"  [{alg_name}] 推理: good={score_good:.4f} anomaly={score_anom:.4f}")
+
+            # 判定最终状态
+            if result.training and result.training.get("status") == "fail":
+                result.status = "pass"  # 推理成功，部分通过
+                result.error = f"训练失败但推理成功: {result.training.get('error', '')[:100]}"
+            else:
+                result.status = "pass"
+        except Exception as infer_e:
+            result.inference = {"status": "fail", "time_s": time.time() - t0, "error": str(infer_e)[:300]}
+            if result.training and result.training.get("status") == "ok":
+                result.status = "pass"  # 训练成功但推理失败
+                result.error = f"推理失败但训练成功: {str(infer_e)[:100]}"
+            else:
+                result.status = "fail"
+                result.error = f"训练和推理均失败: {str(infer_e)[:150]}"
+            log(f"  [{alg_name}] 推理失败: {infer_e}")
+
+        detector.release()
+
+    except Exception as e:
+        traceback.print_exc()
+        elapsed = time.time() - t0
+        if result.training is None:
+            result.training = {"status": "fail", "time_s": elapsed, "error": str(e)[:300]}
+        if result.inference is None:
+            result.inference = {"status": "fail", "time_s": 0, "error": str(e)[:300]}
+        result.status = "fail"
+        result.error = f"{str(e)[:300]}"
+        log(f"  [{alg_name}] 失败: {e}")
 
     gpu_cleanup()
 
