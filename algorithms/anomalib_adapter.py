@@ -86,16 +86,27 @@ class AnomalibAdapter(BaseDetector):
         # 2. 加载权重（如果提供）
         if self.model_path and os.path.isfile(self.model_path):
             print(f"[Anomalib:{self.model_name}] Loading weights from {self.model_path}")
-            checkpoint = torch.load(self.model_path, map_location='cpu', weights_only=True)
+            # 先用 weights_only=True 尝试（安全），失败则回退到 weights_only=False
+            try:
+                checkpoint = torch.load(self.model_path, map_location='cpu', weights_only=True)
+            except Exception as e:
+                print(f"[Anomalib:{self.model_name}] weights_only=True failed ({e}), retrying with weights_only=False")
+                checkpoint = torch.load(self.model_path, map_location='cpu', weights_only=False)
             state_dict = checkpoint.get('state_dict', checkpoint)
-            # 过滤不兼容的键
-            model_dict = self._model.state_dict()
-            compatible = {k: v for k, v in state_dict.items()
-                         if k in model_dict and v.shape == model_dict[k].shape}
-            missing, unexpected = len(model_dict) - len(compatible), len(state_dict) - len(compatible)
+            # 加载权重：直接使用 strict=False 让 PyTorch 处理 shape 不匹配
+            # （coreset/memory_bank 等动态 buffer 在 checkpoint 和 fresh model 之间 shape 不同）
+            model_keys = set(self._model.state_dict().keys())
+            compatible = {}
+            skipped = 0
+            for k, v in state_dict.items():
+                if k in model_keys:
+                    compatible[k] = v
+                else:
+                    skipped += 1
             self._model.load_state_dict(compatible, strict=False)
-            print(f"[Anomalib:{self.model_name}] Loaded {len(compatible)} params "
-                  f"(missing={missing}, unexpected={unexpected})")
+            loaded = len(compatible)
+            print(f"[Anomalib:{self.model_name}] Loaded {loaded} params "
+                  f"(skipped {skipped} unexpected keys)")
         else:
             using_pretrained = self.model_path is None or not os.path.isfile(self.model_path)
             print(f"[Anomalib:{self.model_name}] "
