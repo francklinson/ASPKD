@@ -89,7 +89,7 @@ if 'torch' in sys.modules:
 else:
     print(f"[Main] torch not yet imported - good")
 
-from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor, dataset_builder, dataset_builder_v2, auth, training, custom_detection
+from backend.api import detection, local_monitor, tasks, reference_audio, feature_cluster, zero_shot, few_shot, client_monitor, dataset_builder, dataset_builder_v2, auth, training, custom_detection, system
 from backend.core.websocket import websocket_manager
 from backend.core.task_manager import task_manager
 
@@ -98,6 +98,18 @@ if 'torch' in sys.modules:
     print(f"[Main] WARNING: torch was imported during route imports!")
     import torch
     print(f"[Main] torch.cuda.is_available() at import time: {torch.cuda.is_available()}")
+
+
+def _run_availability_check():
+    """运行算法可用性检查（在单独线程中执行，避免阻塞事件循环）"""
+    try:
+        from backend.algorithm_availability import initialize as init_availability
+        init_availability()
+        print("[Backend] 算法可用性检查完成")
+    except Exception as e:
+        print(f"[Backend] 算法可用性检查失败: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 @asynccontextmanager
@@ -127,6 +139,14 @@ async def lifespan(app: FastAPI):
 
     # 初始化任务管理器
     await task_manager.initialize()
+
+    # 初始化算法可用性检查（异步包装，避免阻塞启动）
+    try:
+        import asyncio as _asyncio
+        loop = _asyncio.get_event_loop()
+        await loop.run_in_executor(None, _run_availability_check)
+    except Exception as e:
+        print(f"[Backend] 算法可用性检查失败（不影响服务启动）: {e}")
 
     yield
 
@@ -165,6 +185,7 @@ app.include_router(dataset_builder_v2.router, prefix="/api/dataset", tags=["数�
 app.include_router(auth.router, prefix="/api/auth", tags=["用户认证"])
 app.include_router(training.router, prefix="/api/training", tags=["模型训练"])
 app.include_router(custom_detection.router, prefix="/api/custom-detection", tags=["自定义检测"])
+app.include_router(system.router, prefix="/api", tags=["系统状态"])
 
 # WebSocket 路由 - 使用标准装饰器方式
 @app.websocket("/ws/progress/{task_id}")

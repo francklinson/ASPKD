@@ -74,9 +74,21 @@ def log_operation(operation: str, details: str = "", status: str = "INFO"):
 
 
 def _get_available_algorithms():
-    """获取适用于图片检测的算法列表"""
+    """获取适用于图片检测的算法列表（动态检查可用性，fallback 到静态排除列表）"""
     from algorithms import list_available_algorithms
     all_algs = list_available_algorithms()
+
+    # 尝试使用动态可用性检查缓存
+    try:
+        from backend.algorithm_availability import get_available_algorithms as _get_dynamic_available
+        dynamic_available = _get_dynamic_available()
+        if dynamic_available:
+            # 动态模式：只返回实际可用的算法
+            return sorted(dynamic_available)
+    except Exception:
+        pass
+
+    # Fallback: 静态排除列表
     return sorted([alg for alg in all_algs if alg not in EXCLUDED_ALGORITHMS])
 
 
@@ -273,14 +285,28 @@ async def list_algorithms():
 async def list_algorithms_with_detail():
     """获取算法列表（含分组详细信息，前端展示用）"""
     algs = _get_available_algorithms()
+
+    # 加载可用性缓存
+    availability = {}
+    try:
+        from backend.algorithm_availability import get_all_availability
+        availability = get_all_availability()
+    except Exception:
+        pass
+
     groups = {}
     for alg in algs:
         group = get_algorithm_group(alg)
         if group not in groups:
             groups[group] = []
+
+        avail = availability.get(alg)
         groups[group].append({
             "id": alg,
-            "name": _get_algorithm_display_name(alg)
+            "name": _get_algorithm_display_name(alg),
+            "inference_available": avail.inference_available if avail else True,
+            "training_available": avail.training_available if avail else False,
+            "reasons": avail.reasons if avail else [],
         })
     return {"groups": groups, "flat": algs}
 

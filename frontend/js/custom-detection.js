@@ -16,8 +16,25 @@ let customModelFilter = 'all';  // 当前筛选的算法族
 
 // ============ 页面初始化 ============
 
+let algorithmAvailability = {};
+
+async function loadAlgorithmAvailability() {
+    try {
+        const resp = await fetch('/api/system/algorithm-availability');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.status === 'checked') {
+            algorithmAvailability = data.algorithms || {};
+            console.log('[CustomDetection] 已加载算法可用性:', data.summary);
+        }
+    } catch (e) {
+        console.warn('[CustomDetection] 加载算法可用性失败:', e);
+    }
+}
+
 function initCustomDetectionPage() {
     console.log('[CustomDetection] 初始化页面...');
+    loadAlgorithmAvailability();
     loadCustomTrainedModels();
     loadCustomDatasets();
     setupCustomDropZone();
@@ -79,13 +96,27 @@ function updateAlgorithmInfo(algoId) {
     }
 
     const desc = ALGO_DESC_MAP[algoId];
-    if (desc) {
-        descEl.textContent = desc;
-        infoPanel.style.display = 'block';
-    } else {
-        descEl.textContent = `算法: ${algoId}`;
-        infoPanel.style.display = 'block';
+    let html = desc ? _esc(desc) : `算法: ${_esc(algoId)}`;
+
+    // 显示可用性状态
+    const avail = algorithmAvailability[algoId];
+    if (avail) {
+        if (avail.inference_available) {
+            html += ' <span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;background:#f6ffed;color:#52c41a;" title="推理可用">✓ 可用</span>';
+            if (avail.training_available) {
+                html += ' <span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;background:#f6ffed;color:#52c41a;" title="可训练">可训练</span>';
+            }
+        } else {
+            const reasons = (avail.reasons || []).join('; ');
+            html += ` <span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;background:#fff2f0;color:#ff4d4f;" title="${_esc(reasons)}">✗ 不可用</span>`;
+            if (reasons) {
+                html += ` <span style="font-size:11px;color:#ff4d4f;">${_esc(reasons)}</span>`;
+            }
+        }
     }
+
+    descEl.innerHTML = html;
+    infoPanel.style.display = 'block';
 }
 
 // ============ 已训练模型加载 ============

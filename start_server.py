@@ -49,7 +49,7 @@ print(f"Python版本: {sys.version}")
 print(f"Python路径: {sys.executable}")
 
 # ========== 第1步：项目环境检查 ==========
-print_step(1, 7, "检查项目环境")
+print_step(1, 8, "检查项目环境")
 
 project_root = os.path.dirname(os.path.abspath(__file__))
 print_info(f"项目根目录: {project_root}")
@@ -86,7 +86,7 @@ else:
     sys.exit(1)
 
 # ========== 第2步：加载环境配置 ==========
-print_step(2, 7, "加载环境配置")
+print_step(2, 8, "加载环境配置")
 
 if os.path.exists(config_path):
     try:
@@ -136,7 +136,7 @@ if os.environ.get('LD_LIBRARY_PATH'):
     print_success(f"LD_LIBRARY_PATH 已设置 (cuDNN/cuBLAS/CUDA runtime)")
 
 # ========== 第3步：检查GPU状态 ==========
-print_step(3, 7, "检查GPU状态")
+print_step(3, 8, "检查GPU状态")
 
 try:
     # 尝试获取GPU信息
@@ -162,7 +162,7 @@ except Exception as e:
     print_warning(f"GPU检测失败: {e}")
 
 # ========== 第4步：检查Python依赖 ==========
-print_step(4, 7, "检查Python依赖")
+print_step(4, 8, "检查Python依赖")
 
 # 确保项目根目录在路径中
 if project_root not in sys.path:
@@ -250,7 +250,7 @@ except ImportError:
     pass
 
 # ========== 第5步：初始化内存数据库 ==========
-print_step(5, 7, "初始化Shazam内存数据库")
+print_step(5, 8, "初始化Shazam内存数据库")
 
 try:
     from backend.core.shazam.database.in_memory import InMemoryDatabaseChecker, _MemDB
@@ -273,8 +273,8 @@ except Exception as e:
     print_info("请检查 Shazam 模块配置")
     sys.exit(1)
 
-# ========== 第6步：检查模型文件 ==========
-print_step(6, 7, "检查模型文件")
+# ========== 第6步：检查模型文件和算法可用性 ==========
+print_step(6, 8, "检查模型文件与算法可用性")
 
 model_dirs = [
     os.path.join(project_root, "models", "pre_trained"),
@@ -286,7 +286,7 @@ for model_dir in model_dirs:
         pth_files = [f for f in os.listdir(model_dir) if f.endswith('.pth')]
         if pth_files:
             print_success(f"{os.path.basename(model_dir)}: {len(pth_files)} 个模型")
-            for f in pth_files[:3]:  # 只显示前3个
+            for f in pth_files[:3]:
                 print_info(f"  - {f}")
             if len(pth_files) > 3:
                 print_info(f"  ... 还有 {len(pth_files)-3} 个模型")
@@ -296,8 +296,58 @@ for model_dir in model_dirs:
         print_warning(f"模型目录不存在: {model_dir}")
         os.makedirs(model_dir, exist_ok=True)
 
-# ========== 第7步：启动服务 ==========
-print_step(7, 7, "启动FastAPI服务")
+# ── 算法可用性检查 ──
+print_info("正在检查各算法可用性（库依赖 + 模型文件）...")
+try:
+    sys.path.insert(0, project_root)
+    from backend.algorithm_availability import check_all_algorithms
+    results = check_all_algorithms(config_path)
+
+    total = len(results)
+    avail_inf = sum(1 for r in results.values() if r.inference_available)
+    avail_tr = sum(1 for r in results.values() if r.training_available)
+
+    print_success(f"算法可用性检查完成: {avail_inf}/{total} 可推理, {avail_tr} 可训练")
+
+    # 按家族统计
+    family_stats = {}
+    for r in results.values():
+        fam = r.family or "Other"
+        if fam not in family_stats:
+            family_stats[fam] = {"total": 0, "inference": 0, "training": 0}
+        family_stats[fam]["total"] += 1
+        if r.inference_available:
+            family_stats[fam]["inference"] += 1
+        if r.training_available:
+            family_stats[fam]["training"] += 1
+
+    for fam, stats in sorted(family_stats.items()):
+        inf = stats["inference"]
+        tot = stats["total"]
+        if inf == tot:
+            print_success(f"{fam}: {inf}/{tot} 可用")
+        elif inf > 0:
+            print_warning(f"{fam}: {inf}/{tot} 可用 ({tot - inf} 不可用)")
+        else:
+            print_error(f"{fam}: 0/{tot} 可用 - 全部不可用")
+
+    # 列出不可用算法（仅前20个）
+    unavailable = [(aid, r) for aid, r in results.items() if not r.inference_available]
+    if unavailable:
+        print_info(f"不可用算法 ({len(unavailable)} 个):")
+        for alg_id, r in unavailable[:20]:
+            reason = r.reasons[0] if r.reasons else "未知原因"
+            print_info(f"  {alg_id}: {reason}", indent=4)
+        if len(unavailable) > 20:
+            print_info(f"  ... 还有 {len(unavailable) - 20} 个", indent=4)
+
+except Exception as e:
+    print_warning(f"算法可用性检查失败: {e}")
+    import traceback
+    traceback.print_exc()
+
+# ========== 第8步：启动服务 ==========
+print_step(8, 8, "启动FastAPI服务")
 
 # 从环境变量获取配置
 HOST = os.environ.get("HOST", "0.0.0.0")

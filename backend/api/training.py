@@ -327,8 +327,36 @@ class TrainedModel(BaseModel):
 
 @router.get("/families")
 async def get_algorithm_families():
-    """获取支持的算法族及其可训练算法列表"""
-    return ALGORITHM_FAMILIES
+    """获取支持的算法族及其可训练算法列表（含动态可用性检查）"""
+    import copy
+    families = copy.deepcopy(ALGORITHM_FAMILIES)
+
+    # 尝试加载动态可用性缓存
+    try:
+        from backend.algorithm_availability import get_all_availability
+        availability = get_all_availability()
+        if availability:
+            for fam_key, fam_info in families.items():
+                family_trainable = False
+                for algo in fam_info.get("algorithms", []):
+                    alg_id = algo["id"]
+                    if alg_id in availability:
+                        avail = availability[alg_id]
+                        algo["trainable"] = avail.training_available
+                        algo["available"] = avail.inference_available
+                        algo["reasons"] = avail.reasons
+                        if avail.training_available:
+                            family_trainable = True
+                    else:
+                        # 算法未在注册表中，保留原有 trainable 配置
+                        pass
+                # 更新族的可训练状态
+                fam_info["trainable"] = family_trainable or fam_info.get("trainable", False)
+            return families
+    except Exception:
+        pass
+
+    return families
 
 
 @router.get("/datasets", response_model=List[DatasetInfo])
@@ -594,6 +622,22 @@ async def start_training(request: TrainingRequest):
         data_root = PUBLIC_DATASETS[data_source][1]
     else:
         raise HTTPException(status_code=400, detail=f"不支持的数据来源: {data_source}")
+
+    # 验证算法训练可用性
+    if request.algorithm_name:
+        try:
+            from backend.algorithm_availability import get_algorithm_availability
+            avail = get_algorithm_availability(request.algorithm_name)
+            if avail and not avail.training_available:
+                reasons = "; ".join(avail.reasons) if avail.reasons else "该算法暂不支持训练"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"算法 '{request.algorithm_name}' 当前不可训练: {reasons}"
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # 可用性缓存未初始化时跳过
 
     # 验证数据集类别
     valid_categories = []
