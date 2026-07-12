@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -332,11 +333,25 @@ def _resnet(
 ) -> ResNet:
     model = ResNet(block, layers, **kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(model_urls[arch],
-                                              progress=progress)
-        # for k,v in list(state_dict.items()):
-        #    if 'layer4' in k or 'fc' in k:
-        #        state_dict.pop(k)
+        # 优先从本地预训练目录加载
+        _pretrained_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                                        'models', 'pre_trained')
+        _local_map = {
+            'wide_resnet50_2': 'wide_resnet50_2-95faca4d.pth',
+            'wide_resnet101_2': 'wide_resnet101_2-32ee1156.pth',
+            'resnet18': 'resnet18-f37072fd.pth',
+            'resnet34': 'resnet34-b627a593.pth',
+            'resnet50': 'resnet50-0676ba61.pth',
+            'resnet101': 'resnet101-63fe2227.pth',
+            'resnet152': 'resnet152-394f9c45.pth',
+            'resnext50_32x4d': 'resnext50_32x4d-7cdf4587.pth',
+            'resnext101_32x8d': 'resnext101_32x8d-8ba56ff5.pth',
+        }
+        local_path = os.path.join(_pretrained_dir, _local_map.get(arch, ''))
+        if os.path.exists(local_path):
+            state_dict = torch.load(local_path, map_location='cpu')
+        else:
+            state_dict = load_state_dict_from_url(model_urls[arch], progress=progress)
         model.load_state_dict(state_dict)
     return model
 

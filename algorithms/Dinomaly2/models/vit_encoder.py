@@ -29,6 +29,10 @@ _logger = logging.getLogger(__name__)
 def load(name, WEIGHTS_DIR="./backbones/weights"):
     os.makedirs(WEIGHTS_DIR, exist_ok=True)
 
+    # Dinov3 权重优先从项目根目录的 models/pre_trained/ 加载
+    _pretrained_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                                    'models', 'pre_trained')
+
     # if name in _BACKBONES.keys():
     #     return eval(_BACKBONES[name])
 
@@ -38,20 +42,23 @@ def load(name, WEIGHTS_DIR="./backbones/weights"):
         if "v3" in name:  # dinov3
             from dinov3.hub.backbones import dinov3_vits16, dinov3_vitb16, dinov3_vitl16
 
+            # 优先从 models/pre_trained/ 加载，其次从 backbones/weights/ 加载
+            def _find_dinov3_weight(filename):
+                p1 = os.path.join(_pretrained_dir, filename)
+                p2 = os.path.join(WEIGHTS_DIR, filename)
+                return p1 if os.path.exists(p1) else p2
+
             if arch == "base":
                 model = dinov3_vitb16(pretrained=True,
-                                      weights=os.path.join(WEIGHTS_DIR,
-                                                           'dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth'),
+                                      weights=_find_dinov3_weight('dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth'),
                                       )
             elif arch == "small":
                 model = dinov3_vits16(pretrained=True,
-                                      weights=os.path.join(WEIGHTS_DIR,
-                                                           'dinov3_vits16_pretrain_lvd1689m-08c60483.pth'),
+                                      weights=_find_dinov3_weight('dinov3_vits16_pretrain_lvd1689m-08c60483.pth'),
                                       )
             elif arch == "large":
                 model = dinov3_vitl16(pretrained=True,
-                                      weights=os.path.join(WEIGHTS_DIR,
-                                                           'dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth'),
+                                      weights=_find_dinov3_weight('dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth'),
                                       )
             else:
                 raise ValueError("Invalid type of architecture. It must be either 'small' or 'base' or 'large.")

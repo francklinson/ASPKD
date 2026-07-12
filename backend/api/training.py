@@ -643,7 +643,9 @@ async def start_training(request: TrainingRequest):
         "total_iters": request.total_iters,
         "current_iter": 0,
         "progress": "准备中...",
+        "progress_pct": 0.0,
         "message": "",
+        "created_at": datetime.now().isoformat(),
         "started_at": None,
         "completed_at": None,
         "model_path": None,
@@ -1016,6 +1018,9 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
     env_vars["DINOMALY_ENCODER_DIR"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
     env_vars["PRETRAINED_MODELS_DIR"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
     env_vars["TORCH_HOME"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
+    # HuggingFace 离线模式：优先从本地缓存加载，避免网络不通导致训练失败
+    env_vars["HF_HUB_OFFLINE"] = "1"
+    env_vars["HF_HOME"] = os.path.join(PROJECT_ROOT, "models", "pre_trained", "huggingface")
 
     config_path = os.path.join(PROJECT_ROOT, "backend/config", "config.yaml")
     if os.path.exists(config_path):

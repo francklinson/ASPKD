@@ -55,7 +55,10 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_vitad):
 
 		self.model_t = Namespace()
 		self.model_t.name = 'vit_small_patch16_224_dino'
-		self.model_t.kwargs = dict(pretrained=True, checkpoint_path='', pretrained_strict=False,strict=True, img_size=self.size, teachers=[3, 6, 9], neck=[12])
+		import os
+		_vits_dino_ckpt = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))),
+		                                'models', 'pre_trained', 'vitad', 'vit_small_patch16_224_dino.pth')
+		self.model_t.kwargs = dict(pretrained=False, checkpoint_path=_vits_dino_ckpt, pretrained_strict=False,strict=True, img_size=self.size, teachers=[3, 6, 9], neck=[12])
 		# self.model_t.kwargs = dict(pretrained=True, checkpoint_path='', strict=True, img_size=self.size, teachers=[3, 6, 9], neck=[12])
 		self.model_f = Namespace()
 		self.model_f.name = 'fusion'
@@ -66,7 +69,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_vitad):
 								   img_size=self.size, students=[3, 6, 9], depth=9)
 		self.model = Namespace()
 		self.model.name = 'vitad'
-		self.model.kwargs = dict(pretrained=True,
+		self.model.kwargs = dict(pretrained=False,
 									 checkpoint_path='',
 									 strict=True, model_t=self.model_t,
 									 model_f=self.model_f, model_s=self.model_s)

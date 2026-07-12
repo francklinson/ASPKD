@@ -58,9 +58,12 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_mambaad):
         ]
 
         # ==> modal
+        import os
+        _resnet34_ckpt = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))),
+                                       'models', 'pre_trained', 'resnet34-43635321.pth')
         self.model_t = Namespace()
         self.model_t.name = 'timm_resnet34'
-        self.model_t.kwargs = dict(pretrained=True, checkpoint_path='',
+        self.model_t.kwargs = dict(pretrained=False, checkpoint_path=_resnet34_ckpt,
                                    strict=False, features_only=True, out_indices=[1, 2, 3])
         self.model_s = dict(
             depths_decoder=[3, 4, 6, 3],
@@ -69,7 +72,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_mambaad):
         )
         self.model = Namespace()
         self.model.name = 'mambaad'
-        self.model.kwargs = dict(pretrained=True,
+        self.model.kwargs = dict(pretrained=False,
                                  checkpoint_path='',
                                  strict=True, model_t=self.model_t,
                                  model_s=self.model_s)

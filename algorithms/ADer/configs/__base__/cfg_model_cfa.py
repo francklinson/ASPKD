@@ -2,13 +2,16 @@ from argparse import Namespace
 from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
+import os
 
 class cfg_model_cfa(Namespace):
 
 	def __init__(self):
 		Namespace.__init__(self)
 		self.model_backbone = Namespace()
-		self.model_backbone.kwargs = dict(pretrained=True)
+		_wresnet50_ckpt = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))),
+		                                'models', 'pre_trained', 'wide_resnet50_racm-8234f177.pth')
+		self.model_backbone.kwargs = dict(pretrained=False, checkpoint_path=_wresnet50_ckpt, strict=False)
 		# self.model_backbone.name = 'wide_resnet50_2'
 		# self.model_backbone.kwargs = dict(pretrained=True,
 		# 								  checkpoint_path='model/pretrain/tf_efficientnet_b4_aa-818f208c.pth',
@@ -27,7 +30,7 @@ class cfg_model_cfa(Namespace):
 
 		self.model = Namespace()
 		self.model.name = 'cfa'
-		self.model.kwargs = dict(pretrained=True,
+		self.model.kwargs = dict(pretrained=False,
 								 checkpoint_path='', strict=True, 
 								model_backbone=self.model_backbone,
 								model_dsvdd=self.model_dsvdd)

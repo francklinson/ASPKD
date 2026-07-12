@@ -57,9 +57,11 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_invad):
         ]
 
         # ==> timm_wide_resnet
+        import os
+        _wresnet50_ckpt = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))),
+                                        'models', 'pre_trained', 'wide_resnet50_racm-8234f177.pth')
         in_chas = [256, 512, 1024]
         name = 'timm_wide_resnet50_2'
-        checkpoint_path = 'model/pretrain/wide_resnet50_racm-8234f177.pth'
         out_indices = [i + 1 for i in range(len(in_chas))]  # [1, 2, 3]
 
         out_cha = 64
@@ -68,8 +70,8 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_invad):
         latent_channel_size = 16
         self.model_encoder = Namespace()
         self.model_encoder.name = name
-        self.model_encoder.kwargs = dict(pretrained=True,
-                                         checkpoint_path='',
+        self.model_encoder.kwargs = dict(pretrained=False,
+                                         checkpoint_path=_wresnet50_ckpt,
                                          strict=False,
                                          features_only=True, out_indices=out_indices)
 

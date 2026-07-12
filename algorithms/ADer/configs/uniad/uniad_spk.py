@@ -54,10 +54,16 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_uniad):
 		]
 
 		checkpoint_path = 'model/pretrain/tf_efficientnet_b4_aa-818f208c.pth'
+		# Use local checkpoint if available, skip HF download
+		import os
+		_effnet_b4_ckpt = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))),
+		                                'models', 'pre_trained', 'efficientnet_b4_aa-818f208c.pth')
+		if not os.path.exists(_effnet_b4_ckpt):
+			_effnet_b4_ckpt = ''  # fallback to pretrained=True if no local file
 		self.model_backbone = Namespace()
 		self.model_backbone.name = 'timm_tf_efficientnet_b4'
-		self.model_backbone.kwargs = dict(pretrained=True,
-										  checkpoint_path='',
+		self.model_backbone.kwargs = dict(pretrained=False if _effnet_b4_ckpt else True,
+										  checkpoint_path=_effnet_b4_ckpt,
 										  strict=False,
 										  hf=None, features_only=True, out_indices=[0, 1, 2, 3])
 

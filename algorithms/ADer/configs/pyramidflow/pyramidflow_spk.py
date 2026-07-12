@@ -54,9 +54,12 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_pyramidflow):
 		]
 
 		# ==> modal
+		import os
+		_resnet18_ckpt = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))),
+		                               'models', 'pre_trained', 'resnet18-5c106cde.pth')
 		self.model_backbone = Namespace()
 		self.model_backbone.name = 'tv_resnet18'
-		self.model_backbone.kwargs = dict(pretrained=True, checkpoint_path='', strict=False)
+		self.model_backbone.kwargs = dict(pretrained=False, checkpoint_path=_resnet18_ckpt, strict=False)
 		self.model = Namespace()
 		self.model.name = 'pyramidflow'
 		self.model.kwargs = dict(pretrained=False, checkpoint_path='', strict=True,

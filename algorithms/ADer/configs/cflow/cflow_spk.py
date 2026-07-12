@@ -63,6 +63,9 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cflow):
 		]
 
 		# ==> model
+		import os
+		_wresnet50_ckpt = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))),
+		                                'models', 'pre_trained', 'wide_resnet50_racm-8234f177.pth')
 		self.model_backbone = Namespace()
 
 		in_chas = [256, 512, 1024, 2048]
@@ -74,8 +77,8 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cflow):
 		self.model_backbone.condition_vec = 128
 		self.model_backbone.coupling_blocks = 8
 		self.model_backbone.clamp_alpha = 1.9
-		self.model_backbone.kwargs = dict(pretrained=True,
-										 checkpoint_path='',
+		self.model_backbone.kwargs = dict(pretrained=False,
+										 checkpoint_path=_wresnet50_ckpt,
 										 strict=False,
 										 features_only=True, out_indices=out_indices)
 
@@ -85,8 +88,8 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_cflow):
 		self.model.pool_layers = 3
 		self.model.N = 256
 		self.model.kwargs = dict(
-			pretrained=True, checkpoint_path='', strict=True,
-			model_backbone=self.model_backbone, L=self.model.pool_layers, N=self.model.N)
+				pretrained=False, checkpoint_path='', strict=True,
+				model_backbone=self.model_backbone, L=self.model.pool_layers, N=self.model.N)
 
 		# ==> evaluator
 		self.evaluator.kwargs = dict(metrics=self.metrics, pooling_ks=[16, 16], max_step_aupro=100, use_adeval=self.use_adeval)

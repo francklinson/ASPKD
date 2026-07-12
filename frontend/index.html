@@ -796,8 +796,10 @@
                     <span style="font-size:13px;color:#666;font-weight:500;">筛选：</span>
                     <select id="filterType" onchange="applyFilters()">
                         <option value="all">全部类型</option>
-                        <option value="offline">📋 离线任务</option>
+                        <option value="offline_audio">📋 离线检测</option>
                         <option value="online">🌐 在线检测</option>
+                        <option value="custom_detection">🖼️ 图片检测</option>
+                        <option value="training">🎯 模型训练</option>
                     </select>
                     <select id="filterStatus" onchange="applyFilters()">
                         <option value="">全部状态</option>

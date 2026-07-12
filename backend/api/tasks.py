@@ -9,6 +9,217 @@ router = APIRouter()
 # task_manager 在函数内部延迟导入，避免启动时触发 torch 初始化
 
 
+@router.get("/all")
+async def list_all_tasks(
+    task_type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """
+    获取所有类型的任务列表（统一接口）
+
+    - **task_type**: 按类型筛选 (offline_audio, online, custom_detection, training)
+    - **status**: 按状态筛选 (pending, running, completed, failed, cancelled)
+    - **limit**: 返回数量
+    - **offset**: 偏移量
+    """
+    all_tasks = []
+
+    # 1. 离线音频检测任务
+    if not task_type or task_type == "offline_audio":
+        try:
+            from backend.core.task_manager import task_manager
+            for tid, t in task_manager.tasks.items():
+                all_tasks.append({
+                    "id": t.id,
+                    "type": "offline_audio",
+                    "status": t.status,
+                    "algorithm": t.algorithm,
+                    "algorithm_family": "",
+                    "progress": t.progress,
+                    "created_at": t.created_at.isoformat() if t.created_at else None,
+                    "started_at": t.started_at.isoformat() if t.started_at else None,
+                    "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+                    "file_count": len(t.files),
+                    "error": t.error,
+                    "client_name": None,
+                    "category": None,
+                })
+        except Exception:
+            pass
+
+    # 2. 在线检测任务
+    if not task_type or task_type == "online":
+        try:
+            from backend.core.client_monitor_service import client_detection_service
+            results = client_detection_service.get_results(limit=1000, offset=0)
+            for r in results:
+                ts = r.get("timestamp", "")
+                all_tasks.append({
+                    "id": f"online_{r.get('result_id', '')}",
+                    "type": "online",
+                    "status": "completed",
+                    "algorithm": r.get("algorithm", ""),
+                    "algorithm_family": "",
+                    "progress": 100.0,
+                    "created_at": ts,
+                    "started_at": ts,
+                    "completed_at": ts,
+                    "file_count": 1,
+                    "error": None,
+                    "client_name": r.get("client_name"),
+                    "category": None,
+                })
+        except Exception:
+            pass
+
+    # 3. 自定义图片检测任务
+    if not task_type or task_type == "custom_detection":
+        try:
+            from backend.api.custom_detection import CUSTOM_TASKS
+            for tid, t in CUSTOM_TASKS.items():
+                # 统一状态映射
+                status_val = t.get("status", "queued")
+                if status_val == "processing":
+                    status_val = "running"
+                elif status_val == "queued":
+                    status_val = "pending"
+                results_list = t.get("results", [])
+                all_tasks.append({
+                    "id": tid,
+                    "type": "custom_detection",
+                    "status": status_val,
+                    "algorithm": t.get("algorithm", ""),
+                    "algorithm_family": t.get("algorithm_family", ""),
+                    "progress": t.get("progress", 0.0),
+                    "created_at": t.get("created_at"),
+                    "started_at": t.get("started_at"),
+                    "completed_at": t.get("completed_at"),
+                    "file_count": t.get("file_count", len(results_list)),
+                    "error": t.get("error"),
+                    "client_name": None,
+                    "category": None,
+                })
+        except Exception:
+            pass
+
+    # 4. 模型训练任务
+    if not task_type or task_type == "training":
+        try:
+            from backend.api.training import TRAINING_TASKS
+            for tid, t in TRAINING_TASKS.items():
+                # 统一状态映射
+                status_val = t.get("status", "pending")
+                if status_val == "processing":
+                    status_val = "running"
+                # 训练任务 progress 是字符串，用 progress_pct 数字字段
+                progress_val = t.get("progress_pct", 0.0)
+                if isinstance(progress_val, str):
+                    try:
+                        progress_val = float(progress_val)
+                    except (ValueError, TypeError):
+                        progress_val = 0.0
+                all_tasks.append({
+                    "id": tid,
+                    "type": "training",
+                    "status": status_val,
+                    "algorithm": t.get("algorithm_name", ""),
+                    "algorithm_family": t.get("algorithm_family", ""),
+                    "progress": progress_val,
+                    "created_at": t.get("created_at"),
+                    "started_at": t.get("started_at"),
+                    "completed_at": t.get("completed_at"),
+                    "file_count": 0,
+                    "error": t.get("error") or (t.get("progress") if isinstance(t.get("progress"), str) and "失败" in t.get("progress", "") else None),
+                    "client_name": None,
+                    "category": ", ".join(t.get("categories", [])),
+                })
+        except Exception:
+            pass
+
+    # 按状态筛选
+    if status:
+        all_tasks = [t for t in all_tasks if t["status"] == status]
+
+    # 按时间倒序
+    all_tasks.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+
+    total = len(all_tasks)
+    page = all_tasks[offset:offset + limit]
+
+    return {"tasks": page, "total": total}
+
+
+@router.get("/stats/all")
+async def get_all_task_stats():
+    """获取所有类型任务的统计信息"""
+    stats = {
+        "total": 0, "running": 0, "pending": 0, "completed": 0, "failed": 0, "cancelled": 0,
+        "by_type": {
+            "offline_audio": {"total": 0, "running": 0, "pending": 0, "completed": 0, "failed": 0},
+            "online": {"total": 0, "running": 0, "pending": 0, "completed": 0, "failed": 0},
+            "custom_detection": {"total": 0, "running": 0, "pending": 0, "completed": 0, "failed": 0},
+            "training": {"total": 0, "running": 0, "pending": 0, "completed": 0, "failed": 0},
+        }
+    }
+
+    # 离线音频
+    try:
+        from backend.core.task_manager import task_manager
+        ts = task_manager.get_stats()
+        for k in ["total", "running", "pending", "completed", "failed"]:
+            stats["by_type"]["offline_audio"][k] = ts.get(k, 0)
+            stats[k] += ts.get(k, 0)
+        stats["total"] += 0  # already counted
+    except Exception:
+        pass
+
+    # 在线检测
+    try:
+        from backend.core.client_monitor_service import client_detection_service
+        online_count = client_detection_service.get_results_count()
+        stats["by_type"]["online"]["total"] = online_count
+        stats["by_type"]["online"]["completed"] = online_count
+        stats["total"] += online_count
+        stats["completed"] += online_count
+    except Exception:
+        pass
+
+    # 自定义图片检测
+    try:
+        from backend.api.custom_detection import CUSTOM_TASKS
+        for t in CUSTOM_TASKS.values():
+            s = t.get("status", "queued")
+            if s == "processing": s = "running"
+            elif s == "queued": s = "pending"
+            stats["by_type"]["custom_detection"]["total"] += 1
+            if s in stats["by_type"]["custom_detection"]:
+                stats["by_type"]["custom_detection"][s] += 1
+            stats["total"] += 1
+            if s in stats:
+                stats[s] += 1
+    except Exception:
+        pass
+
+    # 训练任务
+    try:
+        from backend.api.training import TRAINING_TASKS
+        for t in TRAINING_TASKS.values():
+            s = t.get("status", "pending")
+            if s == "processing": s = "running"
+            stats["by_type"]["training"]["total"] += 1
+            if s in stats["by_type"]["training"]:
+                stats["by_type"]["training"][s] += 1
+            stats["total"] += 1
+            if s in stats:
+                stats[s] += 1
+    except Exception:
+        pass
+
+    return stats
+
+
 @router.get("/list")
 async def list_tasks(
     status: Optional[str] = None,

@@ -55,10 +55,13 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_simplenet):
 		]
 
 		# ==> modal
+		import os
+		_wresnet50_ckpt = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))),
+		                                'models', 'pre_trained', 'wide_resnet50_racm-8234f177.pth')
 		self.model_backbone = Namespace()
 		self.model_backbone.name = 'tv_wide_resnet50_2'
-		self.model_backbone.kwargs = dict(pretrained=True,
-										  checkpoint_path='', strict=False)
+		self.model_backbone.kwargs = dict(pretrained=False,
+										  checkpoint_path=_wresnet50_ckpt, strict=False)
 
 		self.layers_to_extract_from = ('layer2', 'layer3')
 		self.model = Namespace()

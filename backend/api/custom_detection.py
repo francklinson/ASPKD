@@ -104,6 +104,32 @@ class TaskStatus(BaseModel):
 CUSTOM_TASKS: Dict[str, Dict[str, Any]] = {}
 TASKS_LOCK = threading.Lock()
 
+
+def _infer_algorithm_family(algorithm: str) -> str:
+    """从算法名推断算法族"""
+    algo_lower = algorithm.lower()
+    if algo_lower.startswith("dinomaly2_") or algo_lower.startswith("dinomaly2-"):
+        return "dinomaly2"
+    elif algo_lower.startswith("dinomaly_") or algo_lower.startswith("dinomaly-"):
+        return "dinomaly"
+    elif algo_lower.startswith("ader_") or algo_lower.startswith("ader-"):
+        return "ader"
+    # Anomalib 算法名无前缀，用已知列表判断
+    anomalib_algos = {
+        "patchcore", "padim", "cfa", "csflow", "dfkde", "dfm", "draem", "dsr",
+        "efficient_ad", "fastflow", "fre", "reverse_distillation", "stfpm",
+        "ganomaly", "supersimplenet", "uflow", "uninet", "vlm_ad", "winclip",
+        "anomalyvfm", "cfm", "general_ad", "glass", "inp_former", "l2bt",
+        "patchflow", "anomaly_dino",
+    }
+    if algo_lower in anomalib_algos:
+        return "anomalib"
+    # ADer 算法名
+    ader_algos = {"mambaad", "invad", "vitad", "unad", "cflow", "pyramidflow", "simplenet"}
+    if algo_lower in ader_algos:
+        return "ader"
+    return ""
+
 # ---- 辅助路径 ----
 
 UPLOAD_DIR = os.path.join(PROJECT_ROOT, "data", "uploads", "custom_detection")
@@ -421,6 +447,7 @@ async def upload_and_detect(
                 "progress": 0.0,
                 "message": "任务已创建，等待处理...",
                 "algorithm": algorithm,
+                "algorithm_family": _infer_algorithm_family(algorithm),
                 "threshold": threshold,
                 "file_count": len(saved_paths),
                 "results": None,
@@ -520,6 +547,7 @@ async def detect_from_dataset(
             "progress": 0.0,
             "message": "任务已创建，等待处理...",
             "algorithm": algorithm,
+            "algorithm_family": _infer_algorithm_family(algorithm),
             "threshold": threshold,
             "file_count": len(copied_paths),
             "results": None,
@@ -567,6 +595,7 @@ def _run_detection_task(
                 CUSTOM_TASKS[task_id]["status"] = "processing"
                 CUSTOM_TASKS[task_id]["progress"] = 5.0
                 CUSTOM_TASKS[task_id]["message"] = "正在初始化检测器..."
+                CUSTOM_TASKS[task_id]["started_at"] = time.time()
 
         # 创建检测器
         import torch
@@ -769,6 +798,7 @@ def _run_detection_task(
                 CUSTOM_TASKS[task_id]["progress"] = 100.0
                 CUSTOM_TASKS[task_id]["message"] = f"检测完成。异常: {anomaly_count}/{len(results_list)}"
                 CUSTOM_TASKS[task_id]["results"] = results_list
+                CUSTOM_TASKS[task_id]["completed_at"] = time.time()
                 CUSTOM_TASKS[task_id]["summary"] = result_data["summary"]
 
         # 释放检测器
@@ -803,6 +833,7 @@ def _run_detection_task(
                 CUSTOM_TASKS[task_id]["status"] = "failed"
                 CUSTOM_TASKS[task_id]["error"] = str(e)
                 CUSTOM_TASKS[task_id]["message"] = f"检测失败: {str(e)}"
+                CUSTOM_TASKS[task_id]["completed_at"] = time.time()
 
 
 @router.get("/result/{task_id}")

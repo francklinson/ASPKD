@@ -734,7 +734,10 @@ class TaskManager:
             "algorithm": t.algorithm,
             "file_count": len(t.files),
             "progress": t.progress,
-            "created_at": t.created_at.isoformat() if t.created_at else None
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "started_at": t.started_at.isoformat() if t.started_at else None,
+            "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+            "error": t.error,
         } for t in tasks]
     
     def get_task_count(self) -> int:

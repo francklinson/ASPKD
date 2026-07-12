@@ -2,6 +2,7 @@ from argparse import Namespace
 from timm.data.constants import IMAGENET_DEFAULT_MEAN
 from timm.data.constants import IMAGENET_DEFAULT_STD
 import torchvision.transforms.functional as F
+import os
 
 class cfg_model_vitad(Namespace):
 
@@ -9,7 +10,9 @@ class cfg_model_vitad(Namespace):
 		Namespace.__init__(self)
 		self.model_t = Namespace()
 		self.model_t.name = 'vit_small_patch16_224_dino'
-		self.model_t.kwargs = dict(pretrained=True, checkpoint_path='', strict=True,
+		_vits_dino_ckpt = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))),
+		                                'models', 'pre_trained', 'vitad', 'vit_small_patch16_224_dino.pth')
+		self.model_t.kwargs = dict(pretrained=False, checkpoint_path=_vits_dino_ckpt, pretrained_strict=False, strict=True,
 								   img_size=256, teachers=[3, 6, 9], neck=[12])
 		self.model_f = Namespace()
 		self.model_f.name = 'fusion'
