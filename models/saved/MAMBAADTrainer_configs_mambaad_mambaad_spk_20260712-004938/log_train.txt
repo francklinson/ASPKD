@@ -1,0 +1,7 @@
+2026-07-12 00:49:38,095 - ==> Logging on master GPU: 0
+2026-07-12 00:49:38,095 - ==> Running Trainer: MAMBAADTrainer
+2026-07-12 00:49:38,095 - ==> Using GPU: [0] for Training
+2026-07-12 00:49:38,095 - ==> Building model
+2026-07-12 00:49:38,189 - Loading pretrained weights from Hugging Face hub (timm/resnet34.a1_in1k)
+2026-07-12 00:50:48,299 - '[Errno 101] Network is unreachable' thrown while requesting HEAD https://huggingface.co/timm/resnet34.a1_in1k/resolve/main/model.safetensors
+2026-07-12 00:50:48,299 - Retrying in 1s [Retry 1/5].
