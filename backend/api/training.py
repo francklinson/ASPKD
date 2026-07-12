@@ -74,6 +74,15 @@ ALGORITHM_FAMILIES = {
             {"id": "dinomaly2_dinov2_large", "name": "Dinomaly2 DINOv2 Large", "type": "feature_based",
              "description": "基于 DINOv2-reg ViT-L/14 编码器，全特性支持，当前 SOTA 级别性能",
              "performance": "MVTec AD AUROC ~99%，当前 SOTA 级别", "gpu_memory": "~8GB", "input_size": "448x448"},
+            {"id": "dinomaly2_dinov3_small", "name": "Dinomaly2 DINOv3 Small", "type": "feature_based",
+             "description": "基于 DINOv3 ViT-S/16 编码器，新一代视觉Transformer，更强特征表示",
+             "performance": "MVTec AD AUROC ~97%，DINOv3 特征更强", "gpu_memory": "~2GB", "input_size": "448x448"},
+            {"id": "dinomaly2_dinov3_base", "name": "Dinomaly2 DINOv3 Base", "type": "feature_based",
+             "description": "基于 DINOv3 ViT-B/16 编码器，精度与速度均衡，DINOv3 增强特征",
+             "performance": "MVTec AD AUROC ~98%，DINOv3 精度更高", "gpu_memory": "~4GB", "input_size": "448x448"},
+            {"id": "dinomaly2_dinov3_large", "name": "Dinomaly2 DINOv3 Large", "type": "feature_based",
+             "description": "基于 DINOv3 ViT-L/16 编码器，最高精度，DINOv3 最强特征表示",
+             "performance": "MVTec AD AUROC ~99%，DINOv3 SOTA 级别", "gpu_memory": "~8GB", "input_size": "448x448"},
         ],
     },
     "anomalib": {
@@ -477,7 +486,7 @@ async def get_trained_models():
                 model_type = "dinov3" if "dinov3" in fname else "dinov2"
                 model_size = "large" if "large" in fname else ("base" if "base" in fname else "small")
             elif algorithm_family == "dinomaly2":
-                model_type = "dinov2"
+                model_type = "dinov3" if "dinov3" in fname else "dinov2"
                 model_size = "large" if "large" in fname else ("base" if "base" in fname else "small")
 
             # 提取算法名称
@@ -650,6 +659,7 @@ async def start_training(request: TrainingRequest):
         "completed_at": None,
         "model_path": None,
         "log": "",
+        "log_file": os.path.join(PROJECT_ROOT, "logs", "training", f"{task_id}.log"),
         "process": None,
         "save_name": save_name,
         "config": config.model_dump(),
@@ -768,11 +778,14 @@ def _run_dinomaly_training(task_id: str, config: TrainingConfig, save_name: str)
             task["log"] += f"\n[错误] {str(e)}"
 
 
-# Dinomaly2 backbone 映射 (仅支持 DINOv2)
+# Dinomaly2 backbone 映射 (支持 DINOv2 和 DINOv3)
 _D2_BACKBONE_MAP = {
     ("dinov2", "small"): "dinov2reg_vit_small_14",
     ("dinov2", "base"): "dinov2reg_vit_base_14",
     ("dinov2", "large"): "dinov2reg_vit_large_14",
+    ("dinov3", "small"): "dinov3_vit_small_16",
+    ("dinov3", "base"): "dinov3_vit_base_16",
+    ("dinov3", "large"): "dinov3_vit_large_16",
 }
 
 
@@ -815,6 +828,10 @@ def _run_dinomaly2_training(task_id: str, config: TrainingConfig, save_name: str
             "--lc", "2",
             "--cr", "1",
         ]
+
+        # DINOv3 需要 use_get_intermediate（缺少 prepare_tokens 方法）
+        if "v3" in backbone:
+            cmd.append("--use_get_intermediate")
 
         _run_subprocess_with_logging(task_id, cmd)
 
@@ -910,29 +927,23 @@ def _run_ader_training(task_id: str, config: TrainingConfig, save_name: str):
         ader_root = os.path.join(PROJECT_ROOT, "algorithms")
         ader_cwd = os.path.join(PROJECT_ROOT, "algorithms", "ADer")
 
-        # 配置路径检查: ADer 用 importlib 导入配置，需要模块路径
-        # 格式: ADer/configs/{method}/{method}_spk.py → ADer.configs.{method}.{method}_spk
-        cfg_dir = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "configs", method_name.lower())
-        cfg_file = os.path.join(cfg_dir, f"{method_name.lower()}_spk.py")
+        # 配置路径: 优先使用 benchmark 配置（通用、可维护），通过命令行参数覆盖数据路径等
+        # 格式: configs/benchmark/{method}/{method}_256_100e.py
+        method_lower = method_name.lower()
+        # 处理 invad-lite 特殊命名
+        cfg_method_dir = method_lower
+        cfg_file_name = f"{method_lower}_256_100e.py"
 
-        if not os.path.isfile(cfg_file):
-            # 降级到 benchmark 配置（如果存在）
-            # benchmark 配置命名格式: {method}_256_100e.py 或 {method}_mvtec.py
-            benchmark_dir = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "configs",
-                                         "benchmark", method_name.lower())
-            benchmark_cfg = None
-            for candidate in [f"{method_name.lower()}_mvtec.py", f"{method_name.lower()}_256_100e.py"]:
-                path = os.path.join(benchmark_dir, candidate)
-                if os.path.isfile(path):
-                    benchmark_cfg = path
-                    break
-            if benchmark_cfg:
-                os.makedirs(cfg_dir, exist_ok=True)
-                import shutil
-                shutil.copy2(benchmark_cfg, cfg_file)
-                task["log"] += f"\n[INFO] 从 benchmark 配置创建: {cfg_file}"
-            else:
-                raise FileNotFoundError(f"ADer 配置文件不存在: {cfg_file}")
+        benchmark_dir = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "configs", "benchmark", cfg_method_dir)
+        benchmark_cfg = None
+        for candidate in [cfg_file_name, f"{method_lower}_mvtec.py", f"{method_lower}_256_300e.py"]:
+            path = os.path.join(benchmark_dir, candidate)
+            if os.path.isfile(path):
+                benchmark_cfg = path
+                break
+
+        if not benchmark_cfg:
+            raise FileNotFoundError(f"ADer benchmark 配置不存在: {benchmark_dir}/{cfg_file_name}")
 
         # 设置 PYTHONPATH 使 ADer 内部模块可导入
         env = os.environ.copy()
@@ -943,7 +954,8 @@ def _run_ader_training(task_id: str, config: TrainingConfig, save_name: str):
         # - ADer 内部所有相对导入（from util.xxx, from model.xxx, from configs.xxx）正常工作
         # - trainer/model 注册到正确的 TRAINER/MODEL 实例，避免实例分裂
         # - glob 路径（trainer/[!_]*.py 等）正确匹配
-        cfg_path = f"configs/{method_name.lower()}/{method_name.lower()}_spk.py"
+        # 配置路径（相对于 algorithms/ADer/）
+        cfg_path = f"configs/benchmark/{cfg_method_dir}/{os.path.basename(benchmark_cfg)}"
 
         # 计算数据目录相对于 algorithms/ADer/ 的路径
         # ADer 内部 data.root 是相对于 CWD (algorithms/ADer/) 的
@@ -961,12 +973,28 @@ def _run_ader_training(task_id: str, config: TrainingConfig, save_name: str):
         except ValueError:
             checkpoint_rel = saved_results_abs
 
+        # 计算训练 epoch 数：total_iters 来自前端输入，按每个 epoch 100 iter 近似换算
+        epoch_full = max(1, config.total_iters // 100)
+        test_start_epoch = epoch_full
+        test_per_epoch = max(1, epoch_full // 10)
+
         cmd = [
             sys.executable, script_path,
             "-c", cfg_path,
             "-m", "train",
             f"data.root={data_rel}",
             f"trainer.checkpoint={checkpoint_rel}",
+            f"data.cls_names={config.categories}",
+            f"epoch_full={epoch_full}",
+            f"test_start_epoch={test_start_epoch}",
+            f"test_per_epoch={test_per_epoch}",
+            f"trainer.epoch_full={epoch_full}",
+            f"trainer.test_start_epoch={test_start_epoch}",
+            f"trainer.test_per_epoch={test_per_epoch}",
+            "use_adeval=False",
+            "metrics=['mAUROC_sp_max','mAUROC_sp_mean']",
+            "evaluator.kwargs.use_adeval=False",
+            "evaluator.kwargs.metrics=['mAUROC_sp_max','mAUROC_sp_mean']",
         ]
 
         _run_subprocess_with_logging(task_id, cmd, env=env, cwd=ader_cwd)
@@ -1005,6 +1033,15 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
         return
 
     task["log"] = f"命令: {' '.join(cmd)}\n"
+
+    # 创建日志文件
+    log_file_path = task.get("log_file")
+    log_fh = None
+    if log_file_path:
+        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+        log_fh = open(log_file_path, 'w', encoding='utf-8')
+        log_fh.write(task["log"])
+        log_fh.flush()
 
     venv_python = os.path.join(PROJECT_ROOT, ".venv", "bin", "python")
     if os.path.exists(venv_python):
@@ -1051,6 +1088,9 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
         if not task:
             return
         task["log"] += line
+        if log_fh:
+            log_fh.write(line)
+            log_fh.flush()
 
         # 解析迭代/损失信息（通用解析）
         iter_match = re.search(r'Iter\s*\[(\d+)/(\d+)\].*Loss:\s*([\d.]+)', line, re.IGNORECASE)
@@ -1090,6 +1130,11 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
             task["log"] = task["log"][-40000:]
 
     process.wait()
+
+    # 关闭日志文件
+    if log_fh:
+        log_fh.close()
+        log_fh = None
 
     task = TRAINING_TASKS.get(task_id)
     if not task:

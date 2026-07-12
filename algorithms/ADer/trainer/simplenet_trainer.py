@@ -106,7 +106,7 @@ class SimpleNetTrainer(BaseTrainer):
 			batch_idx += 1
 			test_data = next(test_loader)
 			self.set_input(test_data)
-			self.scores, self.preds = self.net.net_simplenet.predict(self.imgs)
+			self.scores, self.preds = self.net.net_simplenet.predict(test_data)
 			# self.forward()
 			# self.net.predict()
 			loss_cos = self.loss_terms['sum'](self.true_loss, self.fake_loss)

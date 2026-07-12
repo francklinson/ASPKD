@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser()
     # parser.add_argument('-c', '--cfg_path', default='configs/rd_mvtec_debug.py')
     # parser.add_argument('-c', '--cfg_path', default='configs/invad_mvtec_debug.py')
-    parser.add_argument('-c', '--cfg_path', default='configs/mambaad/mambaad_spk.py')
+    parser.add_argument('-c', '--cfg_path', default='configs/benchmark/mambaad/mambaad_256_100e.py')
     parser.add_argument('-m', '--mode', default='test', choices=['train', 'test'])
     parser.add_argument('--sleep', type=int, default=-1)
     parser.add_argument('--memory', type=int, default=-1)

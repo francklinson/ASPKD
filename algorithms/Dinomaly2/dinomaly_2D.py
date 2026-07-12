@@ -164,7 +164,8 @@ def train(item_list, args):
                      remove_class_token=False,
                      fuse_layer_encoder=fuse_layer_encoder,
                      fuse_layer_decoder=fuse_layer_decoder,
-                     context_aware_recenter=args.cr)
+                     context_aware_recenter=args.cr,
+                     use_get_intermediate=args.use_get_intermediate)
     model = model.to(device)
     trainable = nn.ModuleList([bottleneck, decoder])
 
@@ -206,7 +207,7 @@ def train(item_list, args):
             lr_scheduler.step()
 
             if (it + 1) % 5000 == 0:
-                # torch.save(ader_model.state_dict(), os.path.join(args.save_dir, args.save_name, 'ader_model.pth'))
+                torch.save(ader_model.state_dict(), os.path.join(args.save_dir, args.save_name, 'ader_model.pth'))
 
                 auroc_sp_list, ap_sp_list, f1_sp_list = [], [], []
                 auroc_px_list, ap_px_list, f1_px_list, aupro_px_list = [], [], [], []
@@ -243,7 +244,7 @@ def train(item_list, args):
                 print_fn('iter [{}/{}], loss:{:.4f}'.format(it, total_iters, np.mean(loss_list)))
                 loss_list = []
 
-    # torch.save(model.state_dict(), os.path.join(args.save_dir, args.save_name, 'model.pth'))
+    torch.save(model.state_dict(), os.path.join(args.save_dir, args.save_name, 'model.pth'))
 
     return
 
@@ -280,6 +281,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr_decay_ratio', type=float, default=1.)
     parser.add_argument('--cuda', type=int, default=3)
     parser.add_argument('--categories', type=str, default='', help='Comma-separated category list (overrides auto-detect)')
+    parser.add_argument('--use_get_intermediate', action='store_true', default=False,
+                        help='Use get_intermediate_layers instead of prepare_tokens (required for DINOv3)')
     args = parser.parse_args()
     #
     if args.categories:

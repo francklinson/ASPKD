@@ -59,6 +59,9 @@ def get_optim(optim_kwargs, net, lr, betas=None, filter_bias_and_bn=True):
 		
 	if kwargs.get('betas', None) and betas:
 		kwargs['betas'] = betas
+	# Ensure betas are floats (PyTorch Adam requires both to be float, not int)
+	if 'betas' in kwargs and kwargs['betas'] is not None:
+		kwargs['betas'] = tuple(float(b) for b in kwargs['betas'])
 	
 	optim_terms = {
 		'sgd': optim.SGD,

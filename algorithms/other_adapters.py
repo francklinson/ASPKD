@@ -52,10 +52,9 @@ class MultiADSAdapter(GenericAdapter):
 
 @register_algorithm("musc")
 class MuScAdapter(GenericAdapter):
-    """MuSc多尺度对比学习"""
+    """[已废弃] MuSc多尺度对比学习 — 请使用 musc_adapter.py 中的独立变体 (musc_clip_*, musc_dinov2_*)"""
     def __init__(self, model_path: str, **kwargs):
         super().__init__(model_path, algorithm_name='MuSc', **kwargs)
-        # TODO: 实现MuSc具体适配
 
 
 @register_algorithm("dictas")
@@ -68,10 +67,9 @@ class DictASAdapter(GenericAdapter):
 
 @register_algorithm("subspacead")
 class SubspaceADAdapter(GenericAdapter):
-    """SubspaceAD子空间异常检测"""
+    """[已废弃] SubspaceAD子空间异常检测 — 请使用 subspacead_adapter.py 中的独立变体 (subspacead_dinov2_*)"""
     def __init__(self, model_path: str, **kwargs):
         super().__init__(model_path, algorithm_name='SubspaceAD', **kwargs)
-        # TODO: 实现SubspaceAD具体适配
 
 
 @register_algorithm("audio_feature_cluster")

@@ -51,16 +51,16 @@ class ADerTaskAssigner:
     def __init__(self, method):
         self.method = method
         if self.method == 'MambaAD':
-            self.cfg_path = 'ADer/configs/mambaad/mambaad_spk.py'
+            self.cfg_path = 'ADer/configs/benchmark/mambaad/mambaad_256_100e.py'
         elif self.method == 'InVad':
-            self.cfg_path = 'ADer/configs/invad/invad_spk.py'
+            self.cfg_path = 'ADer/configs/benchmark/invad/invad_256_100e.py'
         elif self.method == 'ViTAD':
-            self.cfg_path = 'ADer/configs/vitad/vitad_spk.py'
+            self.cfg_path = 'ADer/configs/benchmark/vitad/vitad_256_100e.py'
         elif self.method == 'DiAD':
             # 暂未实现
             self.cfg_path = 'ADer/configs/diad/diad_spk.py'
         elif self.method == 'UniAD':
-            self.cfg_path = 'ADer/configs/uniad/uniad_spk.py'
+            self.cfg_path = 'ADer/configs/benchmark/uniad/uniad_256_100e.py'
         elif self.method == 'CFlow':
             self.cfg_path = 'ADer/configs/benchmark/cflow/cflow_256_100e.py'
         elif self.method == 'PyramidFlow':

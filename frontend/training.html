@@ -179,21 +179,23 @@
         .status-badge.pending { background: #fff7e6; color: #faad14; }
 
         .log-console {
-            background: #1a1a2e;
-            color: #00ff88;
+            background: #f8f9fb;
+            color: #374151;
+            border: 1px solid #e5e7eb;
             border-radius: 8px;
             padding: 16px;
-            font-family: 'Consolas', monospace;
+            font-family: 'Consolas', 'Menlo', monospace;
             font-size: 13px;
+            line-height: 1.6;
             height: 300px;
             overflow-y: auto;
             margin-top: 16px;
             white-space: pre-wrap;
             word-break: break-all;
         }
-        .log-console .error { color: #ff6b6b; }
-        .log-console .warning { color: #ffd93d; }
-        .log-console .info { color: #6bcbff; }
+        .log-console .error { color: #dc2626; }
+        .log-console .warning { color: #d97706; }
+        .log-console .info { color: #2563eb; }
 
         .model-list-item {
             display: flex;
@@ -637,12 +639,8 @@
             html += `
                 <div class="form-group">
                     <label>训练迭代次数</label>
-                    <select class="form-control" id="totalIters">
-                        <option value="500" ${savedTotalIters === '500' ? 'selected' : ''}>500 (快速测试)</option>
-                        <option value="1000" ${savedTotalIters === '1000' ? 'selected' : ''}>1000 (标准训练)</option>
-                        <option value="2000" ${savedTotalIters === '2000' ? 'selected' : ''}>2000 (充分训练)</option>
-                        <option value="5000" ${savedTotalIters === '5000' ? 'selected' : ''}>5000 (深度训练)</option>
-                    </select>
+                    <input type="number" class="form-control" id="totalIters" min="100" max="100000" step="100" value="${savedTotalIters || '1000'}" placeholder="100 ~ 100000">
+                    <small style="color:#888;margin-top:4px;display:block;">建议：500 快速测试 / 1000~2000 标准训练 / 5000+ 深度训练</small>
                 </div>
                 <div class="form-group">
                     <label>批次大小</label>
@@ -980,7 +978,7 @@
                 algorithmName = document.getElementById('algorithmSelect').value;
             }
 
-            const totalIters = parseInt(savedTotalIters);
+            const totalIters = Math.min(100000, Math.max(100, parseInt(savedTotalIters) || 1000));
             const batchSize = parseInt(savedBatchSize);
 
             try {
@@ -1060,6 +1058,8 @@
 
                 let percentage = 0;
                 if (status.status === 'completed') percentage = 100;
+                else if (status.status === 'running' && status.current_iter > 0 && status.total_iters > 0)
+                    percentage = Math.round(status.current_iter / status.total_iters * 100);
                 else if (status.status === 'running') percentage = 50;
                 document.getElementById('progressFill').style.width = percentage + '%';
 
@@ -1089,7 +1089,7 @@
         // ============ 恢复运行中的任务 ============
         async function checkRunningTasks() {
             try {
-                const resp = await apiFetch('/api/training/status');
+                const resp = await apiFetch('/api/training/tasks');
                 const tasks = await resp.json();
                 const running = tasks.find(t => t.status === 'running' || t.status === 'pending');
                 if (running) {
@@ -1097,13 +1097,29 @@
                     document.getElementById('noTaskPanel').style.display = 'none';
                     document.getElementById('taskPanel').style.display = 'block';
                     document.getElementById('btnStartTraining').disabled = true;
+                    document.getElementById('btnStopTraining').style.display = 'block';
                     const family = running.algorithm_family || 'dinomaly';
                     const familyName = familiesData?.[family]?.name || family;
                     document.getElementById('taskCategories').textContent =
                         `类别: ${running.categories.join(', ')} | ${familyName} | ${running.model_type || '-'}${running.model_size ? '/' + running.model_size : ''}`;
+                    // 立即获取一次完整状态（含日志）
+                    try {
+                        const statusResp = await apiFetch(`/api/training/status/${currentTaskId}`);
+                        const status = await statusResp.json();
+                        if (status.log) {
+                            document.getElementById('logConsole').textContent = status.log;
+                            document.getElementById('logConsole').scrollTop = document.getElementById('logConsole').scrollHeight;
+                        }
+                        const statusBadge = document.getElementById('taskStatus');
+                        statusBadge.textContent = status.status;
+                        statusBadge.className = 'status-badge ' + status.status;
+                        document.getElementById('progressText').textContent = status.progress;
+                    } catch(e) {}
                     startPolling();
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error('检查运行中的任务失败:', e);
+            }
         }
 
         // ============ 初始化 ============

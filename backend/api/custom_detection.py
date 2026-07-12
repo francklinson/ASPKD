@@ -19,15 +19,17 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 
 router = APIRouter(tags=["custom-detection"])
 
-# 需要排除的算法（存根或音频专用）
+# 需要在自定义检测中排除的算法（完全不可用的存根/不适用类型）
+# 注：仅推理可用的算法（padim/dfkde/MuSc/SubspaceAD等）不在此列表，它们在检测页面正常可用
+# 详细决策见 records/算法可用性总览.md
 EXCLUDED_ALGORITHMS = {
-    # other_adapters.py 中的未实现存根
+    # === other_adapters.py 中的未实现存根（永久不实现）===
+    # hiad/multiads/dictas: 空壳，无从零实现的算法代码
+    # musc/subspacead: 旧版统一入口，新版独立适配器已覆盖（musc_clip_*, subspacead_dinov2_*）
     "hiad", "multiads", "musc", "dictas", "subspacead", "audio_feature_cluster",
-    # ADer 系列 - 音频→频谱图管道（独特算法后续补全图片推理）
-    "mambaad", "invad", "vitad", "unad", "cflow", "pyramidflow", "simplenet",
-    # ADer 新增（图片推理待实现: destseg, realnet, rdpp）
-    "destseg", "realnet", "rdpp",
-    # BaseASD 系列 - 依赖 tensorflow/keras，未安装
+
+    # === BaseASD 系列 — 依赖 TensorFlow/Keras（永久不安装）===
+    # 原因: 与PyTorch环境冲突风险，性能已被Dinomaly/Anomalib超越
     "denseae", "cae", "vae", "aegan", "differnet",
 }
 
@@ -49,6 +51,8 @@ ALGORITHM_GROUPS = {
     "SubspaceAD (少样本)": ["subspacead_dinov2_large_672", "subspacead_dinov2_large_518",
                            "subspacead_dinov2_large_336", "subspacead_dinov2_base_672",
                            "subspacead_dinov2_base_518", "subspacead_dinov2_small_672"],
+    "ADer": ["mambaad", "invad", "vitad", "unad", "cflow", "pyramidflow", "simplenet",
+             "destseg", "realnet", "rdpp"],
 }
 
 # 反向映射：算法名 → 分组名
@@ -333,6 +337,33 @@ def _get_algorithm_display_name(alg_name: str) -> str:
         "subspacead_dinov2_base_672": "SubspaceAD DINOv2-B@672px",
         "subspacead_dinov2_base_518": "SubspaceAD DINOv2-B@518px",
         "subspacead_dinov2_small_672": "SubspaceAD DINOv2-S@672px",
+        # Dinomaly2
+        "dinomaly2_dinov2_small": "Dinomaly2 DINOv2 Small",
+        "dinomaly2_dinov2_base": "Dinomaly2 DINOv2 Base",
+        "dinomaly2_dinov2_large": "Dinomaly2 DINOv2 Large",
+        "dinomaly2_dinov3_small": "Dinomaly2 DINOv3 Small",
+        "dinomaly2_dinov3_base": "Dinomaly2 DINOv3 Base",
+        "dinomaly2_dinov3_large": "Dinomaly2 DINOv3 Large",
+        # ADer
+        "mambaad": "ADer MambaAD",
+        "invad": "ADer InVAD",
+        "vitad": "ADer ViTAD",
+        "unad": "ADer UniAD",
+        "cflow": "ADer CFLow-AD",
+        "pyramidflow": "ADer PyramidFlow",
+        "simplenet": "ADer SimpleNet",
+        "destseg": "ADer DeSTSeg",
+        "realnet": "ADer RealNet",
+        "rdpp": "ADer RD++",
+        # Anomalib v2.5.0 新增
+        "anomalyvfm": "AnomalyVFM",
+        "cfm": "CFM",
+        "general_ad": "General AD",
+        "glass": "GLASS",
+        "inp_former": "InpFormer",
+        "l2bt": "L2BT",
+        "patchflow": "PatchFlow",
+        "anomaly_dino": "Anomaly DINO",
     }
     return name_map.get(alg_name, alg_name)
 
