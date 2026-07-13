@@ -146,13 +146,13 @@ function renderTrainedModels(models) {
     const container = document.getElementById('custom-model-list');
     if (!container) return;
 
-    container.innerHTML = models.map(m => {
+    container.innerHTML = models.map((m, idx) => {
         const familyBadge = _familyBadgeHtml(m.algorithm_family);
         const algoName = m.algorithm_name ? `<span style="color:#333;font-weight:500;">${_esc(m.algorithm_name)}</span>` : '';
         const category = m.category ? `<span style="color:#888;">· ${_esc(m.category)}</span>` : '';
         const selected = selectedModelPath === m.path ? 'selected' : '';
         return `
-            <div class="custom-model-item ${selected}" onclick="selectTrainedModel('${_esc(m.path)}','${_esc(m.name)}','${_esc(m.matched_algorithm_id || '')}')" style="padding:10px 12px; border:1px solid ${selected ? '#667eea' : '#e8e8e8'}; border-radius:6px; margin-bottom:6px; cursor:pointer; transition:all 0.2s; ${selected ? 'background:#f0f3ff;' : ''}">
+            <div class="custom-model-item ${selected}" data-idx="${idx}" style="padding:10px 12px; border:1px solid ${selected ? '#667eea' : '#e8e8e8'}; border-radius:6px; margin-bottom:6px; cursor:pointer; transition:all 0.2s; ${selected ? 'background:#f0f3ff;' : ''}">
                 <div style="font-size:13px; font-weight:500; color:#333; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${_esc(m.name)}</div>
                 <div style="font-size:12px; color:#666; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                     ${familyBadge} ${algoName} ${category}
@@ -161,6 +161,15 @@ function renderTrainedModels(models) {
             </div>
         `;
     }).join('');
+
+    // 使用事件委托，避免路径中特殊字符导致 onclick 解析错误
+    container.querySelectorAll('.custom-model-item').forEach(el => {
+        el.addEventListener('click', function() {
+            const idx = parseInt(this.dataset.idx);
+            const m = models[idx];
+            if (m) selectTrainedModel(m.path, m.name, m.matched_algorithm_id || '');
+        });
+    });
 }
 
 function _familyBadgeHtml(family) {
@@ -217,8 +226,8 @@ function selectTrainedModel(path, name, matchedAlgoId) {
         infoPanel.style.display = 'block';
     }
 
-    // 重新渲染模型列表高亮选中项
-    renderTrainedModels(allTrainedModels);
+    // 重新渲染模型列表高亮选中项（保持当前筛选状态）
+    filterCustomModels();
 }
 
 function clearSelectedModel() {
@@ -228,7 +237,7 @@ function clearSelectedModel() {
     updateAlgorithmInfo('');
     const infoPanel = document.getElementById('custom-selected-model-info');
     if (infoPanel) infoPanel.style.display = 'none';
-    renderTrainedModels(allTrainedModels);
+    filterCustomModels();
 }
 
 // ============ 数据集加载 ============

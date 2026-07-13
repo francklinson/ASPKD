@@ -193,62 +193,33 @@ async def list_trained_models():
         else:
             continue
 
-        # 推断算法族
-        fname = entry.lower()
-        if fname.startswith("anomalib_"):
-            algorithm_family = "anomalib"
-        elif fname.startswith("ader_"):
-            algorithm_family = "ader"
-        elif fname.startswith("dinomaly2_"):
-            algorithm_family = "dinomaly2"
-        elif fname.startswith("dinomaly_") or (not fname.startswith(("anomalib_", "ader_", "dinomaly2_")) and entry.endswith('.pth')):
-            algorithm_family = "dinomaly"
-        elif "anomalib" in fname:
-            algorithm_family = "anomalib"
-        elif "ader" in fname:
-            algorithm_family = "ader"
-        else:
-            algorithm_family = "dinomaly"
-
-        # 推断算法名称
-        algorithm_name = ""
-        parts = entry.split("_")
-        if algorithm_family == "anomalib" and len(parts) >= 2:
-            algorithm_name = parts[1]
-        elif algorithm_family == "ader" and len(parts) >= 2:
-            algorithm_name = parts[1]
-        elif algorithm_family in ("dinomaly", "dinomaly2") and len(parts) >= 3:
-            algorithm_name = f"{parts[1]}_{parts[2]}" if len(parts) > 2 else parts[1]
-
-        # 推断训练类别
-        category = ""
-        known_categories = {"bottle", "cable", "capsule", "carpet", "grid",
-                            "hazelnut", "leather", "metal_nut", "pill", "screw",
-                            "tile", "toothbrush", "transistor", "wood", "zipper"}
-        for p in parts:
-            if p.lower() in known_categories:
-                category = p
-                break
+        # 推断算法族（使用统一推断模块）
+        from backend.core.model_meta import infer_model_meta
+        meta = infer_model_meta(entry, SAVED_MODELS_DIR)
+        algorithm_family = meta["algorithm_family"]
+        algorithm_name = meta["algorithm_name"]
+        category = meta["category"]
 
         # 尝试匹配到可用算法 ID
         matched_algorithm_id = ""
         if algorithm_name:
-            # 在所有算法组中查找匹配
+            all_algs = []
             for group_algs in ALGORITHM_GROUPS.values():
-                for alg_id in group_algs:
-                    if alg_id == algorithm_name or alg_id.endswith(algorithm_name):
+                all_algs.extend(group_algs)
+
+            # 1. 精确匹配
+            if algorithm_name in all_algs:
+                matched_algorithm_id = algorithm_name
+            # 2. 同族前缀匹配: family_algo_name
+            elif algorithm_family:
+                candidate = f"{algorithm_family}_{algorithm_name}"
+                if candidate in all_algs:
+                    matched_algorithm_id = candidate
+            # 3. 宽松后缀匹配
+            if not matched_algorithm_id:
+                for alg_id in all_algs:
+                    if alg_id.endswith(f"_{algorithm_name}"):
                         matched_algorithm_id = alg_id
-                        break
-                if matched_algorithm_id:
-                    break
-            # 特殊处理：Dinomaly 族
-            if not matched_algorithm_id and algorithm_family in ("dinomaly", "dinomaly2"):
-                for group_algs in ALGORITHM_GROUPS.values():
-                    for alg_id in group_algs:
-                        if alg_id.startswith(algorithm_family):
-                            matched_algorithm_id = alg_id
-                            break
-                    if matched_algorithm_id:
                         break
 
         models.append({

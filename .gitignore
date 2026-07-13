@@ -271,6 +271,7 @@ model_ckpts/*
 !model_ckpts/README.md  # 保留README
 
 # models目录下的子目录（包含下载的模型文件和缓存）
+models/saved/
 models/pre_trained/*/
 models/pre_trained/hub/
 models/pre_trained/huggingface/

@@ -490,82 +490,15 @@ async def get_trained_models():
             else:
                 continue
 
-            # 从名称推断算法族
-            fname = entry.lower()
-            if fname.startswith("anomalib_"):
-                algorithm_family = "anomalib"
-            elif fname.startswith("ader_"):
-                algorithm_family = "ader"
-            elif fname.startswith("dinomaly2_"):
-                algorithm_family = "dinomaly2"
-            elif fname.startswith("dinomaly_"):
-                algorithm_family = "dinomaly"
-            elif "anomalib" in fname:
-                algorithm_family = "anomalib"
-            elif "ader" in fname:
-                algorithm_family = "ader"
-            else:
-                algorithm_family = "dinomaly"
-
-            # 推断模型类型和大小
-            model_type = ""
-            model_size = ""
-            if algorithm_family == "dinomaly":
-                model_type = "dinov3" if "dinov3" in fname else "dinov2"
-                model_size = "large" if "large" in fname else ("base" if "base" in fname else "small")
-            elif algorithm_family == "dinomaly2":
-                model_type = "dinov3" if "dinov3" in fname else "dinov2"
-                model_size = "large" if "large" in fname else ("base" if "base" in fname else "small")
-
-            # 提取算法名称
-            algorithm_name = ""
-            if algorithm_family == "anomalib":
-                # anomalib_patchcore_bottle_... -> patchcore
-                parts = entry.split("_")
-                if len(parts) >= 2:
-                    algorithm_name = parts[1]
-            elif algorithm_family == "ader":
-                # ader_invad_bottle_... -> invad
-                parts = entry.split("_")
-                if len(parts) >= 2:
-                    algorithm_name = parts[1]
-            elif algorithm_family in ("dinomaly", "dinomaly2"):
-                algorithm_name = f"{model_type}_{model_size}"
-
-            # 推断训练类别和数据来源
-            category = ""
-            data_source = ""
-            parts = entry.split("_")
-            # 已知数据来源标识
-            source_keywords = {"mvtec", "visa", "spk"}
-            for i, p in enumerate(parts):
-                pl = p.lower()
-                if pl in source_keywords:
-                    data_source = pl
-                    # 数据来源前面的部分可能是类别
-                    if i > 0:
-                        candidate = parts[i - 1].lower()
-                        # 排除算法名和族名
-                        if candidate not in ("dinomaly", "dinomaly2", "anomalib", "ader",
-                                             "dinov2", "dinov3", "small", "base", "large",
-                                             algorithm_name.lower()):
-                            category = parts[i - 1]
-                    break
-            # 如果没找到数据来源标记，尝试从已知类别名推断
-            if not category:
-                known_categories = {"bottle", "cable", "capsule", "carpet", "grid",
-                                    "hazelnut", "leather", "metal_nut", "pill", "screw",
-                                    "tile", "toothbrush", "transistor", "wood", "zipper",
-                                    "candle", "capsules", "cashew", "chewinggum", "fryum",
-                                    "macaroni1", "pcb1", "pcb2", "pcb3", "pcb4", "pipe_fryum"}
-                for p in parts:
-                    if p.lower() in known_categories:
-                        category = p
-                        if not data_source:
-                            data_source = "mvtec" if p.lower() in {"bottle", "cable", "capsule", "carpet", "grid",
-                                                                     "hazelnut", "leather", "metal_nut", "pill", "screw",
-                                                                     "tile", "toothbrush", "transistor", "wood", "zipper"} else "spk"
-                        break
+            # 从名称推断算法族（使用统一推断模块）
+            from backend.core.model_meta import infer_model_meta
+            meta = infer_model_meta(entry, SAVED_RESULTS_DIR)
+            algorithm_family = meta["algorithm_family"]
+            algorithm_name = meta["algorithm_name"]
+            model_type = meta["model_type"]
+            model_size = meta["model_size"]
+            category = meta["category"]
+            data_source = meta["data_source"]
 
             models.append(TrainedModel(
                 name=entry,
@@ -1197,13 +1130,56 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                 if f.endswith('.pth') or os.path.isdir(fpath):
                     task["model_path"] = fpath
                     model_found = True
+                    _save_training_metadata(save_dir, f, task)
                     break
+
+        # ADer 框架不使用 save_name 命名，需按训练器名称模式查找
+        if not model_found and task.get("algorithm_family") == "ader":
+            from backend.core.model_meta import _ADER_TRAINER_MAP
+            method_name = _ader_method_name(task.get("algorithm_name", "mambaad"))
+            for trainer_name, algo_id in _ADER_TRAINER_MAP.items():
+                if algo_id == task.get("algorithm_name", ""):
+                    # 找到最新的匹配目录
+                    candidates = []
+                    for f in os.listdir(save_dir):
+                        if f.startswith(trainer_name) and os.path.isdir(os.path.join(save_dir, f)):
+                            # 检查是否在训练时间范围内（启发式）
+                            candidates.append(f)
+                    if candidates:
+                        # 按修改时间排序取最新的
+                        candidates.sort(
+                            key=lambda x: os.path.getmtime(os.path.join(save_dir, x)),
+                            reverse=True
+                        )
+                        fpath = os.path.join(save_dir, candidates[0])
+                        task["model_path"] = fpath
+                        model_found = True
+                        _save_training_metadata(save_dir, candidates[0], task)
+                        break
     else:
         task["status"] = "failed"
         task["progress"] = f"训练失败 (退出码: {process.returncode})"
 
     task["completed_at"] = datetime.now().isoformat()
     task["process"] = None
+
+
+def _save_training_metadata(save_dir: str, model_entry: str, task: dict):
+    """训练完成后保存 metadata.json 到模型目录"""
+    from backend.core.model_meta import save_model_meta
+    meta = {
+        "algorithm_family": task.get("algorithm_family", ""),
+        "algorithm_name": task.get("algorithm_name", ""),
+        "model_type": task.get("model_type", ""),
+        "model_size": task.get("model_size", ""),
+        "category": "_".join(task.get("categories", [])),
+        "data_source": task.get("data_source", ""),
+        "total_iters": task.get("total_iters", 0),
+        "batch_size": task.get("config", {}).get("batch_size", 0),
+        "learning_rate": task.get("config", {}).get("learning_rate", 0),
+        "completed_at": task.get("completed_at", ""),
+    }
+    save_model_meta(save_dir, model_entry, **meta)
 
 
 def _format_duration(seconds: float) -> str:
