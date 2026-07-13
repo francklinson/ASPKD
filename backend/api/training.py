@@ -255,7 +255,16 @@ ALGORITHM_FAMILIES = {
             {"id": "simplenet", "name": "SimpleNet", "type": "feature_learning",
              "description": "简单网络异常检测（CVPR 2023）。特征空间判别器方法：预训练特征提取+特征适配+高斯噪声合成异常+判别评分，轻量高效，训练快推理快。",
              "performance": "MVTec AD AUROC ~97%，训练快推理快", "gpu_memory": "~2GB", "input_size": "256x256"},
-        ],
+            {"id": "destseg", "name": "DeSTSeg", "type": "segmentation",
+             "description": "分割式异常检测（CVPR 2023）。利用合成异常训练分割网络，结合编码器-解码器架构和歧视性分割网络实现高精度像素级异常定位。",
+             "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "realnet", "name": "RealNet", "type": "real_world",
+             "description": "真实场景异常检测（CVPR 2024）。面向真实工业场景，利用合成异常和特征级重建实现高精度检测与定位。",
+             "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            {"id": "rdpp", "name": "RD++", "type": "knowledge_distillation",
+             "description": "增强反向蒸馏异常检测（arXiv 2024）。Reverse Distillation 增强版，结合特征反转和多尺度蒸馏实现更精确的异常检测。",
+             "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256"},
+            ],
     },
 }
 
@@ -1125,6 +1134,9 @@ def _ader_method_name(algo_name: str) -> str:
         "cflow": "CFlow",
         "pyramidflow": "PyramidFlow",
         "simplenet": "SimpleNet",
+        "destseg": "DeSTSeg",
+        "realnet": "RealNet",
+        "rdpp": "RDPP",
     }
     return mapping.get(algo_name, "MambaAD")
 
