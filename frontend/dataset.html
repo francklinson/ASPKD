@@ -4205,10 +4205,18 @@
                         // 更新本地状态（保留标注时间）
                         selectedSegment.label = label;
                         selectedSegment.annotated_at = new Date().toISOString();
+                        selectedSegment.manual_label = label;
+                        // 更新状态为已标注
+                        selectedSegment.status = 'annotated';
                         // 重新渲染过滤后的列表
                         filterV2Segments();
-                        // 自动选择下一个
-                        goToNext();
+                        // 自动跳到下一个未标注的片段
+                        const nextUnlabeled = currentSegments.find(s =>
+                            (!s.label || s.label === 'unlabeled') && s._v2segment_id !== selectedSegment._v2segment_id
+                        );
+                        if (nextUnlabeled) {
+                            selectSegment(nextUnlabeled);
+                        }
                     } else {
                         alert('标注失败: ' + (result.message || ''));
                         logMessage('标注失败: ' + (result.message || ''), 'error');

@@ -4,6 +4,8 @@ FastAPI 后端主入口
 """
 import os
 import sys
+import logging
+import logging.handlers
 
 # ========== 首先设置 CUDA 环境变量（必须在导入 torch 之前）==========
 # 读取配置文件中的环境变量设置
@@ -71,6 +73,25 @@ if os.path.exists(venv_site_packages) and venv_site_packages not in sys.path:
 # 添加项目根目录到路径
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
+# ========== 配置日志系统 ==========
+log_dir = os.path.join(project_root, "logs")
+os.makedirs(log_dir, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.handlers.RotatingFileHandler(
+            os.path.join(log_dir, "backend.log"),
+            maxBytes=20 * 1024 * 1024,  # 20MB
+            backupCount=5,
+            encoding='utf-8'
+        )
+    ]
+)
+logger = logging.getLogger("backend")
 
 from contextlib import asynccontextmanager
 

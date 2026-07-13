@@ -450,6 +450,25 @@
                         <div class="log-console" id="logConsole">
                             等待任务开始...
                         </div>
+
+                        <!-- 训练过程可视化 -->
+                        <div id="trainingChartsSection" style="display: none; margin-top: 16px;">
+                            <div style="font-size: 13px; font-weight: 500; color: #555; margin-bottom: 8px;">训练过程</div>
+                            <div class="charts-row">
+                                <div class="chart-box">
+                                    <canvas id="lossChart"></canvas>
+                                </div>
+                                <div class="chart-box">
+                                    <canvas id="lrChart"></canvas>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 16px; font-size: 12px; color: #666; margin-top: 4px;">
+                                <span>当前迭代: <strong id="metricCurIter">0</strong></span>
+                                <span>最佳 Loss: <strong id="metricBestLoss">-</strong></span>
+                                <span>最佳迭代: <strong id="metricBestIter">0</strong></span>
+                                <span>平均耗时: <strong id="metricAvgTime">-</strong></span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -622,17 +641,22 @@
                     </div>
                 `;
             } else if (family.param_schema === 'algorithm_select') {
-                // Anomalib / ADer 模式：算法选择下拉框
-                html += `
-                    <div class="form-group">
-                        <label>选择算法</label>
-                        <select class="form-control" id="algorithmSelect" onchange="updateAlgorithmInfo()">
-                            ${family.algorithms.map(alg =>
-                                `<option value="${alg.id}">${alg.name} — ${_typeLabel(alg.type)}</option>`
-                            ).join('')}
-                        </select>
-                    </div>
-                `;
+                // Anomalib / ADer 模式：算法选择下拉框（过滤不可训练算法）
+                const trainableAlgos = family.algorithms.filter(alg => alg.trainable !== false && alg.trainable !== 'False');
+                if (trainableAlgos.length === 0) {
+                    html += `<div style="padding:12px;color:#ff4d4f;">该算法族暂无可训练算法</div>`;
+                } else {
+                    html += `
+                        <div class="form-group">
+                            <label>选择算法</label>
+                            <select class="form-control" id="algorithmSelect" onchange="updateAlgorithmInfo()">
+                                ${trainableAlgos.map(alg =>
+                                    `<option value="${alg.id}">${alg.name} — ${_typeLabel(alg.type)}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                    `;
+                }
             }
 
             // 通用训练参数
@@ -650,6 +674,13 @@
                         <option value="16" ${savedBatchSize === '16' ? 'selected' : ''}>16 (需要较大显存)</option>
                         <option value="32" ${savedBatchSize === '32' ? 'selected' : ''}>32 (需要大显存)</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label>GPU 设备</label>
+                    <select class="form-control" id="gpuId">
+                        <option value="0">GPU 0</option>
+                    </select>
+                    <small style="color:#888;margin-top:4px;display:block;">多卡环境下选择训练使用的GPU</small>
                 </div>
             `;
 
@@ -920,10 +951,18 @@
                 const algoName = m.algorithm_name ? `<span class="model-meta-item">算法: <strong>${escapeHtml(m.algorithm_name)}</strong></span>` : '';
                 const category = m.category ? `<span class="model-meta-item">类别: ${escapeHtml(m.category)}</span>` : '';
                 const modelSize = (m.model_type || m.model_size) ? `<span class="model-meta-item">${[m.model_type, m.model_size].filter(Boolean).join('/')}</span>` : '';
+                // 构建更简洁的显示名
+                let displayName = m.name;
+                if (m.algorithm_name && m.category) {
+                    const fLabel = _familyLabel(m.algorithm_family) || m.algorithm_family;
+                    displayName = `${fLabel} · ${m.algorithm_name} · ${m.category}`;
+                } else if (m.algorithm_name) {
+                    displayName = `${_familyLabel(m.algorithm_family) || m.algorithm_family} · ${m.algorithm_name}`;
+                }
                 return `
                     <div class="model-list-item">
                         <div class="model-info">
-                            <div class="model-name">${escapeHtml(m.name)}</div>
+                            <div class="model-name" title="${escapeHtml(m.name)}">${escapeHtml(displayName)}</div>
                             <div class="model-meta">
                                 ${familyBadge} ${sourceBadge}
                                 ${algoName}
@@ -993,7 +1032,8 @@
                         model_type: modelType,
                         model_size: modelSize,
                         total_iters: totalIters,
-                        batch_size: batchSize
+                        batch_size: batchSize,
+                        gpu_id: parseInt(document.getElementById('gpuId')?.value || '0')
                     })
                 });
 
@@ -1020,10 +1060,16 @@
 
         async function stopTraining() {
             if (!currentTaskId) return;
+            if (!confirm('确定要停止当前训练任务吗？')) return;
             try {
                 await apiFetch(`/api/training/stop/${currentTaskId}`, { method: 'POST' });
                 document.getElementById('btnStopTraining').style.display = 'none';
                 document.getElementById('btnStartTraining').disabled = false;
+                // 显示明确停止提醒
+                const statusBadge = document.getElementById('taskStatus');
+                statusBadge.textContent = '已停止';
+                statusBadge.className = 'status-badge failed';
+                document.getElementById('progressText').textContent = '训练已被用户手动停止';
                 stopPolling();
             } catch (e) {
                 alert('停止训练失败: ' + e.message);
@@ -1069,6 +1115,11 @@
                     logConsole.scrollTop = logConsole.scrollHeight;
                 }
 
+                // 更新训练可视化图表
+                if (status.status === 'running' || status.status === 'completed') {
+                    updateTrainingCharts(status);
+                }
+
                 const btnStop = document.getElementById('btnStopTraining');
                 const btnStart = document.getElementById('btnStartTraining');
 
@@ -1079,10 +1130,101 @@
 
                     if (status.status === 'completed') {
                         loadModels();
+                        // 明确提醒训练完成
+                        const statusBadge = document.getElementById('taskStatus');
+                        statusBadge.textContent = '训练完成';
+                        statusBadge.className = 'status-badge completed';
+                    } else {
+                        // 训练失败提醒
+                        const statusBadge = document.getElementById('taskStatus');
+                        if (statusBadge.textContent !== '已停止') {
+                            statusBadge.textContent = '训练失败';
+                        }
                     }
                 }
             } catch (e) {
                 console.error('Poll status error:', e);
+            }
+        }
+
+        // ============ 训练可视化图表 ============
+        let _lossChart = null;
+        let _lrChart = null;
+
+        function updateTrainingCharts(status) {
+            const metrics = status.metrics || {};
+            const lossHistory = metrics.loss_history || [];
+            const lrHistory = metrics.learning_rate_history || [];
+
+            if (lossHistory.length === 0) return;
+
+            const chartSection = document.getElementById('trainingChartsSection');
+            chartSection.style.display = 'block';
+
+            // 更新指标文字
+            document.getElementById('metricCurIter').textContent = status.current_iter || 0;
+            const bestLoss = metrics.best_loss;
+            document.getElementById('metricBestLoss').textContent = bestLoss && bestLoss < Infinity ? bestLoss.toFixed(6) : '-';
+            document.getElementById('metricBestIter').textContent = metrics.best_iter || 0;
+            const iterTimes = metrics.iter_time_history || [];
+            if (iterTimes.length > 0) {
+                const avgMs = (iterTimes.reduce((a, b) => a + b, 0) / iterTimes.length * 1000).toFixed(0);
+                document.getElementById('metricAvgTime').textContent = avgMs + 'ms/iter';
+            }
+
+            // Loss 曲线
+            const lossCtx = document.getElementById('lossChart').getContext('2d');
+            if (_lossChart) _lossChart.destroy();
+            const lossLabels = lossHistory.map((_, i) => i + 1);
+            _lossChart = new Chart(lossCtx, {
+                type: 'line',
+                data: {
+                    labels: lossLabels,
+                    datasets: [{
+                        label: 'Loss',
+                        data: lossHistory,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102,126,234,0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: lossHistory.length > 100 ? 0 : 2,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: true, text: '训练 Loss', font: { size: 12 } } },
+                    scales: { x: { title: { display: true, text: 'Iter', font: { size: 10 } }, ticks: { font: { size: 9 } } }, y: { title: { display: true, text: 'Loss', font: { size: 10 } }, ticks: { font: { size: 9 } } } },
+                    animation: false
+                }
+            });
+
+            // LR 曲线
+            if (lrHistory.length > 0) {
+                const lrCtx = document.getElementById('lrChart').getContext('2d');
+                if (_lrChart) _lrChart.destroy();
+                _lrChart = new Chart(lrCtx, {
+                    type: 'line',
+                    data: {
+                        labels: lrHistory.map((_, i) => i + 1),
+                        datasets: [{
+                            label: 'Learning Rate',
+                            data: lrHistory,
+                            borderColor: '#f5576c',
+                            backgroundColor: 'rgba(245,87,108,0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: lrHistory.length > 100 ? 0 : 2,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, title: { display: true, text: '学习率', font: { size: 12 } } },
+                        scales: { x: { title: { display: true, text: 'Iter', font: { size: 10 } }, ticks: { font: { size: 9 } } }, y: { title: { display: true, text: 'LR', font: { size: 10 } }, ticks: { font: { size: 9 } } } },
+                        animation: false
+                    }
+                });
             }
         }
 
@@ -1131,8 +1273,26 @@
             loadFamilies();
             loadDatasets();
             loadModels();
+            loadGPUs();
             checkRunningTasks();
         });
+
+        // ============ GPU 检测 ============
+        async function loadGPUs() {
+            try {
+                const resp = await apiFetch('/api/system/gpus');
+                const data = await resp.json();
+                if (data.available && data.gpus.length > 0) {
+                    const sel = document.getElementById('gpuId');
+                    if (!sel) return;
+                    sel.innerHTML = data.gpus.map(g =>
+                        `<option value="${g.id}">GPU ${g.id}: ${g.name} (${g.memory_free_gb}GB 可用/${g.memory_total_gb}GB)</option>`
+                    ).join('');
+                }
+            } catch (e) {
+                console.warn('加载GPU信息失败:', e);
+            }
+        }
 
         window.addEventListener('beforeunload', stopPolling);
     </script>

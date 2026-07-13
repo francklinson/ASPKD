@@ -13,6 +13,7 @@ import time
 import uuid
 import hashlib
 import random
+import logging
 import numpy as np
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Tuple
@@ -22,6 +23,8 @@ import librosa
 import soundfile as sf
 
 from backend.api.dataset_builder import get_url_path, get_file_path  # V1 遗留模块中的路径工具函数，在此复用
+
+logger = logging.getLogger("backend.dataset_v2")
 
 router = APIRouter()
 
@@ -49,8 +52,8 @@ SERVER_SLICES_DIR = os.path.join(PROJECT_ROOT, "data", "output", "slices", "audi
 
 def log_operation(operation: str, details: str = "", status: str = "INFO"):
     """记录操作日志"""
-    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] [DatasetBuilderV2] [{status}] {operation} | {details}")
+    level = {"INFO": logging.INFO, "WARNING": logging.WARNING, "ERROR": logging.ERROR}.get(status, logging.INFO)
+    logger.log(level, f"{operation} | {details}")
 
 
 # ========== 数据模型 ==========
@@ -728,14 +731,19 @@ async def process_manual_upload(
             )
             all_segments.append(segment)
     else:
-        # 切分音频
+        # 切分音频（在线程池中运行，避免阻塞事件循环导致前端卡死）
+        import asyncio
+        loop = asyncio.get_event_loop()
         all_segments = []
         for file_info in saved_files:
-            segments = await slice_audio_file(
-                file_path=file_info["saved_path"],
-                output_dir=slice_dir,
-                session=session,
-                original_filename=file_info["original_name"]
+            segments = await loop.run_in_executor(
+                None,
+                lambda fi=file_info: _slice_audio_sync(
+                    file_path=fi["saved_path"],
+                    output_dir=slice_dir,
+                    session=session,
+                    original_filename=fi["original_filename"]
+                )
             )
             all_segments.extend(segments)
 
@@ -788,17 +796,27 @@ def _get_ref_audio_duration(music_name: str) -> Optional[float]:
     return None
 
 
-async def slice_audio_file(
+def _slice_audio_sync(
     file_path: str,
     output_dir: str,
-    session: DatasetBuildSession,
+    session: "DatasetBuildSession",
+    original_filename: str
+) -> list:
+    """slice_audio_file 的同步版本，用于在线程池中运行，避免阻塞事件循环"""
+    return _do_slice_audio(file_path, output_dir, session, original_filename)
+
+
+def _do_slice_audio(
+    file_path: str,
+    output_dir: str,
+    session: "DatasetBuildSession",
     original_filename: str
 ) -> List[AudioSegmentInfo]:
     """
-    使用长音频分析器切分音频文件
+    使用长音频分析器切分音频文件（同步实现）
     """
     segments = []
-    
+
     try:
         from backend.core.long_audio_analyzer import LongAudioAnalyzer, AnalyzerConfig
         from backend.core.shazam.database.in_memory import InMemoryConnector
@@ -815,24 +833,24 @@ async def slice_audio_file(
             max_workers=4,
             skip_silence=True
         )
-        
+
         analyzer = LongAudioAnalyzer(config=config, db_connector=db_connector)
         result = analyzer.analyze(file_path)
-        
+
         try:
             db_connector.cursor.close()
             db_connector.conn.close()
         except:
             pass
-        
+
         if not result.segment_matches:
             log_operation("NO_SEGMENTS", f"File: {original_filename}", "WARNING")
             return []
-        
+
         # 加载音频
         y, sr = librosa.load(file_path, sr=22050)
         audio_total_duration = librosa.get_duration(y=y, sr=sr)
-        
+
         for idx, segment_match in enumerate(result.segment_matches):
             start_time = max(0, segment_match.start_time)
 
@@ -849,23 +867,23 @@ async def slice_audio_file(
             start_sample = int(start_time * sr)
             end_sample = int(end_time * sr)
             segment_audio = y[start_sample:end_sample]
-            
+
             # 生成文件名
             base_name = os.path.splitext(os.path.basename(file_path))[0]
             matched_name = segment_match.music_name
             segment_filename = f"{base_name}_seg{idx:03d}_{matched_name}_{int(start_time)}s.wav"
             segment_path = os.path.join(output_dir, segment_filename)
-            
+
             # 保存音频
             sf.write(segment_path, segment_audio, sr)
-            
+
             # 生成时频图
             spectrogram_path = segment_path.replace('.wav', '.png')
             generate_spectrogram(segment_path, spectrogram_path)
-            
+
             # 创建片段信息
             segment_id = f"seg_{hashlib.md5(segment_path.encode()).hexdigest()[:12]}"
-            
+
             segment = AudioSegmentInfo(
                 segment_id=segment_id,
                 source_type=DataSourceType.MANUAL,
@@ -880,13 +898,25 @@ async def slice_audio_file(
                 status=DatasetItemStatus.SLICED,
                 source_file_path=file_path
             )
-            
+
             segments.append(segment)
-    
+
     except Exception as e:
         log_operation("SLICE_ERROR", f"File: {original_filename}, Error: {str(e)}", "ERROR")
-    
+
     return segments
+
+
+async def slice_audio_file(
+    file_path: str,
+    output_dir: str,
+    session: DatasetBuildSession,
+    original_filename: str
+) -> List[AudioSegmentInfo]:
+    """
+    使用长音频分析器切分音频文件（异步包装）
+    """
+    return _do_slice_audio(file_path, output_dir, session, original_filename)
 
 
 async def predict_segments(

@@ -272,6 +272,7 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
 
     # 动态检测项目根目录
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    cutoff_time = time.time() - (keep_days * 24 * 3600)
 
     file_stats = {"uploads": 0, "visualize": 0, "exports": 0, "errors": []}
 
@@ -279,6 +280,30 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
         removed_count = await task_manager.clear_all_tasks()
     else:
         removed_count = await task_manager.cleanup_old_tasks(keep_days)
+
+    # 同时清理训练任务记录
+    try:
+        from backend.api.training import TRAINING_TASKS
+        training_removed = 0
+        training_to_remove = []
+        for task_id, task in TRAINING_TASKS.items():
+            if task.get("status") in ("completed", "failed"):
+                completed_at = task.get("completed_at")
+                if clear_all or (completed_at and datetime.fromisoformat(completed_at).timestamp() < cutoff_time):
+                    training_to_remove.append(task_id)
+        for task_id in training_to_remove:
+            del TRAINING_TASKS[task_id]
+            training_removed += 1
+        file_stats["training_tasks"] = training_removed
+        # 清理后持久化
+        if training_removed > 0:
+            try:
+                from backend.api.training import _save_training_tasks
+                _save_training_tasks()
+            except Exception:
+                pass
+    except Exception as e:
+        file_stats["errors"].append(f"training_tasks: {str(e)}")
 
     # 清理物理文件
     if include_files:

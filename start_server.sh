@@ -11,7 +11,7 @@ VENV_PYTHON="$VENV_DIR/bin/python"
 PID_FILE="$PROJECT_DIR/.service.pid"
 CURRENT_LOG_FILE="$PROJECT_DIR/.current_log"  # 记录当前日志文件路径
 HOST="0.0.0.0"
-PORT="8004"
+PORT="${PORT:-8004}"
 
 # 自动检测 Python 版本
 get_python_version() {
@@ -56,11 +56,15 @@ check_venv() {
 # 获取服务 PID
 get_pid() {
     if [ -f "$PID_FILE" ]; then
-        cat "$PID_FILE" 2>/dev/null || echo ""
-    else
-        # 尝试从进程查找
-        pgrep -f "start_server.py" | head -1 || echo ""
+        local pid=$(cat "$PID_FILE" 2>/dev/null)
+        # 验证 PID 对应的进程是本项目的 start_server.py
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo "$pid"
+            return
+        fi
     fi
+    # 回退: 只匹配本项目目录下的 start_server.py
+    pgrep -f "${PROJECT_DIR}/start_server.py" 2>/dev/null | head -1 || echo ""
 }
 
 # 检查服务是否运行
@@ -152,7 +156,7 @@ check_gpu() {
                 mem_total=$(echo "$mem_total" | xargs)
                 mem_free=$(echo "$mem_free" | xargs)
                 echo "  GPU $i: $name"
-                echo "        显存: $mem_free / $mem_total"
+                echo "        可用显存: $mem_free / $mem_total (总量)"
                 ((i++))
             done <<< "$gpu_info"
         else
@@ -639,10 +643,19 @@ check_port() {
     
     if command -v lsof &> /dev/null; then
         if lsof -i :$PORT &> /dev/null; then
-            print_error "端口 $PORT 已被占用"
-            echo "  占用进程:"
-            lsof -i :$PORT | grep -v COMMAND | head -3
-            exit 1
+            # 检查是否是本项目自己的进程占用
+            local own_pid=$(get_pid)
+            local occupier=$(lsof -t -i :$PORT 2>/dev/null | head -1)
+            if [ -n "$own_pid" ] && [ "$own_pid" = "$occupier" ]; then
+                print_warning "端口 $PORT 被本服务占用（可能已在运行）"
+            else
+                print_error "端口 $PORT 已被占用"
+                echo "  占用进程:"
+                lsof -i :$PORT | grep -v COMMAND | head -3
+                echo ""
+                echo -e "  ${YELLOW}提示: 可通过 PORT=新端口 ./start_server.sh start 指定其他端口${NC}"
+                exit 1
+            fi
         else
             print_success "端口 $PORT 可用"
         fi
@@ -807,7 +820,7 @@ check_gpu_memory() {
                 mem_used=$(echo "$mem_used" | xargs)
                 mem_total=$(echo "$mem_total" | xargs)
                 echo "  GPU $i: $name"
-                echo "        显存使用: $mem_used / $mem_total"
+                echo "        显存使用: $mem_used / $mem_total (总量)"
                 ((i++))
             done <<< "$gpu_info"
         fi

@@ -9,11 +9,14 @@ import time
 import subprocess
 import threading
 import re
+import logging
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+
+logger = logging.getLogger("backend.training")
 
 router = APIRouter()
 
@@ -30,6 +33,48 @@ PUBLIC_DATASETS = {
 
 # 训练任务状态存储
 TRAINING_TASKS: Dict[str, dict] = {}
+
+# 训练任务持久化文件
+TRAINING_TASKS_FILE = os.path.join(PROJECT_ROOT, "data", "training_tasks.json")
+
+
+def _save_training_tasks():
+    """持久化训练任务到磁盘"""
+    try:
+        serializable = {}
+        for tid, task in TRAINING_TASKS.items():
+            t = dict(task)
+            # 移除不可序列化的字段
+            t.pop("process", None)
+            t.pop("start_time", None)
+            serializable[tid] = t
+        os.makedirs(os.path.dirname(TRAINING_TASKS_FILE), exist_ok=True)
+        with open(TRAINING_TASKS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(serializable, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"保存训练任务失败: {e}")
+
+
+def _load_training_tasks():
+    """从磁盘恢复训练任务"""
+    if not os.path.exists(TRAINING_TASKS_FILE):
+        return
+    try:
+        with open(TRAINING_TASKS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        for tid, task_data in data.items():
+            # 只恢复已完成/失败的任务，运行中的任务无法恢复
+            if task_data.get("status") in ("completed", "failed", "stopped"):
+                task_data["process"] = None
+                task_data["start_time"] = None
+                TRAINING_TASKS[tid] = task_data
+        logger.info(f"从磁盘恢复 {len(TRAINING_TASKS)} 个训练任务")
+    except Exception as e:
+        logger.warning(f"加载训练任务失败: {e}")
+
+
+# 启动时加载
+_load_training_tasks()
 
 # 支持的算法族及其训练模式
 ALGORITHM_FAMILIES = {
@@ -241,6 +286,7 @@ class TrainingRequest(BaseModel):
     save_interval: int = 100
     enable_augmentation: bool = True
     validation_ratio: float = 0.1
+    gpu_id: int = 0
 
 
 class TrainingConfig(BaseModel):
@@ -459,8 +505,8 @@ async def get_trained_models():
             # 跳过临时训练脚本和日志
             if entry.startswith('_') or entry.endswith('.txt') or entry == 'log.txt':
                 continue
-            # 跳过调试/测试目录
-            if entry.startswith('test_') or entry.startswith('debug_'):
+            # 跳过调试/测试/临时目录
+            if entry.startswith('test_') or entry.startswith('debug_') or entry == 'tmp':
                 continue
 
             # 支持两种形式：.pth 文件 或 模型目录
@@ -614,7 +660,8 @@ async def start_training(request: TrainingRequest):
         learning_rate=request.learning_rate,
         save_interval=request.save_interval,
         enable_augmentation=request.enable_augmentation,
-        validation_ratio=request.validation_ratio
+        validation_ratio=request.validation_ratio,
+        gpu_id=request.gpu_id
     )
 
     TRAINING_TASKS[task_id] = {
@@ -713,6 +760,79 @@ def _resolve_data_root(data_source: str) -> str:
     return DATASET_ROOT
 
 
+def ensure_meta_json(data_root: str):
+    """确保数据目录下存在 meta.json（ADer 框架必需）
+    如果不存在则自动扫描目录结构生成，格式与 MVTec AD 的 meta.json 一致。
+    目录结构: {category}/train/good/, {category}/test/good/, {category}/test/anomaly/
+    """
+    meta_path = os.path.join(data_root, "meta.json")
+    if os.path.exists(meta_path):
+        return
+
+    import glob as _glob
+    meta = {"train": {}, "test": {}}
+    img_exts = {'.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'}
+
+    for category in sorted(os.listdir(data_root)):
+        cat_path = os.path.join(data_root, category)
+        if not os.path.isdir(cat_path):
+            continue
+        # 跳过非数据目录
+        if category.startswith('.') or category == 'meta.json':
+            continue
+
+        train_good = os.path.join(cat_path, "train", "good")
+        test_good = os.path.join(cat_path, "test", "good")
+        test_anomaly_dir = os.path.join(cat_path, "test", "anomaly")
+
+        # train 数据
+        train_entries = []
+        if os.path.isdir(train_good):
+            for fname in sorted(os.listdir(train_good)):
+                if os.path.splitext(fname)[1].lower() in img_exts:
+                    train_entries.append({
+                        "img_path": f"{category}/train/good/{fname}",
+                        "mask_path": "",
+                        "cls_name": category,
+                        "specie_name": "good",
+                        "anomaly": 0
+                    })
+        if train_entries:
+            meta["train"][category] = train_entries
+
+        # test 数据（good + anomaly 子目录）
+        test_entries = []
+        if os.path.isdir(test_good):
+            for fname in sorted(os.listdir(test_good)):
+                if os.path.splitext(fname)[1].lower() in img_exts:
+                    test_entries.append({
+                        "img_path": f"{category}/test/good/{fname}",
+                        "mask_path": "",
+                        "cls_name": category,
+                        "specie_name": "good",
+                        "anomaly": 0
+                    })
+        if os.path.isdir(test_anomaly_dir):
+            for fname in sorted(os.listdir(test_anomaly_dir)):
+                if os.path.splitext(fname)[1].lower() in img_exts:
+                    test_entries.append({
+                        "img_path": f"{category}/test/anomaly/{fname}",
+                        "mask_path": f"{category}/ground_truth/anomaly/{os.path.splitext(fname)[0]}_mask.png",
+                        "cls_name": category,
+                        "specie_name": "anomaly",
+                        "anomaly": 1
+                    })
+        if test_entries:
+            meta["test"][category] = test_entries
+
+    if meta["train"] or meta["test"]:
+        with open(meta_path, 'w', encoding='utf-8') as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+        print(f"[Training] 自动生成 meta.json: {meta_path} "
+              f"(train={sum(len(v) for v in meta['train'].values())}, "
+              f"test={sum(len(v) for v in meta['test'].values())})")
+
+
 # ============================================================================
 # 训练执行器
 # ============================================================================
@@ -788,7 +908,9 @@ def _run_dinomaly2_training(task_id: str, config: TrainingConfig, save_name: str
         )
 
         script_path = os.path.join(PROJECT_ROOT, "algorithms", "Dinomaly2", "dinomaly_2D.py")
-        gpu_id = int(os.environ.get("CUDA_VISIBLE_DEVICES", "0").split(",")[0])
+        # CUDA_VISIBLE_DEVICES 已经映射了物理 GPU，子进程始终使用 cuda:0
+        # 例如 CUDA_VISIBLE_DEVICES=5 → 子进程内 cuda:0 对应物理 GPU 5
+        gpu_id = 0
         categories_str = ",".join(config.categories)
         cmd = [
             sys.executable, script_path,
@@ -851,6 +973,10 @@ def _run_anomalib_training(task_id: str, config: TrainingConfig, save_name: str)
 import sys
 sys.path.insert(0, '{PROJECT_ROOT}')
 sys.path.insert(0, '{algorithms_dir}')
+import os
+os.environ['HF_HUB_OFFLINE'] = '1'
+os.environ['HF_HOME'] = '{os.path.join(PROJECT_ROOT, "models", "pre_trained", "huggingface")}'
+os.environ['TORCH_HOME'] = '{os.path.join(PROJECT_ROOT, "models", "pre_trained")}'
 from anomalib.engine import Engine
 from anomalib.models import get_model
 
@@ -869,7 +995,9 @@ print(f'Training completed: {algorithm}')
             f.write(train_script)
 
         cmd = [sys.executable, script_path]
-        _run_subprocess_with_logging(task_id, cmd)
+        # Anomalib 需要 algorithms/ 在 PYTHONPATH 中以找到本地 anomalib 包
+        ader_root = os.path.join(PROJECT_ROOT, "algorithms")
+        _run_subprocess_with_logging(task_id, cmd, env={"PYTHONPATH": f"{ader_root}:{os.environ.get('PYTHONPATH', '')}"})
 
         # 清理临时脚本
         if os.path.exists(script_path):
@@ -899,6 +1027,9 @@ def _run_ader_training(task_id: str, config: TrainingConfig, save_name: str):
         # ADer 训练通过调用 ADer 内置的训练脚本
         method_name = _ader_method_name(config.algorithm_name or "mambaad")
         data_root = _resolve_data_root(config.data_source)
+
+        # 确保 meta.json 存在（ADer 必需）
+        ensure_meta_json(data_root)
 
         script_path = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "run.py")
         ader_root = os.path.join(PROJECT_ROOT, "algorithms")
@@ -1028,7 +1159,11 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
     env_vars = {**os.environ}
     if env:
         env_vars.update(env)
-    env_vars["CUDA_VISIBLE_DEVICES"] = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
+    # 根据 gpu_id 设置 CUDA_VISIBLE_DEVICES
+    # gpu_id 是物理 GPU 编号，通过 CUDA_VISIBLE_DEVICES 映射到子进程的 cuda:0
+    gpu_id = task.get("config", {}).get("gpu_id", 0)
+    env_vars["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    logger.info(f"[{task_id}] 使用 GPU {gpu_id}, CUDA_VISIBLE_DEVICES={gpu_id}")
     env_vars["DINOMALY_ENCODER_DIR"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
     env_vars["PRETRAINED_MODELS_DIR"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
     env_vars["TORCH_HOME"] = os.path.join(PROJECT_ROOT, "models", "pre_trained")
@@ -1056,6 +1191,8 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
         cwd=cwd or PROJECT_ROOT,
         env=env_vars
     )
+
+    logger.info(f"[{task_id}] 训练子进程已启动, PID={process.pid}, cmd={' '.join(cmd[:5])}...")
 
     task["process"] = process
 
@@ -1120,6 +1257,7 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
     if process.returncode == 0:
         task["status"] = "completed"
         task["progress"] = "训练完成"
+        logger.info(f"[{task_id}] 训练完成, 模型保存目录: {SAVED_RESULTS_DIR}")
         save_dir = SAVED_RESULTS_DIR
 
         # 查找模型文件：优先 .pth 文件，其次目录
@@ -1159,9 +1297,11 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
     else:
         task["status"] = "failed"
         task["progress"] = f"训练失败 (退出码: {process.returncode})"
+        logger.error(f"[{task_id}] 训练失败, 退出码: {process.returncode}")
 
     task["completed_at"] = datetime.now().isoformat()
     task["process"] = None
+    _save_training_tasks()
 
 
 def _save_training_metadata(save_dir: str, model_entry: str, task: dict):
@@ -1356,5 +1496,6 @@ async def stop_training(task_id: str):
     task["status"] = "failed"
     task["progress"] = "用户手动停止"
     task["completed_at"] = datetime.now().isoformat()
+    _save_training_tasks()
 
     return {"success": True, "message": "训练已停止"}

@@ -26,12 +26,13 @@ _logger = logging.getLogger(__name__)
 # }
 
 
-def load(name, WEIGHTS_DIR="./backbones/weights"):
-    os.makedirs(WEIGHTS_DIR, exist_ok=True)
-
-    # Dinov3 权重优先从项目根目录的 models/pre_trained/ 加载
+def load(name, WEIGHTS_DIR=None):
+    # 统一使用项目根目录下的 models/pre_trained/ 存放预训练权重
     _pretrained_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                                     'models', 'pre_trained')
+    if WEIGHTS_DIR is None:
+        WEIGHTS_DIR = _pretrained_dir
+    os.makedirs(WEIGHTS_DIR, exist_ok=True)
 
     # if name in _BACKBONES.keys():
     #     return eval(_BACKBONES[name])
@@ -204,11 +205,14 @@ def load(name, WEIGHTS_DIR="./backbones/weights"):
     return model
 
 
-def download_cached_file(url, check_hash=True, progress=True, WEIGHTS_DIR="backbones/weights"):
+def download_cached_file(url, check_hash=True, progress=True, WEIGHTS_DIR=None):
     """
     Mostly copy-paste from timm library.
     (https://github.com/rwightman/pytorch-image-models/blob/29fda20e6d428bf636090ab207bbcf60617570ca/timm/models/_hub.py#L54)
     """
+    if WEIGHTS_DIR is None:
+        WEIGHTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                                   'models', 'pre_trained')
     if isinstance(url, (list, tuple)):
         url, filename = url
     else:

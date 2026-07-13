@@ -207,7 +207,7 @@ def train(item_list, args):
             lr_scheduler.step()
 
             if (it + 1) % 5000 == 0:
-                torch.save(ader_model.state_dict(), os.path.join(args.save_dir, args.save_name, 'ader_model.pth'))
+                torch.save(model.state_dict(), os.path.join(args.save_dir, args.save_name, 'model.pth'))
 
                 auroc_sp_list, ap_sp_list, f1_sp_list = [], [], []
                 auroc_px_list, ap_px_list, f1_px_list, aupro_px_list = [], [], [], []
@@ -307,6 +307,8 @@ if __name__ == '__main__':
 
     logger = get_logger(args.save_name, os.path.join(args.save_dir, args.save_name))
     print_fn = logger.info
+
+    os.makedirs(os.path.join(args.save_dir, args.save_name), exist_ok=True)
 
     device = f'cuda:{args.cuda}' if torch.cuda.is_available() else 'cpu'
     print_fn(device)

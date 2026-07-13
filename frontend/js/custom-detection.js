@@ -619,13 +619,18 @@ function showCustomResults(data) {
         return;
     }
 
-    results.forEach((r, idx) => {
-        const card = document.createElement('div');
-        card.className = `result-card ${r.is_anomaly ? 'anomaly' : 'normal'}`;
+    // 获取当前阈值
+    const currentThreshold = parseFloat(document.getElementById('custom-threshold').value) || 0.5;
 
-        // 缩略图
+    results.forEach((r, idx) => {
+        // 基于当前阈值重新判定
+        const isAnomaly = r.anomaly_score > currentThreshold;
+
+        const card = document.createElement('div');
+        card.className = `result-card ${isAnomaly ? 'anomaly' : 'normal'}`;
+
+        // 缩略图：优先使用叠加图，其次原图
         const thumbUrl = r.overlay_url || r.original_url || '';
-        const heatmapAvailable = r.has_heatmap && r.heatmap_url;
 
         card.innerHTML = `
             <div class="result-card-img">
@@ -635,14 +640,14 @@ function showCustomResults(data) {
             <div class="result-card-info">
                 <div class="result-filename" title="${r.filename}">${r.filename}</div>
                 <div class="result-score">
-                    分数: <span class="score-value ${r.is_anomaly ? 'high' : 'low'}">${r.anomaly_score.toFixed(4)}</span>
+                    分数: <span class="score-value ${isAnomaly ? 'high' : 'low'}">${r.anomaly_score.toFixed(4)}</span>
                 </div>
-                <div class="result-status ${r.is_anomaly ? 'tag-anomaly' : 'tag-normal'}">
-                    ${r.is_anomaly ? '🔴 异常' : '🟢 正常'}
+                <div class="result-status ${isAnomaly ? 'tag-anomaly' : 'tag-normal'}">
+                    ${isAnomaly ? '🔴 异常' : '🟢 正常'}
                 </div>
                 ${r.inference_time_ms ? `<div class="result-time">${r.inference_time_ms.toFixed(1)} ms</div>` : ''}
                 <div class="result-actions">
-                    <button class="btn btn-small" onclick="showCustomDetail(${idx})">📊 详情</button>
+                    <button class="btn btn-small" onclick="showCustomDetail(${idx})">详情</button>
                 </div>
             </div>
             ${r.error ? `<div class="result-error" title="${r.error}">⚠️ ${r.error}</div>` : ''}
@@ -660,6 +665,37 @@ function showCustomResults(data) {
         `算法: ${data.algorithm}`,
         'success'
     );
+
+    // 阈值变化时重新判定 pass/fail
+    const thresholdEl = document.getElementById('custom-threshold');
+    if (thresholdEl && !thresholdEl._hasChangeListener) {
+        thresholdEl._hasChangeListener = true;
+        thresholdEl.addEventListener('input', function() {
+            if (currentResults.length > 0) {
+                const newThreshold = parseFloat(this.value) || 0.5;
+                let newAnomalyCount = 0;
+                const grid = document.getElementById('custom-result-grid');
+                const cards = grid.querySelectorAll('.result-card');
+                cards.forEach((card, idx) => {
+                    if (idx < currentResults.length) {
+                        const r = currentResults[idx];
+                        const isAnomaly = r.anomaly_score > newThreshold;
+                        if (isAnomaly) newAnomalyCount++;
+                        card.className = `result-card ${isAnomaly ? 'anomaly' : 'normal'}`;
+                        const statusEl = card.querySelector('.result-status');
+                        if (statusEl) {
+                            statusEl.className = `result-status ${isAnomaly ? 'tag-anomaly' : 'tag-normal'}`;
+                            statusEl.textContent = isAnomaly ? '🔴 异常' : '🟢 正常';
+                        }
+                        const scoreEl = card.querySelector('.score-value');
+                        if (scoreEl) scoreEl.className = `score-value ${isAnomaly ? 'high' : 'low'}`;
+                    }
+                });
+                document.getElementById('custom-result-anomaly').textContent = newAnomalyCount;
+                document.getElementById('custom-result-normal').textContent = currentResults.length - newAnomalyCount;
+            }
+        });
+    }
 }
 
 // ============ 详情模态框 ============

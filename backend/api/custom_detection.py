@@ -9,11 +9,14 @@ import time
 import uuid
 import shutil
 import threading
+import logging
 import numpy as np
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
 from pydantic import BaseModel
+
+logger = logging.getLogger("backend.custom_detection")
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -69,8 +72,8 @@ def get_algorithm_group(alg_name: str) -> str:
 
 def log_operation(operation: str, details: str = "", status: str = "INFO"):
     """记录操作日志"""
-    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] [CustomDetection] [{status}] {operation} | {details}")
+    level = {"INFO": logging.INFO, "WARNING": logging.WARNING, "ERROR": logging.ERROR}.get(status, logging.INFO)
+    logger.log(level, f"{operation} | {details}")
 
 
 def _get_available_algorithms():
@@ -174,18 +177,27 @@ async def list_trained_models():
         entry_path = os.path.join(SAVED_MODELS_DIR, entry)
         if entry.startswith('_') or entry.endswith('.txt') or entry == 'log.txt':
             continue
+        # 跳过无效的模型文件格式（.omb, .json, .log, .yaml 等）
+        if os.path.isfile(entry_path) and not entry.endswith(('.pth', '.ckpt', '.pt')):
+            continue
 
-        if os.path.isfile(entry_path) and entry.endswith('.pth'):
+        if os.path.isfile(entry_path) and entry.endswith(('.pth', '.ckpt', '.pt')):
             is_dir = False
             stat = os.stat(entry_path)
         elif os.path.isdir(entry_path):
             is_dir = True
+            # 验证目录中包含有效的权重文件
+            has_valid_weight = False
             total_size = 0
             for root, dirs, files in os.walk(entry_path):
                 for f in files:
                     fp = os.path.join(root, f)
                     if os.path.exists(fp):
                         total_size += os.path.getsize(fp)
+                        if f.endswith(('.pth', '.ckpt', '.pt', '.safetensors')):
+                            has_valid_weight = True
+            if not has_valid_weight:
+                continue
             stat = type('stat', (), {
                 'st_size': total_size,
                 'st_mtime': os.path.getmtime(entry_path)
@@ -717,6 +729,13 @@ def _run_detection_task(
                     log_operation("ORIG_SAVE_WARN", f"task_id={task_id}, save original failed: {e}", "WARNING")
 
                 # 2. 如果有异常图，生成热力图和叠加图
+                # 优先使用 anomaly_map 数组，其次使用 metadata 中的热力图文件路径（Dinomaly 等）
+                metadata_heatmap = None
+                metadata_overlay = None
+                if result.metadata:
+                    metadata_heatmap = result.metadata.get('heatmap_path')
+                    metadata_overlay = result.metadata.get('overlay_path')
+
                 if result.anomaly_map is not None:
                     try:
                         # 读取原图（RGB）
@@ -763,6 +782,20 @@ def _run_detection_task(
 
                     except Exception as e:
                         log_operation("HEATMAP_WARN", f"task_id={task_id}, heatmap failed: {e}", "WARNING")
+                elif metadata_heatmap and os.path.exists(metadata_heatmap):
+                    # 使用算法适配器自己生成的热力图（Dinomaly 等通过 metadata 传递路径）
+                    try:
+                        hm_filename = f"heatmap_{i:04d}.png"
+                        hm_path = os.path.join(result_dir, hm_filename)
+                        shutil.copy2(metadata_heatmap, hm_path)
+                        heatmap_url = f"/visualize/custom_detection/{task_id}/{hm_filename}"
+                        if metadata_overlay and os.path.exists(metadata_overlay):
+                            ol_filename = f"overlay_{i:04d}.png"
+                            ol_path = os.path.join(result_dir, ol_filename)
+                            shutil.copy2(metadata_overlay, ol_path)
+                            overlay_url = f"/visualize/custom_detection/{task_id}/{ol_filename}"
+                    except Exception as e:
+                        log_operation("HEATMAP_COPY_WARN", f"task_id={task_id}, copy heatmap failed: {e}", "WARNING")
 
                 results_list.append({
                     "filename": os.path.basename(img_path),

@@ -2,7 +2,7 @@
 系统状态 API
 提供算法可用性、服务健康等系统级信息
 """
-from typing import Dict, Any
+from typing import Dict, Any, List
 from fastapi import APIRouter
 
 router = APIRouter(tags=["system"])
@@ -75,3 +75,26 @@ async def system_health() -> Dict[str, Any]:
         }
 
     return health
+
+
+@router.get("/system/gpus")
+async def list_gpus() -> Dict[str, Any]:
+    """获取可用 GPU 列表及显存信息"""
+    import torch
+    if not torch.cuda.is_available():
+        return {"available": False, "gpus": []}
+
+    gpus = []
+    for i in range(torch.cuda.device_count()):
+        props = torch.cuda.get_device_properties(i)
+        mem_total = props.total_memory / (1024 ** 3)
+        mem_allocated = torch.cuda.memory_allocated(i) / (1024 ** 3)
+        mem_free = mem_total - mem_allocated
+        gpus.append({
+            "id": i,
+            "name": props.name,
+            "memory_total_gb": round(mem_total, 1),
+            "memory_free_gb": round(mem_free, 1),
+            "memory_used_gb": round(mem_allocated, 1),
+        })
+    return {"available": True, "gpus": gpus}
