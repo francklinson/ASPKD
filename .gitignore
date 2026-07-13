@@ -175,7 +175,12 @@ weights/
 
 # 数据集（不应该在git中）
 dataset/
-data/
+data/*
+!data/public_dataset/
+data/public_dataset/*
+!data/public_dataset/mvtec/
+data/public_dataset/mvtec/*
+!data/public_dataset/mvtec/meta.json
 datasets/
 images/
 *.zip
@@ -250,6 +255,7 @@ roc_curves/
 *.roc
 *.csv
 *.json
+!data/public_dataset/mvtec/meta.json
 
 # 缓存文件
 .cache/
