@@ -50,20 +50,19 @@ def load(name, WEIGHTS_DIR=None):
                 return p1 if os.path.exists(p1) else p2
 
             if arch == "base":
-                model = dinov3_vitb16(pretrained=True,
-                                      weights=_find_dinov3_weight('dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth'),
-                                      )
+                weight_path = _find_dinov3_weight('dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth')
+                model = dinov3_vitb16(pretrained=False)
             elif arch == "small":
-                model = dinov3_vits16(pretrained=True,
-                                      weights=_find_dinov3_weight('dinov3_vits16_pretrain_lvd1689m-08c60483.pth'),
-                                      )
+                weight_path = _find_dinov3_weight('dinov3_vits16_pretrain_lvd1689m-08c60483.pth')
+                model = dinov3_vits16(pretrained=False)
             elif arch == "large":
-                model = dinov3_vitl16(pretrained=True,
-                                      weights=_find_dinov3_weight('dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth'),
-                                      )
+                weight_path = _find_dinov3_weight('dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth')
+                model = dinov3_vitl16(pretrained=False)
             else:
                 raise ValueError("Invalid type of architecture. It must be either 'small' or 'base' or 'large.")
 
+            state_dict = torch.load(weight_path, map_location='cpu')
+            model.load_state_dict(state_dict, strict=True)
             model.num_register_tokens = model.n_storage_tokens
             return model
 

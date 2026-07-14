@@ -164,7 +164,8 @@ NON_TRAINABLE_ALGORITHMS: set = {
     # Anomalib — 无需训练 / 依赖缺失
     "padim", "dfkde", "efficient_ad",
     "fastflow", "stfpm", "uflow", "cfm", "vlm_ad",
-    # ADer — 部分算法仅推理
+    # ADer — 需要 HuggingFace 模型，离线环境不可训练
+    "realnet",
     # BaseASD — 全部不可训练（已在 PERMANENTLY_UNAVAILABLE 中）
 }
 

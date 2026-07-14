@@ -1,3 +1,4 @@
+import sys
 import timm  # noqa
 import os
 import torchvision.models as models  # noqa
@@ -69,8 +70,28 @@ def load(name, model_cache_dir=None):
         patch_size = 14
 
     if 'dinov2' in url:
-        model = torch.hub.load('facebookresearch/dinov2', name)
-        return model
+        # 修复: 临时移除 sys.modules 和 sys.path 中冲突的 dinov2 模块
+        # algorithms/Dinomaly2/dinov2/ 会覆盖 torch.hub 加载的 facebookresearch/dinov2
+        _saved_dinov2_modules = {}
+        _saved_path_entries = []
+        for _key in list(sys.modules.keys()):
+            if _key == 'dinov2' or _key.startswith('dinov2.'):
+                _saved_dinov2_modules[_key] = sys.modules.pop(_key, None)
+        for _entry in list(sys.path):
+            if 'Dinomaly2' in _entry or 'Dinomaly' in _entry:
+                _saved_path_entries.append(_entry)
+                sys.path.remove(_entry)
+        try:
+            model = torch.hub.load('facebookresearch/dinov2', name)
+            return model
+        finally:
+            # 恢复被移除的模块和路径
+            for _key, _mod in _saved_dinov2_modules.items():
+                if _mod is not None:
+                    sys.modules[_key] = _mod
+            for _entry in _saved_path_entries:
+                if _entry not in sys.path:
+                    sys.path.insert(0, _entry)
 
     elif len(url) > 0:
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")

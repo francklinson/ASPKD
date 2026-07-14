@@ -1,4 +1,13 @@
 import argparse
+import torch
+# PyTorch 2.6+ defaults weights_only=True which breaks legacy .tar checkpoints (used by timm)
+# Monkey-patch torch.load to default weights_only=False
+_original_load = torch.load
+def _patched_load(*args, **kwargs):
+    if 'weights_only' not in kwargs:
+        kwargs['weights_only'] = False
+    return _original_load(*args, **kwargs)
+torch.load = _patched_load
 from configs import get_cfg
 from util.net import init_training
 from util.util import run_pre, init_checkpoint

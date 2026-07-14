@@ -144,7 +144,8 @@ def _infer_algorithm_family(algorithm: str) -> str:
     if algo_lower in anomalib_algos:
         return "anomalib"
     # ADer 算法名
-    ader_algos = {"mambaad", "invad", "vitad", "unad", "cflow", "pyramidflow", "simplenet"}
+    ader_algos = {"mambaad", "invad", "vitad", "unad", "cflow", "pyramidflow", "simplenet",
+                  "destseg", "realnet", "rdpp"}
     if algo_lower in ader_algos:
         return "ader"
     return ""

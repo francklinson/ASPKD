@@ -23,8 +23,8 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_simplenet):
 		self.warmup_epochs = 0
 		self.test_start_epoch = self.epoch_full
 		self.test_per_epoch = self.epoch_full // 10
-		self.batch_train = 32  # official 8
-		self.batch_test_per = 32
+		self.batch_train = 8  # official 8 (32 causes OOM)
+		self.batch_test_per = 8
 		self.lr = 0.001 * self.batch_train / 32
 		self.weight_decay = 0.01
 		self.metrics = [

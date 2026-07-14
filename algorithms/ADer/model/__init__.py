@@ -18,6 +18,7 @@ _LOCAL_CKPT_MAP = {
     'timm_resnet50': 'resnet50_a1_0-14fe96d1.pth',
     'timm_resnet18': 'resnet18-5c106cde.pth',
     'timm_wide_resnet50_2': 'wide_resnet50_racm-8234f177.pth',
+    'tv_resnet18': 'resnet18-f37072fd.pth',
     'tv_wide_resnet50_2': 'wide_resnet50_racm-8234f177.pth',
     'timm_wide_resnet101_2': 'wide_resnet101_2-ee7c0276.pth',
     'vit_small_patch16_224_dino': 'vitad/vit_small_patch16_224_dino.pth',
@@ -77,6 +78,18 @@ def get_model(cfg_model):
     pretrained = kwargs.pop('pretrained')
     checkpoint_path = kwargs.pop('checkpoint_path')
     strict = kwargs.pop('strict')
+
+    # If checkpoint_path doesn't exist, try to find it in models/pre_trained/
+    if checkpoint_path and not os.path.isfile(checkpoint_path):
+        ckpt_filename = os.path.basename(checkpoint_path)
+        candidates = [
+            os.path.join('..', '..', 'models', 'pre_trained', ckpt_filename),
+            os.path.join('model', 'pretrain', ckpt_filename),
+        ]
+        for candidate in candidates:
+            if os.path.isfile(candidate):
+                checkpoint_path = candidate
+                break
 
     if model_name.startswith('timm_'):
         # pretrained=True 但 checkpoint_path 为空时，自动查找本地权重

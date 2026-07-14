@@ -259,8 +259,9 @@ ALGORITHM_FAMILIES = {
              "description": "分割式异常检测（CVPR 2023）。利用合成异常训练分割网络，结合编码器-解码器架构和歧视性分割网络实现高精度像素级异常定位。",
              "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256"},
             {"id": "realnet", "name": "RealNet", "type": "real_world",
-             "description": "真实场景异常检测（CVPR 2024）。面向真实工业场景，利用合成异常和特征级重建实现高精度检测与定位。",
-             "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~4GB", "input_size": "256x256"},
+             "description": "真实场景异常检测（CVPR 2024）。面向真实工业场景，利用合成异常和特征级重建实现高精度检测与定位。需要 HuggingFace SDAS 模型，暂不可训练。",
+             "performance": "MVTec AD AUROC ~97%", "gpu_memory": "~4GB", "input_size": "256x256",
+             "trainable": False},
             {"id": "rdpp", "name": "RD++", "type": "knowledge_distillation",
              "description": "增强反向蒸馏异常检测（arXiv 2024）。Reverse Distillation 增强版，结合特征反转和多尺度蒸馏实现更精确的异常检测。",
              "performance": "MVTec AD AUROC ~96%", "gpu_memory": "~4GB", "input_size": "256x256"},
@@ -993,6 +994,8 @@ model = get_model('{anomalib_algo}')
 engine = Engine(
     max_epochs={max_epochs},
     default_root_dir='{SAVED_RESULTS_DIR}/{save_name}',
+    accelerator='gpu',
+    devices=1,
 )
 from anomalib.data import MVTecAD
 datamodule = MVTecAD(root='{data_root}', category='{category}', train_batch_size={batch_size})
@@ -1046,14 +1049,16 @@ def _run_ader_training(task_id: str, config: TrainingConfig, save_name: str):
 
         # 配置路径: 优先使用 benchmark 配置（通用、可维护），通过命令行参数覆盖数据路径等
         # 格式: configs/benchmark/{method}/{method}_256_100e.py
+        algo_name = config.algorithm_name or "mambaad"
         method_lower = method_name.lower()
-        # 处理 invad-lite 特殊命名
-        cfg_method_dir = method_lower
-        cfg_file_name = f"{method_lower}_256_100e.py"
+        # 配置目录：优先查 _ADER_CFG_DIR_MAP，否则使用算法名小写
+        cfg_method_dir = _ADER_CFG_DIR_MAP.get(algo_name, algo_name)
+        # 配置文件名：使用算法名小写（不是 method_name 小写，因为 rdpp 的 method_name 是 RDPTrainer）
+        cfg_file_name = f"{algo_name}_256_100e.py"
 
         benchmark_dir = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "configs", "benchmark", cfg_method_dir)
         benchmark_cfg = None
-        for candidate in [cfg_file_name, f"{method_lower}_mvtec.py", f"{method_lower}_256_300e.py"]:
+        for candidate in [cfg_file_name, f"{algo_name}_mvtec.py", f"{algo_name}_256_300e.py"]:
             path = os.path.join(benchmark_dir, candidate)
             if os.path.isfile(path):
                 benchmark_cfg = path
@@ -1136,9 +1141,16 @@ def _ader_method_name(algo_name: str) -> str:
         "simplenet": "SimpleNet",
         "destseg": "DeSTSeg",
         "realnet": "RealNet",
-        "rdpp": "RDPP",
+        "rdpp": "RDPTrainer",
     }
     return mapping.get(algo_name, "MambaAD")
+
+
+# ADer 算法名 → 配置目录名/文件名前缀的映射（部分算法的配置目录名与算法名不同）
+_ADER_CFG_DIR_MAP = {
+    "rdpp": "rd++",     # rdpp 的配置在 rd++/ 目录下，文件名为 rdpp_256_100e.py
+    "invad": "invad",   # invad 有 invad/ 和 invad-lite/ 两个目录
+}
 
 
 # ============================================================================
@@ -1219,7 +1231,45 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
             log_fh.flush()
 
         # 解析迭代/损失信息（通用解析）
+        # Dinomaly 格式: Iter [X/Y] ... Loss: Z
         iter_match = re.search(r'Iter\s*\[(\d+)/(\d+)\].*Loss:\s*([\d.]+)', line, re.IGNORECASE)
+        # ADer 格式: Epoch [X/Y] ... loss_name: Z  或  ==> Epoch: X/Y ... loss_name: Z
+        if not iter_match:
+            iter_match = re.search(r'(?:Epoch|epoch)\s*\[(\d+)/(\d+)\].*?([\w]+):\s*([\d.]+)', line)
+            if iter_match:
+                # ADer epoch 格式: group1=current, group2=total, group3=loss_name, group4=loss_value
+                current_iter = int(iter_match.group(1))
+                total_iters = int(iter_match.group(2))
+                loss = float(iter_match.group(4))
+
+                task["current_iter"] = current_iter
+                task["progress"] = f"训练进度: Epoch {current_iter}/{total_iters} ({current_iter/total_iters*100:.1f}%)"
+
+                task["metrics"]["loss_history"].append(loss)
+                if len(task["metrics"]["loss_history"]) > 1000:
+                    task["metrics"]["loss_history"] = task["metrics"]["loss_history"][-1000:]
+
+                if loss < task["metrics"]["best_loss"]:
+                    task["metrics"]["best_loss"] = loss
+                    task["metrics"]["best_iter"] = current_iter
+
+                iter_end_time = time.time()
+                iter_duration = iter_end_time - iter_start_time
+                task["metrics"]["iter_time_history"].append(iter_duration)
+                if len(task["metrics"]["iter_time_history"]) > 100:
+                    task["metrics"]["iter_time_history"] = task["metrics"]["iter_time_history"][-100:]
+                iter_start_time = iter_end_time
+
+                if current_iter > 0:
+                    avg = sum(task["metrics"]["iter_time_history"]) / len(task["metrics"]["iter_time_history"])
+                    remaining_seconds = avg * (total_iters - current_iter)
+                    task["estimated_time_remaining"] = _format_duration(remaining_seconds)
+
+                iter_match = None  # 已处理，避免重复
+        # Anomalib/Lightning 格式: Epoch X/Y ... loss: Z
+        if not iter_match:
+            iter_match = re.search(r'Epoch\s+(\d+)/(\d+).*?loss:\s*([\d.]+)', line, re.IGNORECASE)
+        # Dinomaly2 格式: Iter [X/Y] ... Loss: Z (same as Dinomaly, already matched above)
         if iter_match:
             current_iter = int(iter_match.group(1))
             total_iters = int(iter_match.group(2))
@@ -1306,6 +1356,30 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                         model_found = True
                         _save_training_metadata(save_dir, candidates[0], task)
                         break
+
+        # 训练完成后，创建 {algo}_best.pth 链接/副本，使自定义检测中模型名与实际训练一致
+        if model_found:
+            algo_name = task.get("algorithm_name", "")
+            if algo_name:
+                best_pth_path = os.path.join(save_dir, f"{algo_name}_best.pth")
+                model_path = task.get("model_path", "")
+                try:
+                    # 如果已有旧链接/文件则先删除
+                    if os.path.islink(best_pth_path) or os.path.isfile(best_pth_path):
+                        os.remove(best_pth_path)
+                    # 如果训练结果是目录（ADer），找到目录中的 net.pth 并复制/链接
+                    if os.path.isdir(model_path):
+                        net_pth = os.path.join(model_path, "net.pth")
+                        if os.path.isfile(net_pth):
+                            os.symlink(net_pth, best_pth_path)
+                            logger.info(f"[{task_id}] 创建 {algo_name}_best.pth -> {net_pth}")
+                    elif os.path.isfile(model_path) and model_path.endswith('.pth'):
+                        # 单文件模型（Dinomaly），直接复制
+                        import shutil
+                        shutil.copy2(model_path, best_pth_path)
+                        logger.info(f"[{task_id}] 复制 {algo_name}_best.pth <- {model_path}")
+                except Exception as e:
+                    logger.warning(f"[{task_id}] 创建 {algo_name}_best.pth 失败: {e}")
     else:
         task["status"] = "failed"
         task["progress"] = f"训练失败 (退出码: {process.returncode})"

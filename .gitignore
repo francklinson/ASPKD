@@ -173,15 +173,16 @@ weights/
 *.ckpt
 *.checkpoint
 
-# 数据集（不应该在git中）
-dataset/
-data/*
-!data/public_dataset/
-data/public_dataset/*
-!data/public_dataset/mvtec/
-data/public_dataset/mvtec/*
-!data/public_dataset/mvtec/meta.json
-datasets/
+# 数据集（不应该在git中）— 使用前导 / 锚定到项目根目录，
+# 避免误忽略 algorithms/anomalib/data/ 等嵌套源码目录
+/dataset/
+/data/*
+!/data/public_dataset/
+/data/public_dataset/*
+!/data/public_dataset/mvtec/
+/data/public_dataset/mvtec/*
+!/data/public_dataset/mvtec/meta.json
+/datasets/
 images/
 *.zip
 *.tar
@@ -255,7 +256,7 @@ roc_curves/
 *.roc
 *.csv
 *.json
-!data/public_dataset/mvtec/meta.json
+!/data/public_dataset/mvtec/meta.json
 
 # 缓存文件
 .cache/
