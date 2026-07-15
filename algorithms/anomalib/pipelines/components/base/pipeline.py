@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from anomalib.pipelines.types import PREV_STAGE_RESULT
 traceback.install()
 
-log_file = "runs/pipeline.log"
+log_file = "data/ader-checkpoints/pipeline.log"
 logger = logging.getLogger(__name__)
 
 

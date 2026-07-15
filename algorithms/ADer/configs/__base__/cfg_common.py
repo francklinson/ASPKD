@@ -35,7 +35,7 @@ class cfg_common(Namespace):
 		# ==> trainer
 		self.trainer = Namespace()
 		self.trainer.name = 'ViTADTrainer'
-		self.trainer.checkpoint = 'runs'
+		self.trainer.checkpoint = 'data/ader-checkpoints'
 		self.trainer.logdir_sub = ''
 		self.trainer.resume_dir = ''
 		self.trainer.cuda_deterministic = False

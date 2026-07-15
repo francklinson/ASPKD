@@ -40,7 +40,7 @@ if __name__ == '__main__':
         for i, name in enumerate(names):
             command = f'CUDA_VISIBLE_DEVICES={i % nproc_per_node} '
             # 强行定义了cls_names
-            command += f'python3 run.py -c {cfg.config} -m train data.cls_names={name} trainer.checkpoint=runs/{cfg.prefix}/{suffix}/{name}'
+            command += f'python3 run.py -c {cfg.config} -m train data.cls_names={name} trainer.checkpoint=data/ader-checkpoints/{cfg.prefix}/{suffix}/{name}'
             p = Process(target=runcmd, args=(command,))
             p.start()
             process_list.append(p)
@@ -49,6 +49,6 @@ if __name__ == '__main__':
     else:
         for i, name in enumerate(names):
             command = f'CUDA_VISIBLE_DEVICES={cfg.gpu_num} '
-            command += f'python3 run.py -c {cfg.config} -m train data.cls_names={name} trainer.checkpoint=runs/{cfg.prefix}/{suffix}/{name}'
+            command += f'python3 run.py -c {cfg.config} -m train data.cls_names={name} trainer.checkpoint=data/ader-checkpoints/{cfg.prefix}/{suffix}/{name}'
             ret = runcmd(command)
             print(command, ret)

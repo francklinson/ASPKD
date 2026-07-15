@@ -156,7 +156,7 @@ class Engine:
         self,
         callbacks: list[Callback] | None = None,
         logger: Logger | Iterable[Logger] | bool | None = None,
-        default_root_dir: str | Path = "results",
+        default_root_dir: str | Path = "data/anomalib-results",
         **kwargs,
     ) -> None:
         # TODO(ashwinvaidya17): Add model argument to engine constructor

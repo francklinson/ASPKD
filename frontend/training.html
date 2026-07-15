@@ -58,6 +58,7 @@
             gap: 8px;
         }
         .dataset-list { max-height: 400px; overflow-y: auto; }
+        .dataset-group-header:hover { background: #f5f5f5; border-radius: 4px; }
         .dataset-item {
             display: flex;
             align-items: center;
@@ -369,6 +370,7 @@
                 <div class="dataset-list" id="datasetList">
                     <div style="text-align: center; padding: 20px; color: #999;">加载中...</div>
                 </div>
+                <div style="margin-top: 8px; font-size: 12px; color: #faad14; display: none;" id="multiCategoryHint"></div>
                 <div style="margin-top: 12px; font-size: 13px; color: #666;">
                     已选择: <strong id="selectedCount">0</strong> 个类别
                 </div>
@@ -525,6 +527,7 @@
         let pollingInterval = null;
         let allModels = [];  // 缓存所有模型数据
         let modelFilterFamily = 'all';  // 当前筛选的算法族
+        let collapsedGroups = new Set();  // 记录折叠状态的 dataset 分组
         // 保留通用参数值，族切换时不丢失
         let savedTotalIters = '1000';
         let savedBatchSize = '8';
@@ -696,6 +699,7 @@
                         <div class="info-row"><span class="info-label">可训练：</span><span class="info-value" id="algoTrainable">-</span></div>
                         <div class="info-row"><span class="info-label">性能特征：</span><span class="info-value" id="algoPerformance">-</span></div>
                         <div class="info-row"><span class="info-label">显存需求：</span><span class="info-value" id="algoGpuMemory">-</span></div>
+                        <div class="info-row"><span class="info-label">多类别训练：</span><span class="info-value" id="algoMultiCategory">-</span></div>
                         <div class="info-row"><span class="info-label">输入尺寸：</span><span class="info-value" id="algoInputSize">-</span></div>
                         <div style="padding: 8px 0;"><span style="font-weight:500;color:#555;">方法说明：</span><div class="algo-desc-detail" id="algoDescription">-</div></div>
                     </div>
@@ -782,10 +786,42 @@
             }
             setOrHide('algoPerformance', algo.performance);
             setOrHide('algoGpuMemory', algo.gpu_memory);
+            // 多类别训练支持
+            const multiCatEl = document.getElementById('algoMultiCategory');
+            if (multiCatEl) {
+                const supports = algo.supports_multi_category !== false;
+                multiCatEl.innerHTML = supports
+                    ? '<span style="color:#52c41a;font-weight:500;">支持多类别训练</span>'
+                    : '<span style="color:#faad14;font-weight:500;">仅支持单类别训练</span>';
+            }
             setOrHide('algoInputSize', algo.input_size);
             // 描述使用 div，支持多行显示
             const descEl = document.getElementById('algoDescription');
             if (descEl) descEl.textContent = algo.description || '-';
+            // 更新多类别提示
+            _updateMultiCategoryHint();
+        }
+
+        function _updateMultiCategoryHint() {
+            const hintEl = document.getElementById('multiCategoryHint');
+            if (!hintEl) return;
+            const familyData = familiesData?.[selectedFamily];
+            if (!familyData) { hintEl.style.display = 'none'; return; }
+            let algo = null;
+            if (familyData.param_schema === 'encoder_size') {
+                const size = document.getElementById('modelSize')?.value || 'small';
+                const algoId = `${selectedFamily}_${selectedModelType}_${size}`;
+                algo = familyData.algorithms.find(a => a.id === algoId);
+            } else {
+                const algoId = document.getElementById('algorithmSelect')?.value;
+                algo = familyData.algorithms.find(a => a.id === algoId);
+            }
+            if (algo && algo.supports_multi_category === false) {
+                hintEl.textContent = '当前算法仅支持单类别训练，请只选择一个类别';
+                hintEl.style.display = 'block';
+            } else {
+                hintEl.style.display = 'none';
+            }
         }
 
         // ============ 数据集加载 ============
@@ -822,38 +858,83 @@
 
             let html = '';
             for (const [source, group] of Object.entries(groups)) {
-                html += `<div style="font-size:13px;font-weight:600;color:#555;margin:10px 0 6px;padding-left:4px;border-left:3px solid ${
-                    {spk:'#722ed1',mvtec:'#d46b08',visa:'#08979c'}[source] || '#722ed1'
-                };">${group.label}</div>`;
-                group.items.forEach(d => {
-                    html += `
-                    <div class="dataset-item ${d.trainable ? '' : 'unavailable'}"
-                         onclick="${d.trainable ? `toggleDataset('${d.name}','${d.source || 'spk'}')` : ''}"
-                         data-name="${d.name}">
-                        <input type="checkbox" class="dataset-checkbox"
-                               ${selectedCategories.has(d.name) ? 'checked' : ''}
-                               ${d.trainable ? '' : 'disabled'}>
-                        <div class="dataset-info">
-                            <div class="dataset-name">${d.name}</div>
-                            <div class="dataset-stats">
-                                <span class="dataset-badge train">训练: ${d.train_normal_count}</span>
-                                <span class="dataset-badge test">测试正常: ${d.test_normal_count}</span>
-                                <span class="dataset-badge anomaly">测试异常: ${d.test_anomaly_count}</span>
+                const isCollapsed = collapsedGroups.has(source);
+                const color = { spk: '#722ed1', mvtec: '#d46b08', visa: '#08979c' }[source] || '#722ed1';
+                html += `
+                    <div class="dataset-group-header" data-source="${source}"
+                         onclick="toggleGroup('${source}')"
+                         style="cursor:pointer;font-size:13px;font-weight:600;color:#555;
+                                margin:10px 0 6px;padding:4px 4px 4px 8px;
+                                border-left:3px solid ${color};
+                                display:flex;align-items:center;justify-content:space-between;
+                                user-select:none;">
+                        <span>${group.label} (${group.items.length})</span>
+                        <span class="group-toggle" style="font-size:11px;color:#999;">${isCollapsed ? '&#9654;' : '&#9660;'}</span>
+                    </div>
+                    <div class="dataset-group-items" data-group="${source}" style="${isCollapsed ? 'display:none;' : ''}">
+                        ${group.items.map(d => `
+                            <div class="dataset-item ${d.trainable ? '' : 'unavailable'}"
+                                 onclick="${d.trainable ? `toggleDataset('${d.name}','${d.source || 'spk'}')` : ''}"
+                                 data-name="${d.name}">
+                                <input type="checkbox" class="dataset-checkbox"
+                                       ${selectedCategories.has(d.name) ? 'checked' : ''}
+                                       ${d.trainable ? '' : 'disabled'}>
+                                <div class="dataset-info">
+                                    <div class="dataset-name">${d.name}</div>
+                                    <div class="dataset-stats">
+                                        <span class="dataset-badge train">训练: ${d.train_normal_count}</span>
+                                        <span class="dataset-badge test">测试正常: ${d.test_normal_count}</span>
+                                        <span class="dataset-badge anomaly">测试异常: ${d.test_anomaly_count}</span>
+                                    </div>
+                                </div>
+                                ${d.trainable
+                                    ? '<span style="color: #52c41a; font-size: 12px;">可训练</span>'
+                                    : '<span style="color: #ff4d4f; font-size: 12px;">数据不足</span>'}
                             </div>
-                        </div>
-                        ${d.trainable
-                            ? `<span style="color: #52c41a; font-size: 12px;">可训练</span>`
-                            : `<span style="color: #ff4d4f; font-size: 12px;">数据不足</span>`}
+                        `).join('')}
                     </div>`;
-                });
             }
             list.innerHTML = html;
+        }
+
+        function toggleGroup(source) {
+            if (collapsedGroups.has(source)) {
+                collapsedGroups.delete(source);
+            } else {
+                collapsedGroups.add(source);
+            }
+            const container = document.querySelector(`.dataset-group-items[data-group="${source}"]`);
+            const toggleIcon = document.querySelector(`.dataset-group-header[data-source="${source}"] .group-toggle`);
+            if (container) {
+                const nowCollapsed = collapsedGroups.has(source);
+                container.style.display = nowCollapsed ? 'none' : 'block';
+                if (toggleIcon) toggleIcon.innerHTML = nowCollapsed ? '&#9654;' : '&#9660;';
+            }
         }
 
         function toggleDataset(name, source) {
             if (selectedCategories.has(name)) {
                 selectedCategories.delete(name);
             } else {
+                // 检查多类别支持
+                if (selectedCategories.size >= 1) {
+                    const familyData = familiesData?.[selectedFamily];
+                    if (familyData && familyData.algorithms) {
+                        let algo = null;
+                        if (familyData.param_schema === 'encoder_size') {
+                            const size = document.getElementById('modelSize')?.value || 'small';
+                            const algoId = `${selectedFamily}_${selectedModelType}_${size}`;
+                            algo = familyData.algorithms.find(a => a.id === algoId);
+                        } else {
+                            const algoId = document.getElementById('algorithmSelect')?.value;
+                            algo = familyData.algorithms.find(a => a.id === algoId);
+                        }
+                        if (algo && algo.supports_multi_category === false) {
+                            alert(`算法 "${algo.name}" 不支持多类别训练，请只选择一个类别`);
+                            return;
+                        }
+                    }
+                }
                 selectedCategories.set(name, source || 'spk');
             }
             document.getElementById('selectedCount').textContent = selectedCategories.size;
@@ -972,9 +1053,48 @@
                                 <span class="model-meta-item">${new Date(m.created_at).toLocaleString('zh-CN')}</span>
                             </div>
                         </div>
+                        <div class="model-actions" style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;margin-left:8px;">
+                            <button onclick="event.stopPropagation();renameModel('${escapeHtml(m.name).replace(/'/g, "\\'")}')" style="padding:3px 10px;font-size:11px;border:1px solid #d9d9d9;border-radius:4px;background:white;cursor:pointer;">重命名</button>
+                            <button onclick="event.stopPropagation();deleteModel('${escapeHtml(m.name).replace(/'/g, "\\'")}')" style="padding:3px 10px;font-size:11px;border:1px solid #ff4d4f;border-radius:4px;background:white;color:#ff4d4f;cursor:pointer;">删除</button>
+                        </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        async function deleteModel(name) {
+            if (!confirm(`确定要永久删除模型 "${name}" 吗？\n此操作不可恢复。`)) return;
+            try {
+                const resp = await apiFetch(`/api/training/models/${encodeURIComponent(name)}`, { method: 'DELETE' });
+                const result = await resp.json();
+                if (result.success) {
+                    loadModels();
+                } else {
+                    alert('删除失败: ' + (result.detail || result.message));
+                }
+            } catch (e) {
+                alert('删除失败: ' + e.message);
+            }
+        }
+
+        async function renameModel(name) {
+            const newName = prompt('请输入新的模型名称:', name);
+            if (!newName || newName.trim() === '' || newName.trim() === name) return;
+            try {
+                const resp = await apiFetch(`/api/training/models/${encodeURIComponent(name)}/rename`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_name: newName.trim() })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    loadModels();
+                } else {
+                    alert('重命名失败: ' + (result.detail || result.message));
+                }
+            } catch (e) {
+                alert('重命名失败: ' + e.message);
+            }
         }
 
         function _familyLabel(family) {
@@ -1001,6 +1121,24 @@
                 return;
             }
             const dataSource = Array.from(sources)[0];
+
+            // 验证多类别训练支持
+            const familyData = familiesData[selectedFamily];
+            if (familyData && familyData.algorithms) {
+                let algo = null;
+                if (familyData.param_schema === 'encoder_size') {
+                    const size = document.getElementById('modelSize')?.value || 'small';
+                    const algoId = `${selectedFamily}_${selectedModelType}_${size}`;
+                    algo = familyData.algorithms.find(a => a.id === algoId);
+                } else {
+                    const algoId = document.getElementById('algorithmSelect')?.value;
+                    algo = familyData.algorithms.find(a => a.id === algoId);
+                }
+                if (algo && algo.supports_multi_category === false && selectedCategories.size > 1) {
+                    alert(`算法 "${algo.name}" 不支持多类别训练，请只选择一个类别`);
+                    return;
+                }
+            }
 
             _saveCommonParams();
             const family = selectedFamily;

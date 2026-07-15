@@ -164,10 +164,11 @@ Thumbs.db
 *.darknet
 
 # 训练输出和检查点
-saved_results/
+/data/ader-checkpoints/
+/data/anomalib-results/
+/data/third_party/
 checkpoints/
 outputs/
-runs/
 logs/
 weights/
 *.ckpt
@@ -182,7 +183,6 @@ weights/
 !/data/public_dataset/mvtec/
 /data/public_dataset/mvtec/*
 !/data/public_dataset/mvtec/meta.json
-/datasets/
 images/
 *.zip
 *.tar
@@ -247,7 +247,6 @@ images/
 *.rej
 
 # 结果和可视化
-results/
 visualization/
 vis/
 predictions/

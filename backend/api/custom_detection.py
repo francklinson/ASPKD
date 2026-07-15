@@ -642,6 +642,18 @@ def _run_detection_task(
         import torch
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+            # 初始化当前线程的 CUDA 上下文（修复 cuDNN 多线程问题）
+            torch.cuda.set_device(0)
+            torch.backends.cudnn.benchmark = False
+            torch.backends.cudnn.deterministic = True
+            # 预热 cuDNN：在当前线程执行一次卷积操作，确保 cuDNN 被正确初始化
+            try:
+                dummy = torch.zeros(1, 3, 64, 64, device='cuda')
+                _ = torch.nn.functional.conv2d(dummy, torch.ones(1, 3, 1, 1, device='cuda'))
+                del dummy
+                torch.cuda.synchronize()
+            except Exception:
+                pass  # 预热失败不影响后续（尝试用回退方式）
         from algorithms import create_detector
 
         kwargs = {}

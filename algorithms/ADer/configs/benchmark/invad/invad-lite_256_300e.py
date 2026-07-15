@@ -41,7 +41,7 @@ class cfg(cfg_common, cfg_dataset_default, cfg_model_invad):
 		self.data.meta = 'meta.json'
 		self.data.cls_names = []
 
-		self.data.anomaly_source_path = 'data/dtd/images/'
+		self.data.anomaly_source_path = 'data/third_party/dtd/images/'
 		self.data.resize_shape = [self.size, self.size]
 
 		self.data.use_sample = False

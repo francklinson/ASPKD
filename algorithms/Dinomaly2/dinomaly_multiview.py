@@ -271,7 +271,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--data_path', type=str, default='../Real-IAD_Variety',
                         help='Support: Real-IAD, Real-IAD_Variety, MANTATiny')
-    parser.add_argument('--save_dir', type=str, default='./saved_results')
+    parser.add_argument('--save_dir', type=str, default='./models/saved')
     parser.add_argument('--save_name', type=str,
                         default='dinomaly2_multiview_realiadvar')
     parser.add_argument('--backbone', type=str, default='dinov2reg_vit_base_14')

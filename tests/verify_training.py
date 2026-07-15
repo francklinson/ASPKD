@@ -565,7 +565,7 @@ def test_ader(alg_name: str, config: dict, result: TestResult):
             return
 
         # 查找保存的 checkpoint
-        runs_dir = os.path.join(PROJECT_ROOT, "runs")
+        runs_dir = os.path.join(PROJECT_ROOT, "data", "ader-checkpoints")
         ckpt_path = None
         if os.path.exists(runs_dir):
             # 按修改时间查找最新的 .pth

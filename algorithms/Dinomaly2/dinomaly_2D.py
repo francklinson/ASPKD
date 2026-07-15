@@ -257,7 +257,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str, default='../MPDD',
                         help='Support: mvtec_anomaly_detection, VisA_pytorch/1cls, MPDD, BTech_Dataset_transformed, MIAD, Uni-Medical')
 
-    parser.add_argument('--save_dir', type=str, default='./saved_results')
+    parser.add_argument('--save_dir', type=str, default='./models/saved')
     parser.add_argument('--save_name', type=str,
                         default='dinomaly2_visa_uni_dinov2sr_i448392_en29_3bn2564e_dp4_la_lc2_llp09f01_car_it40k_sadam2e42e3_wd1e4_w1h_b16_s1')
     parser.add_argument('--backbone', type=str, default='dinov2reg_vit_small_14')

@@ -194,7 +194,7 @@ class BenchmarkJob(Job):
             result (pd.DataFrame): DataFrame containing benchmark results to save.
         """
         BenchmarkJob._print_tabular_results(result)
-        file_path = Path("runs") / BenchmarkJob.name / datetime.now().strftime("%Y-%m-%d-%H_%M_%S") / "results.csv"
+        file_path = Path("data/ader-checkpoints") / BenchmarkJob.name / datetime.now().strftime("%Y-%m-%d-%H_%M_%S") / "results.csv"
         file_path.parent.mkdir(parents=True, exist_ok=True)
         result.to_csv(file_path, index=False)
         logger.info(f"Saved results to {file_path}")

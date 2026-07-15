@@ -261,7 +261,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--data_path', type=str, default='../data/mvtec')
-    parser.add_argument('--save_dir', type=str, default='./saved_results')
+    parser.add_argument('--save_dir', type=str, default='./models/saved')
     parser.add_argument('--save_name', type=str,
                         default='recontrast_mvtec_uni_max1_it5k_sams2e31e5_b16_s1')
     args = parser.parse_args()
