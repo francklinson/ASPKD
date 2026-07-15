@@ -670,11 +670,11 @@ class Draem(data.Dataset):
 		n11 = dot(tile_grads([1, None], [1, None]), [-1, -1])
 		t = fade(grid[:shape[0], :shape[1]])
 		return math.sqrt(2) * self.lerp_np(self.lerp_np(n00, n10, t[..., 0]), self.lerp_np(n01, n11, t[..., 0]), t[..., 1])
-	def augment_image(self, image, anomaly_source_path):
+	def augment_image(self, image, anomaly_source):
 		aug = self.randAugmenter()
 		perlin_scale = 6
 		min_perlin_scale = 0
-		anomaly_source_img = cv2.imread(anomaly_source_path)
+		anomaly_source_img = cv2.imread(anomaly_source) if isinstance(anomaly_source, str) else anomaly_source
 		anomaly_source_img = cv2.resize(anomaly_source_img, dsize=(self.resize_shape[1], self.resize_shape[0]))
 
 		anomaly_img_augmented = aug(image=anomaly_source_img)
@@ -866,10 +866,10 @@ class DeSTSeg(data.Dataset):
 		n11 = dot(tile_grads([1, None], [1, None]), [-1, -1])
 		t = fade(grid[:shape[0], :shape[1]])
 		return math.sqrt(2) * self.lerp_np(self.lerp_np(n00, n10, t[..., 0]), self.lerp_np(n01, n11, t[..., 0]), t[..., 1])
-	def augment_image(self, image, anomaly_source_path):
+	def augment_image(self, image, anomaly_source):
 		perlin_scale = 6
 		min_perlin_scale = 0
-		anomaly_source_img = cv2.imread(anomaly_source_path)
+		anomaly_source_img = cv2.imread(anomaly_source) if isinstance(anomaly_source, str) else anomaly_source
 		anomaly_source_img = cv2.resize(anomaly_source_img, dsize=(self.resize_shape[1], self.resize_shape[0]))
 
 		anomaly_img_augmented = anomaly_source_img
@@ -902,12 +902,24 @@ class DeSTSeg(data.Dataset):
 				has_anomaly = 0.0
 			return augmented_image, msk, np.array([has_anomaly], dtype=np.float32)
 
-	def transform_image(self, image_path, anomaly_source_path):
+	def _get_anomaly_source(self):
+		"""获取异常纹理源。若 DTD 数据集不可用，生成随机噪声纹理替代。"""
+		if len(self.anomaly_source_paths) > 0:
+			idx = torch.randint(0, len(self.anomaly_source_paths), (1,)).item()
+			return self.anomaly_source_paths[idx]
+		else:
+			# 无 DTD 时生成随机彩色噪声纹理（H, W, C），值范围 0-255
+			h, w = self.resize_shape
+			noise = np.random.rand(h, w, 3) * 255.0
+			noise = noise.astype(np.uint8)
+			return noise  # 返回图像数组而非文件路径
+
+	def transform_image(self, image_path, anomaly_source):
 		image = cv2.imread(image_path)
 		image = cv2.resize(image, dsize=(self.resize_shape[1], self.resize_shape[0]))
 
 		image = np.array(image).reshape((image.shape[0], image.shape[1], image.shape[2])).astype(np.float32) / 255.0
-		augmented_image, anomaly_mask, has_anomaly = self.augment_image(image, anomaly_source_path)
+		augmented_image, anomaly_mask, has_anomaly = self.augment_image(image, anomaly_source)
 		# augmented_image = np.transpose(augmented_image, (2, 0, 1))
 		# image = np.transpose(image, (2, 0, 1))
 		anomaly_mask = np.transpose(anomaly_mask, (2, 0, 1))
@@ -916,17 +928,17 @@ class DeSTSeg(data.Dataset):
 	def __getitem__(self, index):
 		if self.train:
 			idx = torch.randint(0, len(self.data_all), (1,)).item()
-			anomaly_source_idx = torch.randint(0, len(self.anomaly_source_paths), (1,)).item()
+			anomaly_source = self._get_anomaly_source()
 			data = self.data_all[idx]
 			img_path, mask_path, cls_name, specie_name, anomaly = data['img_path'], data['mask_path'], data['cls_name'], \
 																  data['specie_name'], data['anomaly']
 			image, augmented_image, anomaly_mask, has_anomaly = self.transform_image(os.path.join(self.root, img_path),
-																					 self.anomaly_source_paths[
-																						 anomaly_source_idx])
+																					 anomaly_source)
 			image = self.transform(image) if self.transform is not None else image
 			augmented_image = self.transform(augmented_image) if self.transform is not None else augmented_image
 			sample = {'img': image, "img_mask": anomaly_mask, 'cls_name': cls_name,
-					  'augmented_image': augmented_image, 'anomaly': has_anomaly}
+					  'augmented_image': augmented_image, 'anomaly': has_anomaly,
+					  'img_path': os.path.join(self.root, img_path)}
 			return sample
 		else:
 			data = self.data_all[index]

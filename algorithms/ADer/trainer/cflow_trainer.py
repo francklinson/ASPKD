@@ -267,8 +267,9 @@ class CFLOWTrainer(BaseTrainer):
                             self.test_ghost()
                         self.cfg.total_time = get_timepc() - self.cfg.task_start_time
                         total_time_str = str(datetime.timedelta(seconds=int(self.cfg.total_time)))
+                        total_sub_epochs = self.epoch_full * self.cfg.trainer.sub_epochs
                         eta_time_str = str(datetime.timedelta(
-                            seconds=int(self.cfg.total_time / self.epoch * (self.epoch_full - self.epoch))))
+                            seconds=int(self.cfg.total_time / self.epoch * (total_sub_epochs - self.epoch))))
                         log_msg(self.logger,
                                 f'==> Total time: {total_time_str}\t Eta: {eta_time_str} \tLogged in \'{self.cfg.logdir}\'')
                         self.save_checkpoint()
@@ -329,7 +330,7 @@ class CFLOWTrainer(BaseTrainer):
                     log_prob, loss_term = self.net.FIB_forward(f, FIB, c_r, e_r, dec_idx, self.net.N, E, C,
                                                                self.net.model_backbone.dec_arch)
                     test_loss += t2np(loss_term.sum())
-                    # test_count += len(loss_term)
+                    test_count += len(loss_term)
                     # starttime=time.time()
                     # test_dist[l] = test_dist[l] + log_prob.detach().cpu().tolist()
                     # if test_dist[l] is None:

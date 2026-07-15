@@ -11,7 +11,7 @@ VENV_PYTHON="$VENV_DIR/bin/python"
 PID_FILE="$PROJECT_DIR/.service.pid"
 CURRENT_LOG_FILE="$PROJECT_DIR/.current_log"  # 记录当前日志文件路径
 HOST="0.0.0.0"
-PORT="${PORT:-8004}"
+PORT="${PORT:-8005}"
 
 # 自动检测 Python 版本
 get_python_version() {

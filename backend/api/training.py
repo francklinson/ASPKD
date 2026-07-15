@@ -518,6 +518,9 @@ async def get_trained_models():
             # 跳过调试/测试/临时目录
             if entry.startswith('test_') or entry.startswith('debug_') or entry == 'tmp':
                 continue
+            # 跳过 _best.pth 软链接/副本文件（它们是训练产物的快捷方式，不是独立模型）
+            if entry.endswith('_best.pth'):
+                continue
 
             # 支持两种形式：.pth 文件 或 模型目录
             if os.path.isfile(entry_path) and entry.endswith('.pth'):
@@ -1226,12 +1229,30 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
 
     task["process"] = process
 
+    # 需要在页面日志中过滤的噪音行（warning、info 提示等）
+    _LOG_SKIP_PATTERNS = [
+        re.compile(r'^\s*$'),                                    # 空行
+        re.compile(r'UserWarning'),                              # PyTorch UserWarning
+        re.compile(r'FutureWarning'),                            # FutureWarning
+        re.compile(r'DeprecationWarning'),                       # DeprecationWarning
+        re.compile(r'is deprecated'),                            # 弃用警告
+        re.compile(r'__new__\(\) got an unexpected'),            # pytorch_lightning 兼容警告
+        re.compile(r'Consider setting'),                         # Lightning 配置建议
+        re.compile(r'GPU available:'),                           # Lightning GPU 检测
+        re.compile(r'LOCAL_RANK: 0'),                            # 分布式环境变量
+        re.compile(r'CUDA_VISIBLE_DEVICES'),                     # CUDA 环境
+    ]
+
     iter_start_time = time.time()
     for line in process.stdout:
         task = TRAINING_TASKS.get(task_id)
         if not task:
             return
-        task["log"] += line
+
+        # 过滤噪音日志行（warning、环境信息等）
+        skip_line = any(p.search(line) for p in _LOG_SKIP_PATTERNS)
+        if not skip_line:
+            task["log"] += line
         if log_fh:
             log_fh.write(line)
             log_fh.flush()
@@ -1239,17 +1260,56 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
         # 解析迭代/损失信息（通用解析）
         # Dinomaly 格式: Iter [X/Y] ... Loss: Z
         iter_match = re.search(r'Iter\s*\[(\d+)/(\d+)\].*Loss:\s*([\d.]+)', line, re.IGNORECASE)
-        # ADer 格式: Epoch [X/Y] ... loss_name: Z  或  ==> Epoch: X/Y ... loss_name: Z
-        if not iter_match:
-            iter_match = re.search(r'(?:Epoch|epoch)\s*\[(\d+)/(\d+)\].*?([\w]+):\s*([\d.]+)', line)
-            if iter_match:
-                # ADer epoch 格式: group1=current, group2=total, group3=loss_name, group4=loss_value
-                current_iter = int(iter_match.group(1))
-                total_iters = int(iter_match.group(2))
-                loss = float(iter_match.group(4))
 
-                task["current_iter"] = current_iter
-                task["progress"] = f"训练进度: Epoch {current_iter}/{total_iters} ({current_iter/total_iters*100:.1f}%)"
+        # ADer 标准格式: Train: XX% [iter/total] [epoch/total] [loss_name value (avg)] ...
+        if not iter_match:
+            ader_match = re.search(r'Train:\s*([\d.]+)%\s*\[(\d+)/(\d+)\]', line)
+            if ader_match:
+                current_iter = int(ader_match.group(2))
+                total_iters = int(ader_match.group(3))
+                # 从 [name value] 对中提取 loss 值，跳过计时/lr 项
+                # 格式: [name value] 或 [name value (avg)]
+                loss_terms = re.findall(r'\[(\w+)\s+([\d.]+)(?:\s*\([\d.]+\))?\]', line)
+                skip_terms = {'batch_t', 'data_t', 'optim_t', 'lr'}
+                loss = None
+                for name, val in loss_terms:
+                    if name not in skip_terms:
+                        loss = float(val)
+                        break
+
+                if loss is not None:
+                    task["current_iter"] = current_iter
+                    task["progress"] = f"训练进度: {current_iter}/{total_iters} ({current_iter/total_iters*100:.1f}%)"
+
+                    task["metrics"]["loss_history"].append(loss)
+                    if len(task["metrics"]["loss_history"]) > 1000:
+                        task["metrics"]["loss_history"] = task["metrics"]["loss_history"][-1000:]
+
+                    if loss < task["metrics"]["best_loss"]:
+                        task["metrics"]["best_loss"] = loss
+                        task["metrics"]["best_iter"] = current_iter
+
+                    iter_end_time = time.time()
+                    iter_duration = iter_end_time - iter_start_time
+                    task["metrics"]["iter_time_history"].append(iter_duration)
+                    if len(task["metrics"]["iter_time_history"]) > 100:
+                        task["metrics"]["iter_time_history"] = task["metrics"]["iter_time_history"][-100:]
+                    iter_start_time = iter_end_time
+
+                    if current_iter > 0:
+                        avg = sum(task["metrics"]["iter_time_history"]) / len(task["metrics"]["iter_time_history"])
+                        remaining_seconds = avg * (total_iters - current_iter)
+                        task["estimated_time_remaining"] = _format_duration(remaining_seconds)
+
+                iter_match = None  # 已处理，避免重复
+
+        # CFlow 格式: Epoch: X.Y \t train loss: Z, lr=W
+        if not iter_match:
+            cflow_match = re.search(r'Epoch:\s*(\d+)\.(\d+)\s+train loss:\s*([\d.]+)', line)
+            if cflow_match:
+                meta_epoch = int(cflow_match.group(1))
+                sub_epoch = int(cflow_match.group(2))
+                loss = float(cflow_match.group(3))
 
                 task["metrics"]["loss_history"].append(loss)
                 if len(task["metrics"]["loss_history"]) > 1000:
@@ -1257,7 +1317,8 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
 
                 if loss < task["metrics"]["best_loss"]:
                     task["metrics"]["best_loss"] = loss
-                    task["metrics"]["best_iter"] = current_iter
+
+                task["progress"] = f"训练进度: Epoch {meta_epoch}.{sub_epoch}, loss={loss:.4f}"
 
                 iter_end_time = time.time()
                 iter_duration = iter_end_time - iter_start_time
@@ -1266,23 +1327,22 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                     task["metrics"]["iter_time_history"] = task["metrics"]["iter_time_history"][-100:]
                 iter_start_time = iter_end_time
 
-                if current_iter > 0:
-                    avg = sum(task["metrics"]["iter_time_history"]) / len(task["metrics"]["iter_time_history"])
-                    remaining_seconds = avg * (total_iters - current_iter)
-                    task["estimated_time_remaining"] = _format_duration(remaining_seconds)
-
                 iter_match = None  # 已处理，避免重复
-        # Anomalib/Lightning 格式: Epoch X/Y ... loss: Z
+
+        # Anomalib/Lightning 格式: Epoch X/Y ... loss=Z 或 loss: Z
         if not iter_match:
-            iter_match = re.search(r'Epoch\s+(\d+)/(\d+).*?loss:\s*([\d.]+)', line, re.IGNORECASE)
+            iter_match = re.search(r'Epoch\s+(\d+)(?:/(\d+))?.*?loss[=:]\s*([\d.]+)', line, re.IGNORECASE)
         # Dinomaly2 格式: Iter [X/Y] ... Loss: Z (same as Dinomaly, already matched above)
         if iter_match:
             current_iter = int(iter_match.group(1))
-            total_iters = int(iter_match.group(2))
+            total_iters = int(iter_match.group(2)) if iter_match.group(2) else 0
             loss = float(iter_match.group(3))
 
             task["current_iter"] = current_iter
-            task["progress"] = f"训练进度: {current_iter}/{total_iters} ({current_iter/total_iters*100:.1f}%)"
+            if total_iters > 0:
+                task["progress"] = f"训练进度: {current_iter}/{total_iters} ({current_iter/total_iters*100:.1f}%)"
+            else:
+                task["progress"] = f"训练进度: Epoch {current_iter}, loss={loss:.4f}"
 
             task["metrics"]["loss_history"].append(loss)
             if len(task["metrics"]["loss_history"]) > 1000:
