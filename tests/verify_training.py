@@ -520,7 +520,7 @@ def test_ader(alg_name: str, config: dict, result: TestResult):
         else:
             cfg_name = method_lower
         cfg_path = os.path.join(ader_dir, "configs", "benchmark", cfg_name, f"{cfg_name}_256_100e.py")
-    elif has_mvtec and method_lower in ("invad", "vitad", "unad"):
+    elif has_mvtec and method_lower in ("invad", "vitad", "uniad"):
         cfg_path = os.path.join(ader_dir, "configs", method_lower, f"{method_lower}_mvtec.py")
     else:
         cfg_path = os.path.join(ader_dir, "configs", method_lower, f"{method_lower}_spk.py")

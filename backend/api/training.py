@@ -1150,6 +1150,7 @@ def _ader_method_name(algo_name: str) -> str:
 _ADER_CFG_DIR_MAP = {
     "rdpp": "rd++",     # rdpp 的配置在 rd++/ 目录下，文件名为 rdpp_256_100e.py
     "invad": "invad",   # invad 有 invad/ 和 invad-lite/ 两个目录
+    "unad": "uniad",    # unad 的配置目录是 uniad（算法ID与配置目录名拼写不同）
 }
 
 

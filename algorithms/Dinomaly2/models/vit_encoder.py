@@ -28,7 +28,8 @@ _logger = logging.getLogger(__name__)
 
 def load(name, WEIGHTS_DIR=None):
     # 统一使用项目根目录下的 models/pre_trained/ 存放预训练权重
-    _pretrained_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    # vit_encoder.py -> models/ -> Dinomaly2/ -> algorithms/ -> PROJECT_ROOT
+    _pretrained_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
                                     'models', 'pre_trained')
     if WEIGHTS_DIR is None:
         WEIGHTS_DIR = _pretrained_dir
@@ -210,7 +211,7 @@ def download_cached_file(url, check_hash=True, progress=True, WEIGHTS_DIR=None):
     (https://github.com/rwightman/pytorch-image-models/blob/29fda20e6d428bf636090ab207bbcf60617570ca/timm/models/_hub.py#L54)
     """
     if WEIGHTS_DIR is None:
-        WEIGHTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        WEIGHTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
                                    'models', 'pre_trained')
     if isinstance(url, (list, tuple)):
         url, filename = url
