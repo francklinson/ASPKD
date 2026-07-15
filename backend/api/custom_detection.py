@@ -757,8 +757,24 @@ def _run_detection_task(
                         ) if original_img is not None else None
                         h, w = original_rgb.shape[:2] if original_rgb is not None else result.anomaly_map.shape[:2]
 
-                        # 调整热力图尺寸
-                        amap = result.anomaly_map.astype(np.float32)
+                        # 处理热力图: 转为 numpy，squeeze 掉多余的 channel/batch 维度
+                        amap_raw = result.anomaly_map
+                        if hasattr(amap_raw, 'cpu'):
+                            amap_raw = amap_raw.cpu().numpy()
+                        elif not isinstance(amap_raw, np.ndarray):
+                            amap_raw = np.array(amap_raw)
+                        amap = amap_raw.astype(np.float32)
+
+                        # squeeze 多余维度: [1, H, W] -> [H, W]
+                        while amap.ndim > 2:
+                            if amap.shape[0] == 1:
+                                amap = amap.squeeze(0)
+                            elif amap.shape[-1] == 1:
+                                amap = amap.squeeze(-1)
+                            else:
+                                amap = amap.mean(axis=0)  # 多通道取平均
+                                break
+
                         if amap.shape[:2] != (h, w):
                             amap = cv2.resize(amap, (w, h), interpolation=cv2.INTER_LINEAR)
 
@@ -794,7 +810,9 @@ def _run_detection_task(
                             overlay_url = f"/visualize/custom_detection/{task_id}/{ol_filename}"
 
                     except Exception as e:
-                        log_operation("HEATMAP_WARN", f"task_id={task_id}, heatmap failed: {e}", "WARNING")
+                        log_operation("HEATMAP_WARN", f"task_id={task_id}, heatmap failed: {e}, "
+                                                      f"anomaly_map_type={type(result.anomaly_map)}, "
+                                                      f"anomaly_map_shape={result.anomaly_map.shape if hasattr(result.anomaly_map, 'shape') else 'N/A'}", "WARNING")
                 elif metadata_heatmap and os.path.exists(metadata_heatmap):
                     # 使用算法适配器自己生成的热力图（Dinomaly 等通过 metadata 传递路径）
                     try:

@@ -1341,8 +1341,9 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                 current_iter = int(ader_match.group(2))
                 total_iters = int(ader_match.group(3))
                 # 从 [name value] 对中提取 loss 值，跳过计时/lr 项
-                # 格式: [name value] 或 [name value (avg)]
-                loss_terms = re.findall(r'\[(\w+)\s+([\d.]+)(?:\s*\([\d.]+\))?\]', line)
+                # 格式: [name value] 或 [name value (add_name avg)]
+                # ADer AvgMeter.__str__: [name val (add_name avg)] — add_name 可以是 'avg' 等字样
+                loss_terms = re.findall(r'\[(\w+)\s+([\d.]+)(?:\s*\([^)]*\))?\]', line)
                 skip_terms = {'batch_t', 'data_t', 'optim_t', 'lr'}
                 loss = None
                 for name, val in loss_terms:
