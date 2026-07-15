@@ -1277,10 +1277,24 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                         loss = float(val)
                         break
 
-                if loss is not None:
-                    task["current_iter"] = current_iter
-                    task["progress"] = f"训练进度: {current_iter}/{total_iters} ({current_iter/total_iters*100:.1f}%)"
+                # 始终更新进度（即使没有 loss 值）
+                task["current_iter"] = current_iter
+                task["progress"] = f"训练进度: {current_iter}/{total_iters} ({current_iter/total_iters*100:.1f}%)"
 
+                # 更新 ETA
+                iter_end_time = time.time()
+                iter_duration = iter_end_time - iter_start_time
+                task["metrics"]["iter_time_history"].append(iter_duration)
+                if len(task["metrics"]["iter_time_history"]) > 100:
+                    task["metrics"]["iter_time_history"] = task["metrics"]["iter_time_history"][-100:]
+                iter_start_time = iter_end_time
+
+                if current_iter > 0:
+                    avg = sum(task["metrics"]["iter_time_history"]) / len(task["metrics"]["iter_time_history"])
+                    remaining_seconds = avg * (total_iters - current_iter)
+                    task["estimated_time_remaining"] = _format_duration(remaining_seconds)
+
+                if loss is not None:
                     task["metrics"]["loss_history"].append(loss)
                     if len(task["metrics"]["loss_history"]) > 1000:
                         task["metrics"]["loss_history"] = task["metrics"]["loss_history"][-1000:]
@@ -1288,18 +1302,6 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                     if loss < task["metrics"]["best_loss"]:
                         task["metrics"]["best_loss"] = loss
                         task["metrics"]["best_iter"] = current_iter
-
-                    iter_end_time = time.time()
-                    iter_duration = iter_end_time - iter_start_time
-                    task["metrics"]["iter_time_history"].append(iter_duration)
-                    if len(task["metrics"]["iter_time_history"]) > 100:
-                        task["metrics"]["iter_time_history"] = task["metrics"]["iter_time_history"][-100:]
-                    iter_start_time = iter_end_time
-
-                    if current_iter > 0:
-                        avg = sum(task["metrics"]["iter_time_history"]) / len(task["metrics"]["iter_time_history"])
-                        remaining_seconds = avg * (total_iters - current_iter)
-                        task["estimated_time_remaining"] = _format_duration(remaining_seconds)
 
                 iter_match = None  # 已处理，避免重复
 
