@@ -12,6 +12,7 @@ import threading
 import logging
 import numpy as np
 from pathlib import Path
+from datetime import datetime
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
 from pydantic import BaseModel
@@ -493,7 +494,7 @@ async def upload_and_detect(
                 "file_count": len(saved_paths),
                 "results": None,
                 "error": None,
-                "created_at": time.time()
+                "created_at": datetime.now().isoformat()
             }
 
         # 启动后台检测线程

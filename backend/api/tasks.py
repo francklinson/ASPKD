@@ -143,7 +143,7 @@ async def list_all_tasks(
         all_tasks = [t for t in all_tasks if t["status"] == status]
 
     # 按时间倒序
-    all_tasks.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    all_tasks.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
 
     total = len(all_tasks)
     page = all_tasks[offset:offset + limit]
