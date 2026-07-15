@@ -1051,14 +1051,18 @@ def _run_ader_training(task_id: str, config: TrainingConfig, save_name: str):
         # 格式: configs/benchmark/{method}/{method}_256_100e.py
         algo_name = config.algorithm_name or "mambaad"
         method_lower = method_name.lower()
-        # 配置目录：优先查 _ADER_CFG_DIR_MAP，否则使用算法名小写
-        cfg_method_dir = _ADER_CFG_DIR_MAP.get(algo_name, algo_name)
-        # 配置文件名：使用算法名小写（不是 method_name 小写，因为 rdpp 的 method_name 是 RDPTrainer）
-        cfg_file_name = f"{algo_name}_256_100e.py"
+        # 配置目录和文件名前缀：优先查 _ADER_CFG_DIR_MAP（支持 (目录, 文件前缀) 元组），否则使用算法名小写
+        cfg_entry = _ADER_CFG_DIR_MAP.get(algo_name, algo_name)
+        if isinstance(cfg_entry, tuple):
+            cfg_method_dir, cfg_file_prefix = cfg_entry
+        else:
+            cfg_method_dir = cfg_entry
+            cfg_file_prefix = algo_name
+        cfg_file_name = f"{cfg_file_prefix}_256_100e.py"
 
         benchmark_dir = os.path.join(PROJECT_ROOT, "algorithms", "ADer", "configs", "benchmark", cfg_method_dir)
         benchmark_cfg = None
-        for candidate in [cfg_file_name, f"{algo_name}_mvtec.py", f"{algo_name}_256_300e.py"]:
+        for candidate in [cfg_file_name, f"{cfg_file_prefix}_mvtec.py", f"{cfg_file_prefix}_256_300e.py"]:
             path = os.path.join(benchmark_dir, candidate)
             if os.path.isfile(path):
                 benchmark_cfg = path
@@ -1148,9 +1152,10 @@ def _ader_method_name(algo_name: str) -> str:
 
 # ADer 算法名 → 配置目录名/文件名前缀的映射（部分算法的配置目录名与算法名不同）
 _ADER_CFG_DIR_MAP = {
-    "rdpp": "rd++",     # rdpp 的配置在 rd++/ 目录下，文件名为 rdpp_256_100e.py
-    "invad": "invad",   # invad 有 invad/ 和 invad-lite/ 两个目录
-    "unad": "uniad",    # unad 的配置目录是 uniad（算法ID与配置目录名拼写不同）
+    # 格式: 算法ID → (配置目录名, 配置文件名前缀)
+    # 仅当目录名或文件名前缀与算法ID不同时才需配置
+    "rdpp": ("rd++", "rdpp"),       # rdpp 配置在 rd++/ 目录下，文件名 rdpp_256_100e.py
+    "unad": ("uniad", "uniad"),     # unad 配置目录和文件名前缀都是 uniad（带 i）
 }
 
 
