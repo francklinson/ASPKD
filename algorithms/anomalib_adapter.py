@@ -311,8 +311,10 @@ class AnomalibAdapter(BaseDetector):
         anomaly_map = None
         pred_label = False
 
-        # 特殊处理: 直接是元组 (anomalyvfm 等)
-        if isinstance(output, tuple):
+        # 特殊处理: 直接是普通元组 (anomalyvfm 等)
+        # 注意排除 NamedTuple(InferenceBatch 也是 tuple 子类,但字段顺序为
+        # pred_score, pred_label, anomaly_map — 按下标取会把 pred_label 当热力图)
+        if isinstance(output, tuple) and not hasattr(output, '_fields'):
             if len(output) >= 1 and output[0] is not None:
                 s = output[0]
                 score = float(s.mean().item()) if hasattr(s, 'mean') else float(s)

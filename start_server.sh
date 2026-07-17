@@ -686,19 +686,11 @@ load_environment() {
     export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
     print_info "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 
-    # 设置 LD_LIBRARY_PATH 以确保 cuDNN 找到正确的 CUDA runtime
-    local _NVIDIA_BASE="$VENV_SITE_PACKAGES/nvidia"
-    local _CUDNN_LIB="$_NVIDIA_BASE/cudnn/lib"
-    local _CUDA_RT_LIB="$_NVIDIA_BASE/cuda_runtime/lib"
-    local _CUBLAS_LIB="$_NVIDIA_BASE/cublas/lib"
-    for _lib_dir in "$_CUDNN_LIB" "$_CUDA_RT_LIB" "$_CUBLAS_LIB"; do
-        if [ -d "$_lib_dir" ]; then
-            export LD_LIBRARY_PATH="$_lib_dir:${LD_LIBRARY_PATH:-}"
-        fi
-    done
-    if [ -n "${LD_LIBRARY_PATH:-}" ]; then
-        print_success "LD_LIBRARY_PATH 已设置 (cuDNN/cuBLAS/CUDA runtime)"
-    fi
+    # 注: 曾在此向 LD_LIBRARY_PATH 注入 venv 内 nvidia wheel 的 cudnn/cublas/
+    # cuda_runtime 库目录,但实测该注入本身导致进程内推理报
+    # "cuDNN error: CUDNN_STATUS_NOT_INITIALIZED"(cuDNN 9 分体子库经
+    # LD_LIBRARY_PATH 与 torch RPATH 双路径加载冲突)。torch pip wheel 通过
+    # RPATH 自寻址库文件,无需注入,已移除。
     
     # 打印环境信息
     echo ""

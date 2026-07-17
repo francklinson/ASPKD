@@ -628,7 +628,6 @@ def _run_detection_task(
     import cv2
     import matplotlib
     matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
     from matplotlib import cm
 
     log_operation("TASK_START", f"task_id={task_id}, algorithm={algorithm}, images={len(image_paths)}, model_path={model_path}")
@@ -789,24 +788,20 @@ def _run_detection_task(
                         else:
                             amap_norm = np.zeros_like(amap)
 
+                        # 热力图颜色映射(jet),原图同尺寸纯色图,无坐标轴/色条/标题
+                        heatmap_color = cm.jet(amap_norm)[:, :, :3]
+                        heatmap_color = (heatmap_color * 255).astype(np.uint8)
+
                         # 热力图（独立）
                         hm_filename = f"heatmap_{i:04d}.png"
                         hm_path = os.path.join(result_dir, hm_filename)
-                        plt.figure(figsize=(6, 6))
-                        plt.imshow(amap_norm, cmap='jet', vmin=0, vmax=1)
-                        plt.colorbar(label='Anomaly Score')
-                        plt.title(f"Score: {result.anomaly_score:.4f}")
-                        plt.axis('off')
-                        plt.savefig(hm_path, dpi=100, bbox_inches='tight', pad_inches=0.1)
-                        plt.close()
+                        cv2.imwrite(hm_path, cv2.cvtColor(heatmap_color, cv2.COLOR_RGB2BGR))
                         heatmap_url = f"/visualize/custom_detection/{task_id}/{hm_filename}"
 
                         # 叠加图
                         if original_rgb is not None:
                             ol_filename = f"overlay_{i:04d}.png"
                             ol_path = os.path.join(result_dir, ol_filename)
-                            heatmap_color = cm.jet(amap_norm)[:, :, :3]
-                            heatmap_color = (heatmap_color * 255).astype(np.uint8)
                             alpha = 0.6
                             overlay = cv2.addWeighted(original_rgb, 1 - alpha, heatmap_color, alpha, 0)
                             overlay_bgr = cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR)
