@@ -1065,6 +1065,38 @@ os.environ['HF_HOME'] = '{os.path.join(PROJECT_ROOT, "models", "pre_trained", "h
 os.environ['TORCH_HOME'] = '{os.path.join(PROJECT_ROOT, "models", "pre_trained")}'
 from anomalib.engine import Engine
 from anomalib.models import get_model
+from lightning.pytorch.callbacks import Callback
+
+class LossStdoutCallback(Callback):
+    \"\"\"逐 batch 将 loss 打印到 stdout，供后端日志解析绘制曲线。
+
+    Lightning/Rich 进度条不向 stdout 输出可解析的 loss 文本
+    （指标名与数值被 Rich 渲染拆到不同行），因此显式打印
+    'Epoch X/Y loss=Z' 行，与后端 Anomalib 解析正则对应。
+    \"\"\"
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        loss = None
+        if isinstance(outputs, dict) and 'loss' in outputs:
+            loss = float(outputs['loss'])
+        elif outputs is not None and hasattr(outputs, 'item'):
+            loss = float(outputs.item())
+        else:
+            for k, v in trainer.callback_metrics.items():
+                if 'loss' in k:
+                    try:
+                        loss = float(v)
+                        break
+                    except (TypeError, ValueError):
+                        continue
+        if loss is not None:
+            lr_txt = ''
+            try:
+                opt = trainer.optimizers[0] if trainer.optimizers else None
+                if opt is not None and opt.param_groups:
+                    lr_txt = f' lr:{{opt.param_groups[0]["lr"]:.6e}}'
+            except (IndexError, KeyError, TypeError):
+                pass
+            print(f'Epoch {{trainer.current_epoch + 1}}/{{trainer.max_epochs}} loss={{loss:.6f}}{{lr_txt}}', flush=True)
 
 model = get_model('{anomalib_algo}')
 engine = Engine(
@@ -1072,6 +1104,7 @@ engine = Engine(
     default_root_dir='{SAVED_RESULTS_DIR}/{save_name}',
     accelerator='gpu',
     devices=1,
+    callbacks=[LossStdoutCallback()],
 )
 from anomalib.data import MVTecAD
 datamodule = MVTecAD(root='{data_root}', category='{category}', train_batch_size={batch_size})
@@ -1441,8 +1474,13 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                 task["estimated_time_remaining"] = _format_duration(remaining_seconds)
 
         lr_match = re.search(r'LR:\s*([\d.e-]+)', line, re.IGNORECASE)
+        if not lr_match:
+            # ADer 格式: [lr 0.000100]
+            lr_match = re.search(r'\[lr\s+([\d.eE+-]+)\]', line)
         if lr_match:
             task["metrics"]["learning_rate_history"].append(float(lr_match.group(1)))
+            if len(task["metrics"]["learning_rate_history"]) > 1000:
+                task["metrics"]["learning_rate_history"] = task["metrics"]["learning_rate_history"][-1000:]
 
         if len(task["log"]) > 50000:
             task["log"] = task["log"][-40000:]

@@ -499,12 +499,15 @@ class DinomalyV2Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
                     self.model.train()
 
                 iteration += 1
+                # 每 20 迭代打印进度(含 lr),最后一迭代补打 100% 行,供后端解析绘图
+                if iteration % 20 == 0 or iteration >= self.config.total_iters:
+                    self.logger.info(
+                        f"iter [{iteration}/{self.config.total_iters}], "
+                        f"loss:{np.mean(loss_list):.4f}, lr:{optimizer.param_groups[0]['lr']:.6e}"
+                    )
+                    loss_list = []
                 if iteration >= self.config.total_iters:
                     break
-
-            self.logger.info(
-                f"iter [{iteration}/{self.config.total_iters}], loss:{np.mean(loss_list):.4f}"
-            )
 
         self.save_model(
             data_config.save_dir,
@@ -673,12 +676,15 @@ class DinomalyV3Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
                     self.model.encoder.eval()
 
                 iteration += 1
+                # 每 20 迭代打印进度(含 lr),最后一迭代补打 100% 行,供后端解析绘图
+                if iteration % 20 == 0 or iteration >= self.config.total_iters:
+                    self.logger.info(
+                        f"iter [{iteration}/{self.config.total_iters}], "
+                        f"loss:{np.mean(loss_list):.4f}, lr:{optimizer.param_groups[0]['lr']:.6e}"
+                    )
+                    loss_list = []
                 if iteration >= self.config.total_iters:
                     break
-
-            self.logger.info(
-                f"iter [{iteration}/{self.config.total_iters}], loss:{np.mean(loss_list):.4f}"
-            )
 
         self.save_model(
             data_config.save_dir,

@@ -238,11 +238,13 @@ def train(item_list, args):
                 model.train()
 
             it += 1
+            # 每 20 迭代打印进度(含 lr),最后一迭代补打 100% 行,供后端解析绘图
+            if it % 20 == 0 or it == total_iters:
+                print_fn('iter [{}/{}], loss:{:.4f}, lr:{:.6e}'.format(
+                    it, total_iters, np.mean(loss_list), optimizer.param_groups[0]['lr']))
+                loss_list = []
             if it == total_iters:
                 break
-            if (it + 1) % 100 == 0:
-                print_fn('iter [{}/{}], loss:{:.4f}'.format(it, total_iters, np.mean(loss_list)))
-                loss_list = []
 
     torch.save(model.state_dict(), os.path.join(args.save_dir, args.save_name, 'model.pth'))
 
