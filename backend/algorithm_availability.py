@@ -313,6 +313,37 @@ def _is_placeholder(path: str) -> bool:
     return path.endswith('/.placeholder') or path.endswith('\\.placeholder') or path == '.placeholder'
 
 
+_WEIGHT_EXTS = ('.pth', '.ckpt', '.pt', '.safetensors')
+
+
+def _has_trained_saved_model(alg_id: str, project_root: str) -> bool:
+    """检查 models/saved 下是否存在该算法的已训练模型。
+
+    训练产物目录命名为 {family}_{algo_name}_{categories}_{timestamp}
+    （ADer 为 {Trainer}_..._{method}_...），按 '_' 边界匹配 alg_id，
+    避免子串误判（如 cflow 误匹配 csflow）。
+    """
+    saved_dir = os.path.join(project_root, "models", "saved")
+    if not os.path.isdir(saved_dir):
+        return False
+    needle = f"_{alg_id.lower()}_"
+    for entry in os.listdir(saved_dir):
+        if entry.startswith('_'):
+            continue
+        if needle not in f"_{entry.lower()}_":
+            continue
+        entry_path = os.path.join(saved_dir, entry)
+        if os.path.isfile(entry_path):
+            if entry.lower().endswith(_WEIGHT_EXTS):
+                return True
+            continue
+        # 目录：任意深度存在权重文件即认为可用
+        for _root, _dirs, files in os.walk(entry_path):
+            if any(f.lower().endswith(_WEIGHT_EXTS) for f in files):
+                return True
+    return False
+
+
 # ============================================================================
 # 核心检查逻辑
 # ============================================================================
@@ -378,10 +409,14 @@ def _check_single_algorithm(
     )
     if model_path and not _is_placeholder(model_path) and not skip_checkpoint_check:
         if not os.path.exists(model_path):
-            rel_path = os.path.relpath(model_path, project_root)
-            result.missing_model_files.append(rel_path)
-            result.reasons.append(f"缺少模型文件: {rel_path}")
-            result.inference_available = False
+            # 默认预训练权重缺失时，存在该算法的已训练模型（models/saved）同样可推理
+            if not _has_trained_saved_model(alg_id, project_root):
+                rel_path = os.path.relpath(model_path, project_root)
+                result.missing_model_files.append(rel_path)
+                result.reasons.append(
+                    f"缺少模型文件: {rel_path}（可在模型训练页面训练后使用已训练模型）"
+                )
+                result.inference_available = False
 
     # ---- 5. 训练可用性判断 ----
     if alg_id in NON_TRAINABLE_ALGORITHMS:

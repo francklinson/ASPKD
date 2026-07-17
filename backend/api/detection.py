@@ -220,6 +220,9 @@ async def get_available_algorithms():
     saved_results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "models", "saved")
     if os.path.exists(saved_results_dir):
         for filename in os.listdir(saved_results_dir):
+            # 跳过历史遗留的 _best.pth 快捷方式（无法按 custom: 命名规则解析）
+            if filename.endswith('_best.pth'):
+                continue
             if filename.endswith('.pth'):
                 model_id = f"custom:{filename}"
                 # 从文件名解析信息: dinomaly_dinov3_small_category

@@ -1538,29 +1538,9 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                         _save_training_metadata(save_dir, candidates[0], task)
                         break
 
-        # 训练完成后，创建 {algo}_best.pth 链接/副本，使自定义检测中模型名与实际训练一致
-        if model_found:
-            algo_name = task.get("algorithm_name", "")
-            if algo_name:
-                best_pth_path = os.path.join(save_dir, f"{algo_name}_best.pth")
-                model_path = task.get("model_path", "")
-                try:
-                    # 如果已有旧链接/文件则先删除
-                    if os.path.islink(best_pth_path) or os.path.isfile(best_pth_path):
-                        os.remove(best_pth_path)
-                    # 如果训练结果是目录（ADer），找到目录中的 net.pth 并复制/链接
-                    if os.path.isdir(model_path):
-                        net_pth = os.path.join(model_path, "net.pth")
-                        if os.path.isfile(net_pth):
-                            os.symlink(net_pth, best_pth_path)
-                            logger.info(f"[{task_id}] 创建 {algo_name}_best.pth -> {net_pth}")
-                    elif os.path.isfile(model_path) and model_path.endswith('.pth'):
-                        # 单文件模型（Dinomaly），直接复制
-                        import shutil
-                        shutil.copy2(model_path, best_pth_path)
-                        logger.info(f"[{task_id}] 复制 {algo_name}_best.pth <- {model_path}")
-                except Exception as e:
-                    logger.warning(f"[{task_id}] 创建 {algo_name}_best.pth 失败: {e}")
+        # 注: 曾在此创建 {algo}_best.pth 链接/副本,但无任何消费方且会在
+        # 离线检测列表中产生无法解析的 custom: 条目,已移除生成逻辑。
+        # 列表过滤与删除清理仍保留,用于兼容历史遗留的 _best.pth 文件。
     else:
         task["status"] = "failed"
         task["progress"] = f"训练失败 (退出码: {process.returncode})"

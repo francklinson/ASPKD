@@ -179,6 +179,9 @@ async def list_trained_models():
         entry_path = os.path.join(SAVED_MODELS_DIR, entry)
         if entry.startswith('_') or entry.endswith('.txt') or entry == 'log.txt':
             continue
+        # 跳过 _best.pth 软链接/副本（训练产物的快捷方式，与原始模型重复，同训练页面逻辑）
+        if entry.endswith('_best.pth'):
+            continue
         # 跳过无效的模型文件格式（.omb, .json, .log, .yaml 等）
         if os.path.isfile(entry_path) and not entry.endswith(('.pth', '.ckpt', '.pt')):
             continue
