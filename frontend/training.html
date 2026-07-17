@@ -449,6 +449,11 @@
                             <div id="progressText" style="font-size: 13px; color: #666;"></div>
                         </div>
 
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span style="font-size: 12px; color: #999;">训练日志（仅显示末尾部分）</span>
+                            <a id="fullLogLink" href="#" target="_blank" rel="noopener"
+                               style="font-size: 12px; color: #667eea; text-decoration: none;">查看完整日志 ↗</a>
+                        </div>
                         <div class="log-console" id="logConsole">
                             等待任务开始...
                         </div>
@@ -1216,6 +1221,11 @@
         // ============ 训练状态轮询 ============
         function startPolling() {
             stopPolling();
+            // 同步完整日志链接到当前任务
+            const fullLogLink = document.getElementById('fullLogLink');
+            if (fullLogLink && currentTaskId) {
+                fullLogLink.href = `/api/training/log/${currentTaskId}`;
+            }
             pollingInterval = setInterval(pollStatus, 2000);
         }
 

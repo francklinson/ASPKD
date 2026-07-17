@@ -14,6 +14,7 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger("backend.training")
@@ -1629,6 +1630,25 @@ async def get_training_status(task_id: str):
         learning_rate=task.get("config", {}).get("learning_rate", 0.0001),
         estimated_time_remaining=task.get("estimated_time_remaining")
     )
+
+
+@router.get("/log/{task_id}")
+async def get_training_full_log(task_id: str):
+    """获取完整训练日志（页面状态接口仅返回末尾 5000 字符）"""
+    # 防路径穿越：task_id 仅允许字母数字下划线
+    if not re.fullmatch(r'[A-Za-z0-9_]+', task_id):
+        raise HTTPException(status_code=400, detail="非法任务 ID")
+
+    log_path = os.path.join(PROJECT_ROOT, "logs", "training", f"{task_id}.log")
+    if os.path.exists(log_path):
+        return FileResponse(log_path, media_type="text/plain; charset=utf-8",
+                            filename=f"{task_id}.log")
+
+    # 日志文件缺失时回退到内存日志（旧任务/异常场景）
+    task = TRAINING_TASKS.get(task_id)
+    if task and task.get("log"):
+        return PlainTextResponse(task["log"])
+    raise HTTPException(status_code=404, detail="日志不存在")
 
 
 @router.get("/visualization/{task_id}", response_model=TrainingVisualization)
