@@ -38,7 +38,7 @@
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 16px;
+            padding: 20px;
         }
 
         .card {
@@ -1896,8 +1896,6 @@
             if (window !== window.parent) {
                 const header = document.querySelector('.header');
                 if (header) header.style.display = 'none';
-                // 调整容器上边距
-                document.querySelector('.container').style.paddingTop = '0';
             }
             loadReferences();
             refreshStats();
