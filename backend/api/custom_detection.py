@@ -158,6 +158,13 @@ OUTPUT_DIR = os.path.join(PROJECT_ROOT, "data", "output", "vis", "custom_detecti
 SPK_DIR = os.path.join(PROJECT_ROOT, "data", "spk")
 SAVED_MODELS_DIR = os.path.join(PROJECT_ROOT, "models", "saved")
 
+# 公共数据集注册表（与 training.py 的 PUBLIC_DATASETS 保持一致）
+# key -> (显示名, 数据集根目录)，每个根目录下的子目录为类别
+PUBLIC_DATASET_ROOT = os.path.join(PROJECT_ROOT, "data", "public_dataset")
+PUBLIC_DATASETS = {
+    "mvtec": ("MVTec AD", os.path.join(PUBLIC_DATASET_ROOT, "mvtec")),
+}
+
 
 def _ensure_dirs():
     """确保目录存在"""
@@ -382,43 +389,91 @@ def _get_algorithm_display_name(alg_name: str) -> str:
     return name_map.get(alg_name, alg_name)
 
 
+IMAGE_EXTS = ('.png', '.jpg', '.jpeg', '.bmp', '.webp')
+
+
 @router.get("/datasets")
 async def list_datasets():
-    """扫描 data/spk/ 获取内置数据集列表及其图片"""
-    if not os.path.exists(SPK_DIR):
-        return {"datasets": []}
-
+    """扫描 data/spk/ 与公共数据集（PUBLIC_DATASETS）获取数据集列表及其图片"""
     datasets = []
-    for category in sorted(os.listdir(SPK_DIR)):
-        cat_path = os.path.join(SPK_DIR, category)
-        if not os.path.isdir(cat_path):
-            continue
 
-        images = []
-        # 扫描所有子目录中的图片
-        for subdir in ["train/good", "test/good", "test/anomaly", "test/bad"]:
-            test_dir = os.path.join(cat_path, subdir)
-            if os.path.isdir(test_dir):
-                for fname in sorted(os.listdir(test_dir)):
-                    if fname.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp')):
-                        # 生成可通过 /data/spk/ 访问的 URL 路径
-                        rel_path = os.path.relpath(os.path.join(test_dir, fname), SPK_DIR)
-                        url_path = f"/data/spk/{rel_path}"
+    # 1. SPK 自建数据集
+    if os.path.exists(SPK_DIR):
+        for category in sorted(os.listdir(SPK_DIR)):
+            cat_path = os.path.join(SPK_DIR, category)
+            if not os.path.isdir(cat_path):
+                continue
+
+            images = []
+            # 扫描所有子目录中的图片
+            for subdir in ["train/good", "test/good", "test/anomaly", "test/bad"]:
+                test_dir = os.path.join(cat_path, subdir)
+                if os.path.isdir(test_dir):
+                    for fname in sorted(os.listdir(test_dir)):
+                        if fname.lower().endswith(IMAGE_EXTS):
+                            # 生成可通过 /data/spk/ 访问的 URL 路径
+                            rel_path = os.path.relpath(os.path.join(test_dir, fname), SPK_DIR)
+                            url_path = f"/data/spk/{rel_path}"
+                            images.append({
+                                "filename": fname,
+                                "path": os.path.join(test_dir, fname),
+                                "url": url_path,
+                                "label": "good" if "good" in subdir else "anomaly",
+                                "category": category
+                            })
+
+            if images:
+                datasets.append({
+                    "name": category,
+                    "source": "spk",
+                    "source_label": "SPK",
+                    "image_count": len(images),
+                    "images": images[:50],  # 限制返回数量，前端可分页或按需加载
+                    "has_more": len(images) > 50
+                })
+
+    # 2. 公共数据集（仅扫描 test/ 下的子目录：good + 各缺陷类型）
+    for ds_key, (ds_label, ds_path) in PUBLIC_DATASETS.items():
+        if not os.path.isdir(ds_path):
+            continue
+        for category in sorted(os.listdir(ds_path)):
+            cat_path = os.path.join(ds_path, category)
+            test_root = os.path.join(cat_path, "test")
+            if not os.path.isdir(test_root):
+                continue
+
+            images = []
+            # good 子目录优先，避免截取前 50 张时正常样本被缺陷子目录挤掉
+            for subdir in sorted(os.listdir(test_root), key=lambda s: (s != "good", s)):
+                sub_path = os.path.join(test_root, subdir)
+                if not os.path.isdir(sub_path):
+                    continue
+                for fname in sorted(os.listdir(sub_path)):
+                    if fname.lower().endswith(IMAGE_EXTS):
+                        rel_path = os.path.relpath(os.path.join(sub_path, fname), PUBLIC_DATASET_ROOT)
                         images.append({
                             "filename": fname,
-                            "path": os.path.join(test_dir, fname),
-                            "url": url_path,
-                            "label": "good" if "good" in subdir else "anomaly",
+                            "path": os.path.join(sub_path, fname),
+                            "url": f"/data/public-dataset/{rel_path}",
+                            "label": "good" if subdir == "good" else "anomaly",
                             "category": category
                         })
 
-        if images:
-            datasets.append({
-                "name": category,
-                "image_count": len(images),
-                "images": images[:50],  # 限制返回数量，前端可分页或按需加载
-                "has_more": len(images) > 50
-            })
+            if images:
+                # 均衡截取：正常/异常各占一半配额，一方不足时另一方补齐
+                quota = 50
+                goods = [im for im in images if im["label"] == "good"]
+                anomalies = [im for im in images if im["label"] != "good"]
+                n_good = min(len(goods), max(quota - len(anomalies), quota // 2))
+                sample = goods[:n_good] + anomalies[:quota - n_good]
+                datasets.append({
+                    "name": category,
+                    "source": ds_key,
+                    "source_label": ds_label,
+                    "image_count": len(images),
+                    "images": sample,
+                    "has_more": len(images) > len(sample)
+                })
 
     return {"datasets": datasets}
 

@@ -707,6 +707,13 @@ body {
     transition: all 0.3s;
 }
 
+.modal-btn:disabled, .modal-btn:disabled:hover {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
 .modal-btn-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -911,6 +918,11 @@ body {
 .dataset-card:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(102,126,234,0.15); }
 .dataset-card-header { display: flex; justify-content: space-between; align-items: center; }
 .dataset-name { font-weight: 600; font-size: 14px; }
+.dataset-source-badge {
+    display: inline-block; margin-left: 6px; padding: 1px 6px;
+    font-size: 11px; font-weight: 500; color: #667eea;
+    background: rgba(102,126,234,0.1); border-radius: 8px; vertical-align: middle;
+}
 .dataset-count { color: #999; font-size: 12px; }
 .dataset-thumbs { display: flex; gap: 4px; margin-top: 8px; overflow-x: auto; }
 .dataset-thumb img {
@@ -929,7 +941,7 @@ body {
     position: absolute; top: 6px; left: 6px; z-index: 1; transform: scale(1.2);
 }
 .dataset-image-item img {
-    width: 100%; height: 100px; object-fit: cover; display: block;
+    width: 100%; height: 140px; object-fit: cover; display: block;
 }
 .dataset-image-item .img-label {
     display: block; text-align: center; padding: 4px; font-size: 12px;
@@ -937,6 +949,19 @@ body {
 }
 .dataset-image-item .img-label.good { color: #27ae60; }
 .dataset-image-item .img-label.anomaly { color: #e74c3c; }
+
+/* 数据集图片选择弹窗 - 标签筛选分段控件 */
+.dataset-filter-group {
+    display: inline-flex; border: 1px solid #d8dce6; border-radius: 8px;
+    overflow: hidden; background: #fff;
+}
+.dataset-filter-btn {
+    padding: 6px 16px; font-size: 13px; border: none; background: transparent;
+    color: #555; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.dataset-filter-btn + .dataset-filter-btn { border-left: 1px solid #d8dce6; }
+.dataset-filter-btn:hover { background: #f0f2ff; color: #667eea; }
+.dataset-filter-btn.active { background: #667eea; color: #fff; }
 
 /* 结果网格 */
 .result-grid {

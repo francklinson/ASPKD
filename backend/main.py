@@ -253,6 +253,11 @@ dataset_builder_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
 os.makedirs(dataset_builder_path, exist_ok=True)
 app.mount("/data/dataset-builder", StaticFiles(directory=dataset_builder_path), name="dataset_builder")
 
+# 公共数据集静态文件服务（自定义检测"从数据集选择"图片预览）
+public_dataset_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "public_dataset")
+os.makedirs(public_dataset_path, exist_ok=True)
+app.mount("/data/public-dataset", StaticFiles(directory=public_dataset_path), name="public_dataset")
+
 
 @app.get("/")
 async def root():

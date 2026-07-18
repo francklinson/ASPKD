@@ -261,9 +261,12 @@ async function loadCustomDatasets() {
         data.datasets.forEach(ds => {
             const card = document.createElement('div');
             card.className = 'dataset-card';
+            // 非 SPK 数据来源显示徽标（如 MVTec AD）
+            const sourceBadge = (ds.source_label && ds.source !== 'spk')
+                ? `<span class="dataset-source-badge">${ds.source_label}</span>` : '';
             card.innerHTML = `
                 <div class="dataset-card-header">
-                    <span class="dataset-name">📁 ${ds.name}</span>
+                    <span class="dataset-name">📁 ${ds.name}${sourceBadge}</span>
                     <span class="dataset-count">${ds.image_count} 张图片</span>
                 </div>
             `;
@@ -305,14 +308,16 @@ function openDatasetBrowser(dataset) {
     const list = document.getElementById('custom-dataset-images');
     list.innerHTML = '';
 
-    // 更新标题
+    // 更新标题（非 SPK 来源附带数据集名，如 MVTec AD）
+    const sourceSuffix = (dataset.source_label && dataset.source !== 'spk') ? ` [${dataset.source_label}]` : '';
     document.getElementById('custom-dataset-modal-title').textContent =
-        `选择图片 - ${dataset.name} (${dataset.image_count} 张)`;
+        `选择图片 - ${dataset.name}${sourceSuffix} (${dataset.image_count} 张)`;
 
     // 渲染图片网格（带复选框）
     dataset.images.forEach(img => {
         const item = document.createElement('div');
         item.className = 'dataset-image-item';
+        item.dataset.label = img.label;  // 供标签筛选
         // 构建可直接访问的图片 URL
         const imgUrl = img.url || `/data/spk/${img.category}/test/${img.label === 'good' ? 'good' : 'anomaly'}/${encodeURIComponent(img.filename)}`;
         item.innerHTML = `
@@ -325,8 +330,39 @@ function openDatasetBrowser(dataset) {
         list.appendChild(item);
     });
 
-    // 选择按钮
-    document.getElementById('custom-dataset-select-btn').onclick = () => {
+    // 标签筛选（全部/正常/异常），按钮带数量，打开时重置为"全部"
+    const counts = { all: dataset.images.length, good: 0, anomaly: 0 };
+    dataset.images.forEach(im => counts[im.label === 'good' ? 'good' : 'anomaly']++);
+    const filterBtns = document.querySelectorAll('#custom-dataset-filter .dataset-filter-btn');
+    const filterBase = { all: '全部', good: '✅ 正常', anomaly: '❌ 异常' };
+    filterBtns.forEach(btn => {
+        const f = btn.dataset.filter;
+        btn.textContent = `${filterBase[f]} (${counts[f]})`;
+        btn.classList.toggle('active', f === 'all');
+        btn.onclick = () => {
+            filterBtns.forEach(b => b.classList.toggle('active', b === btn));
+            list.querySelectorAll('.dataset-image-item').forEach(item => {
+                item.style.display = (f === 'all' || item.dataset.label === f) ? '' : 'none';
+            });
+        };
+    });
+
+    // 开始检测按钮：实时显示已勾选数量，未勾选时禁用
+    const startBtn = document.getElementById('custom-dataset-select-btn');
+    const updateStartBtn = () => {
+        const n = list.querySelectorAll('input[type="checkbox"]:checked').length;
+        startBtn.textContent = n > 0 ? `🚀 开始检测 (已选 ${n} 张)` : '🚀 开始检测';
+        startBtn.disabled = n === 0;
+    };
+    list.onchange = updateStartBtn;
+    updateStartBtn();
+
+    startBtn.onclick = () => {
+        // 先校验模型，避免弹窗关闭后勾选丢失
+        if (!selectedAlgorithmId) {
+            alert('请先在左侧"选择检测模型"中选择一个已训练模型，再开始检测');
+            return;
+        }
         const checked = list.querySelectorAll('input[type="checkbox"]:checked');
         const paths = Array.from(checked).map(cb => cb.value);
         if (paths.length === 0) {
@@ -339,11 +375,14 @@ function openDatasetBrowser(dataset) {
 
     modal.classList.add('active');
 
-    // 全选/取消
+    // 全选/取消（只作用于当前筛选可见的图片）
     document.getElementById('custom-dataset-select-all').onclick = () => {
-        const allCbs = list.querySelectorAll('input[type="checkbox"]');
-        const isChecked = allCbs.length > 0 && !allCbs[0].checked;
-        allCbs.forEach(cb => cb.checked = isChecked);
+        const visibleCbs = Array.from(list.querySelectorAll('.dataset-image-item'))
+            .filter(item => item.style.display !== 'none')
+            .map(item => item.querySelector('input[type="checkbox"]'));
+        const isChecked = visibleCbs.length > 0 && !visibleCbs[0].checked;
+        visibleCbs.forEach(cb => cb.checked = isChecked);
+        updateStartBtn();
     };
 }
 

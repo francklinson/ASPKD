@@ -7,7 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="shortcut icon" href="/static/favicon.svg">
     <meta name="theme-color" content="#667eea">
-    <link rel="stylesheet" href="/static/css/index.css">
+    <link rel="stylesheet" href="/static/css/index.css?v=20260718">
 </head>
 <body>
     <div class="header">
@@ -1057,17 +1057,25 @@
 
     <!-- 数据集图片选择模态框 -->
     <div id="custom-dataset-modal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 800px; max-height: 80vh; overflow-y: auto;">
+        <div class="modal-content" style="width:92vw; max-width:1280px; height:88vh; display:flex; flex-direction:column;">
             <div class="modal-header">
                 <span id="custom-dataset-modal-title">选择图片</span>
                 <span class="modal-close" onclick="document.getElementById('custom-dataset-modal').classList.remove('active')">&times;</span>
             </div>
-            <div class="modal-body">
-                <button id="custom-dataset-select-all" class="btn btn-small" style="margin-bottom:10px;">☑ 全选/取消</button>
-                <div id="custom-dataset-images" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px;"></div>
+            <div class="modal-body" style="flex:1; overflow-y:auto;">
+                <div style="color:#999; font-size:13px; margin-bottom:8px;">勾选要检测的图片，然后点击下方"开始检测"按钮（需先在左侧选择检测模型）</div>
+                <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+                    <button id="custom-dataset-select-all" class="btn btn-small">☑ 全选/取消</button>
+                    <div id="custom-dataset-filter" class="dataset-filter-group">
+                        <button class="dataset-filter-btn active" data-filter="all">全部</button>
+                        <button class="dataset-filter-btn" data-filter="good">✅ 正常</button>
+                        <button class="dataset-filter-btn" data-filter="anomaly">❌ 异常</button>
+                    </div>
+                </div>
+                <div id="custom-dataset-images" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px;"></div>
             </div>
             <div class="modal-footer">
-                <button class="modal-btn modal-btn-primary" id="custom-dataset-select-btn">✅ 确认选择</button>
+                <button class="modal-btn modal-btn-primary" id="custom-dataset-select-btn" disabled>🚀 开始检测</button>
             </div>
         </div>
     </div>
@@ -1112,6 +1120,6 @@
     <script src="/static/js/cluster.js"></script>
     <script src="/static/js/zero-shot.js"></script>
     <script src="/static/js/few-shot.js"></script>
-    <script src="/static/js/custom-detection.js"></script>
+    <script src="/static/js/custom-detection.js?v=20260718"></script>
 </body>
 </html>
