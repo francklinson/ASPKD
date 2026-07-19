@@ -291,8 +291,10 @@ async def list_trained_models():
 
         # 读取训练时保存的推荐阈值
         recommended_threshold = None
-        th_dir = entry_path if is_dir else os.path.dirname(entry_path)
-        th_file = os.path.join(th_dir, "threshold_info.json")
+        if is_dir:
+            th_file = os.path.join(entry_path, "threshold_info.json")
+        else:
+            th_file = entry_path + ".threshold_info.json"
         if os.path.isfile(th_file):
             try:
                 with open(th_file, "r", encoding="utf-8") as f:

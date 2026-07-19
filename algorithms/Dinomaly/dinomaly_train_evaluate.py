@@ -543,7 +543,7 @@ class DinomalyV2Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
 
         self.save_model(
             data_config.save_dir,
-            "dinomaly_dinov2",
+            data_config.save_name or "dinomaly_dinov2",
             data_config.item_list,
         )
 
@@ -737,7 +737,7 @@ class DinomalyV3Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
 
         self.save_model(
             data_config.save_dir,
-            "dinomaly_dinov3",
+            data_config.save_name or "dinomaly_dinov3",
             data_config.item_list,
         )
 

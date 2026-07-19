@@ -1572,6 +1572,29 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                     _save_training_metadata(save_dir, f, task)
                     break
 
+        # 兜底：按修改时间查找训练期间新创建的最新的 .pth 文件
+        if not model_found:
+            candidates = []
+            started = task.get("started_at")
+            started_ts = None
+            if started:
+                try:
+                    started_ts = datetime.fromisoformat(started).timestamp()
+                except (ValueError, TypeError):
+                    pass
+            for f in os.listdir(save_dir):
+                fpath = os.path.join(save_dir, f)
+                if f.endswith('.pth') or os.path.isdir(fpath):
+                    mtime = os.path.getmtime(fpath)
+                    if started_ts is None or mtime >= started_ts - 10:
+                        candidates.append((mtime, fpath))
+            if candidates:
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                task["model_path"] = candidates[0][1]
+                model_found = True
+                _save_training_metadata(save_dir, os.path.basename(candidates[0][1]), task)
+                logger.info(f"[{task_id}] 兜底匹配到模型文件: {candidates[0][1]}")
+
         # ADer 框架不使用 save_name 命名，需按训练器名称模式查找
         if not model_found and task.get("algorithm_family") == "ader":
             from backend.core.model_meta import _ADER_TRAINER_MAP
@@ -1600,10 +1623,13 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
         test_metrics = task.get("test_metrics", {})
         if test_metrics and test_metrics.get("optimal_threshold") and task.get("model_path"):
             th_info = test_metrics["optimal_threshold"]
-            model_dir = task["model_path"]
-            if not os.path.isdir(model_dir):
-                model_dir = os.path.dirname(model_dir)
-            th_file = os.path.join(model_dir, "threshold_info.json")
+            model_path = task["model_path"]
+            if os.path.isdir(model_path):
+                # 目录模型: {model_dir}/threshold_info.json
+                th_file = os.path.join(model_path, "threshold_info.json")
+            else:
+                # 文件模型: {model_name}.threshold_info.json（避免多模型同目录冲突）
+                th_file = model_path + ".threshold_info.json"
             try:
                 with open(th_file, "w", encoding="utf-8") as f:
                     json.dump(th_info, f, ensure_ascii=False, indent=2)
