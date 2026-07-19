@@ -221,15 +221,21 @@ function selectTrainedModel(path, name, matchedAlgoId, recommendedThreshold) {
 
     // 自动填充推荐阈值
     if (recommendedThreshold != null && recommendedThreshold !== undefined) {
+        const thVal = Number(recommendedThreshold).toFixed(4);
         const thEl = document.getElementById('custom-threshold');
         if (thEl) {
-            thEl.value = Number(recommendedThreshold).toFixed(4);
-            // 显示提示
-            const hintEl = document.getElementById('custom-threshold-hint');
-            if (hintEl) {
-                hintEl.textContent = `已自动填入训练最优阈值 ${Number(recommendedThreshold).toFixed(4)} (max F1)`;
-                hintEl.style.display = '';
-            }
+            thEl.value = thVal;
+        }
+        // 同步更新 range slider 和显示值（程序化赋值不触发 oninput）
+        const rangeEl = document.getElementById('custom-threshold-range');
+        if (rangeEl) rangeEl.value = thVal;
+        const valEl = document.getElementById('custom-threshold-val');
+        if (valEl) valEl.textContent = thVal;
+        // 显示提示
+        const hintEl = document.getElementById('custom-threshold-hint');
+        if (hintEl) {
+            hintEl.textContent = `已自动填入训练最优阈值 ${thVal} (max F1)`;
+            hintEl.style.display = '';
         }
     } else {
         // 无推荐阈值时清空提示
