@@ -243,6 +243,48 @@ async function showTrainingDetailModal(taskId) {
             `;
         }
 
+        // 展示测试集性能指标
+        const tm = data.test_metrics;
+        if (tm && tm.mean && Object.keys(tm.mean).length > 0) {
+            const meanMetrics = tm.mean;
+            const metricItems = [];
+            for (const [key, val] of Object.entries(meanMetrics)) {
+                const pct = (val * 100).toFixed(2);
+                // 颜色：>=95% 绿色，>=80% 橙色，<80% 红色
+                let color = val >= 0.95 ? '#52c41a' : val >= 0.80 ? '#fa8c16' : '#ff4d4f';
+                metricItems.push(
+                    `<div class="task-detail-item"><span class="label">${key}</span><span class="value" style="color:${color};font-weight:600;">${pct}%</span></div>`
+                );
+            }
+            html += `
+                <div class="task-detail-section">
+                    <h4>📊 测试集性能（均值）</h4>
+                    <div style="font-size:12px;color:#999;margin-bottom:8px;">数据来源：训练完成后自动评估</div>
+                    <div class="task-detail-grid">${metricItems.join('')}</div>
+                </div>
+            `;
+        }
+
+        // 展示每类性能（如果有多个类别）
+        if (tm && tm.per_class && Object.keys(tm.per_class).length > 1) {
+            let perClassRows = '';
+            for (const [cls, clsMetrics] of Object.entries(tm.per_class)) {
+                const cells = [];
+                for (const [key, val] of Object.entries(clsMetrics)) {
+                    const pct = (val * 100).toFixed(2);
+                    let color = val >= 0.95 ? '#52c41a' : val >= 0.80 ? '#fa8c16' : '#ff4d4f';
+                    cells.push(`<span style="color:${color};font-weight:500;">${key}: ${pct}%</span>`);
+                }
+                perClassRows += `<div style="padding:4px 0;border-bottom:1px solid #f0f0f0;"><strong>${cls}</strong>: ${cells.join(' &nbsp;|&nbsp; ')}</div>`;
+            }
+            html += `
+                <div class="task-detail-section">
+                    <h4>📋 各类别性能明细</h4>
+                    <div style="font-size:13px;">${perClassRows}</div>
+                </div>
+            `;
+        }
+
         const modal = document.getElementById('customModal');
         document.getElementById('modalTitle').textContent = '🎯 训练任务详情';
         document.getElementById('modalMessage').innerHTML = html;

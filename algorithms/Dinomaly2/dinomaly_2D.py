@@ -86,8 +86,13 @@ def train(item_list, args):
         test_data_list.append(test_data)
 
     train_data = ConcatDataset(train_data_list)
-    train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=4,
-                                                   drop_last=True)
+    # 当训练集图片数 < batch_size 时，自动降低 batch_size 避免 dataloader 为空
+    train_size = len(train_data)
+    effective_batch_size = min(batch_size, max(1, train_size))
+    if effective_batch_size < batch_size:
+        print_fn(f'训练集仅有 {train_size} 张图片，batch_size 自动从 {batch_size} 降至 {effective_batch_size}')
+    train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=effective_batch_size, shuffle=True, num_workers=4,
+                                                   drop_last=False)
 
     encoder_name = args.backbone
     # encoder_name = 'dinov2reg_vit_small_14'
@@ -245,6 +250,37 @@ def train(item_list, args):
                 loss_list = []
             if it == total_iters:
                 break
+
+    # 训练结束后执行最终评估（如果训练过程中最后一次评估不是最终迭代）
+    if total_iters % 5000 != 0:
+        print_fn('Begin final model eval!!!')
+        model.eval()
+        auroc_sp_list, ap_sp_list, f1_sp_list = [], [], []
+        auroc_px_list, ap_px_list, f1_px_list, aupro_px_list = [], [], [], []
+
+        with torch.no_grad():
+            for item, test_data in zip(item_list, test_data_list):
+                test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False,
+                                                              num_workers=4)
+                results = evaluation_batch(model, test_dataloader, device, max_ratio=0.01, resize_mask=256)
+                auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px = results
+
+                auroc_sp_list.append(auroc_sp)
+                ap_sp_list.append(ap_sp)
+                f1_sp_list.append(f1_sp)
+                auroc_px_list.append(auroc_px)
+                ap_px_list.append(ap_px)
+                f1_px_list.append(f1_px)
+                aupro_px_list.append(aupro_px)
+
+                print_fn(
+                    '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
+                        item, auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px))
+
+        print_fn(
+            'Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
+                np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list),
+                np.mean(auroc_px_list), np.mean(ap_px_list), np.mean(f1_px_list), np.mean(aupro_px_list)))
 
     torch.save(model.state_dict(), os.path.join(args.save_dir, args.save_name, 'model.pth'))
 

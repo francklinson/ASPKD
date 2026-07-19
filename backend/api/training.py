@@ -334,8 +334,11 @@ class TrainingStatus(BaseModel):
     status: str
     categories: List[str]
     algorithm_family: str = "dinomaly"
+    algorithm_name: str = ""
     model_type: str = ""
     model_size: str = ""
+    data_source: str = ""
+    error: Optional[str] = None
     total_iters: int
     current_iter: int = 0
     progress: str = ""
@@ -345,6 +348,7 @@ class TrainingStatus(BaseModel):
     model_path: Optional[str] = None
     log: str = ""
     metrics: Dict[str, Any] = {}
+    test_metrics: Optional[Dict[str, Any]] = None
     loss_history: List[float] = []
     learning_rate: float = 0.0001
     estimated_time_remaining: Optional[str] = None
@@ -1129,6 +1133,17 @@ from anomalib.data import MVTecAD
 datamodule = MVTecAD(root='{data_root}', category='{category}', train_batch_size={batch_size})
 engine.fit(model=model, datamodule=datamodule)
 print(f'Training completed: {algorithm}')
+
+# 训练完成后在测试集上评估
+print('Begin final model eval!!!')
+test_results = engine.test(model=model, datamodule=datamodule)
+if test_results and isinstance(test_results, list) and len(test_results) > 0:
+    result = test_results[0]
+    for k, v in result.items():
+        if isinstance(v, (int, float)):
+            print(f'Test {k}: {v:.4f}')
+        else:
+            print(f'Test {k}: {v}')
 """
         script_path = os.path.join(SAVED_RESULTS_DIR, f"_anomalib_train_{task_id}.py")
         with open(script_path, 'w') as f:
@@ -1534,6 +1549,16 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
         task["status"] = "completed"
         task["progress"] = "训练完成"
         logger.info(f"[{task_id}] 训练完成, 模型保存目录: {SAVED_RESULTS_DIR}")
+
+        # 从训练日志中解析测试集性能指标
+        test_metrics = _parse_test_metrics(
+            task.get("log", ""),
+            task.get("algorithm_family", ""),
+        )
+        if test_metrics:
+            task["test_metrics"] = test_metrics
+            logger.info(f"[{task_id}] 解析到测试指标: {json.dumps(test_metrics, ensure_ascii=False)}")
+
         save_dir = SAVED_RESULTS_DIR
 
         # 查找模型文件：优先 .pth 文件，其次目录
@@ -1584,6 +1609,90 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
     _save_training_tasks()
 
 
+def _parse_test_metrics(log_text: str, algorithm_family: str) -> dict:
+    """从训练 stdout 日志中解析测试集性能指标
+
+    支持的格式:
+      Dinomaly V1/V3:  {item}: I-Auroc:0.xx, I-AP:0.xx, I-F1:0.xx
+                       Mean: I-Auroc:0.xx, I-AP:0.xx, I-F1:0.xx
+      Dinomaly2:       {item}: I-Auroc:0.xx, ..., P-AUROC:0.xx, ..., P-AUPRO:0.xx
+                       Mean: I-Auroc:0.xx, ..., P-AUROC:0.xx, ..., P-AUPRO:0.xx
+      Anomalib:        Test {metric_name}: {value}
+    """
+    metrics = {}
+
+    # 定位最后一段评估输出（优先取 "Begin final model eval!!!" 之后的文本）
+    eval_start = log_text.rfind("Begin final model eval!!!")
+    if eval_start < 0:
+        eval_start = log_text.rfind("Begin model eval!!!")
+    eval_section = log_text[eval_start:] if eval_start >= 0 else log_text
+
+    # ── Dinomaly2 格式（含 P-AUROC / P-AUPRO） ──
+    d2_per_class = re.findall(
+        r'^(\S+):\s+I-Auroc:([\d.]+),\s*I-AP:([\d.]+),\s*I-F1:([\d.]+),\s*'
+        r'P-AUROC:([\d.]+),\s*P-AP:([\d.]+),\s*P-F1:([\d.]+),\s*P-AUPRO:([\d.]+)',
+        eval_section, re.MULTILINE
+    )
+    d2_mean = re.search(
+        r'^Mean:\s+I-Auroc:([\d.]+),\s*I-AP:([\d.]+),\s*I-F1:([\d.]+),\s*'
+        r'P-AUROC:([\d.]+),\s*P-AP:([\d.]+),\s*P-F1:([\d.]+),\s*P-AUPRO:([\d.]+)',
+        eval_section, re.MULTILINE
+    )
+
+    if d2_per_class:
+        metrics["per_class"] = {}
+        for item, ia, iap, if1, pa, pap, pf1, paupro in d2_per_class:
+            if item != "Mean":
+                metrics["per_class"][item] = {
+                    "I-AUROC": float(ia), "I-AP": float(iap), "I-F1": float(if1),
+                    "P-AUROC": float(pa), "P-AP": float(pap), "P-F1": float(pf1),
+                    "P-AUPRO": float(paupro),
+                }
+    if d2_mean:
+        metrics["mean"] = {
+            "I-AUROC": float(d2_mean.group(1)), "I-AP": float(d2_mean.group(2)),
+            "I-F1": float(d2_mean.group(3)), "P-AUROC": float(d2_mean.group(4)),
+            "P-AP": float(d2_mean.group(5)), "P-F1": float(d2_mean.group(6)),
+            "P-AUPRO": float(d2_mean.group(7)),
+        }
+
+    # ── Dinomaly V1/V3 格式（仅 I-Auroc / I-AP / I-F1） ──
+    if not metrics.get("mean"):
+        d1_per_class = re.findall(
+            r'^(\S+):\s+I-Auroc:([\d.]+),\s*I-AP:([\d.]+),\s*I-F1:([\d.]+)',
+            eval_section, re.MULTILINE
+        )
+        d1_mean = re.search(
+            r'^Mean:\s+I-Auroc:([\d.]+),\s*I-AP:([\d.]+),\s*I-F1:([\d.]+)',
+            eval_section, re.MULTILINE
+        )
+        if d1_per_class:
+            metrics["per_class"] = {}
+            for item, ia, iap, if1 in d1_per_class:
+                if item != "Mean":
+                    metrics["per_class"][item] = {
+                        "I-AUROC": float(ia), "I-AP": float(iap), "I-F1": float(if1),
+                    }
+        if d1_mean:
+            metrics["mean"] = {
+                "I-AUROC": float(d1_mean.group(1)),
+                "I-AP": float(d1_mean.group(2)),
+                "I-F1": float(d1_mean.group(3)),
+            }
+
+    # ── Anomalib 格式: Test {metric}: {value} ──
+    test_kv = re.findall(r'^Test\s+([^:]+):\s*([\d.]+)', eval_section, re.MULTILINE)
+    if test_kv:
+        if "mean" not in metrics:
+            metrics["mean"] = {}
+        for name, value in test_kv:
+            # 将 Anomalib 的指标名标准化（例如 image_AUROC → I-AUROC）
+            normalized = name.replace("image_", "I-").replace("pixel_", "P-")
+            metrics["mean"][normalized] = float(value)
+
+    return metrics
+
+
 def _save_training_metadata(save_dir: str, model_entry: str, task: dict):
     """训练完成后保存 metadata.json 到模型目录"""
     from backend.core.model_meta import save_model_meta
@@ -1628,8 +1737,11 @@ async def get_training_status(task_id: str):
         status=task["status"],
         categories=task["categories"],
         algorithm_family=task.get("algorithm_family", "dinomaly"),
+        algorithm_name=task.get("algorithm_name", ""),
         model_type=task.get("model_type", ""),
         model_size=task.get("model_size", ""),
+        data_source=task.get("data_source", ""),
+        error=task.get("error"),
         total_iters=task["total_iters"],
         current_iter=task.get("current_iter", 0),
         progress=task["progress"],
@@ -1639,6 +1751,7 @@ async def get_training_status(task_id: str):
         model_path=task.get("model_path"),
         log=task["log"][-5000:] if task.get("log") else "",
         metrics=task.get("metrics", {}),
+        test_metrics=task.get("test_metrics"),
         loss_history=task.get("metrics", {}).get("loss_history", []),
         learning_rate=task.get("config", {}).get("learning_rate", 0.0001),
         estimated_time_remaining=task.get("estimated_time_remaining")

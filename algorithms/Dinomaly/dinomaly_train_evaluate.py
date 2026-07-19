@@ -453,12 +453,20 @@ class DinomalyV2Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
             data_transform,
             gt_transform,
         )
+        # 当训练集图片数 < batch_size 时，自动降低 batch_size 避免 dataloader 为空
+        train_size = sum(len(d) for d in train_data_list)
+        effective_batch_size = min(self.config.batch_size, max(1, train_size))
+        if effective_batch_size < self.config.batch_size:
+            self.logger.info(
+                f"训练集仅有 {train_size} 张图片，batch_size 自动从 {self.config.batch_size} 降至 {effective_batch_size}"
+            )
+
         train_loader = DataLoader(
             ConcatDataset(train_data_list),
-            batch_size=self.config.batch_size,
+            batch_size=effective_batch_size,
             shuffle=True,
             num_workers=data_config.num_workers,
-            drop_last=True,
+            drop_last=False,
         )
 
         # 创建模型和优化器
@@ -469,7 +477,8 @@ class DinomalyV2Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
         # 训练循环
         iteration = 0
         num_epochs = int(np.ceil(self.config.total_iters / len(train_loader)))
-        
+        last_eval_iteration = -1
+
         for epoch in range(num_epochs):
             self.model.train()
             loss_list = []
@@ -497,6 +506,7 @@ class DinomalyV2Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
                         iteration + 1,
                     )
                     self.model.train()
+                    last_eval_iteration = iteration + 1
 
                 iteration += 1
                 # 每 20 迭代打印进度(含 lr),最后一迭代补打 100% 行,供后端解析绘图
@@ -508,6 +518,13 @@ class DinomalyV2Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
                     loss_list = []
                 if iteration >= self.config.total_iters:
                     break
+
+        # 训练结束后执行最终评估（如果训练过程中最后一次评估不是最终迭代）
+        if last_eval_iteration < self.config.total_iters:
+            self.logger.info("Begin final model eval!!!")
+            self.evaluate_model(
+                data_config.item_list, test_data_list, self.config.batch_size
+            )
 
         self.save_model(
             data_config.save_dir,
@@ -628,12 +645,20 @@ class DinomalyV3Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
             data_transform,
             gt_transform,
         )
+        # 当训练集图片数 < batch_size 时，自动降低 batch_size 避免 dataloader 为空
+        train_size = sum(len(d) for d in train_data_list)
+        effective_batch_size = min(self.config.batch_size, max(1, train_size))
+        if effective_batch_size < self.config.batch_size:
+            self.logger.info(
+                f"训练集仅有 {train_size} 张图片，batch_size 自动从 {self.config.batch_size} 降至 {effective_batch_size}"
+            )
+
         train_loader = DataLoader(
             ConcatDataset(train_data_list),
-            batch_size=self.config.batch_size,
+            batch_size=effective_batch_size,
             shuffle=True,
             num_workers=data_config.num_workers,
-            drop_last=True,
+            drop_last=False,
         )
 
         # 创建模型和优化器
@@ -644,7 +669,8 @@ class DinomalyV3Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
         # 训练循环
         iteration = 0
         num_epochs = int(np.ceil(self.config.total_iters / len(train_loader)))
-        
+        last_eval_iteration = -1
+
         for epoch in range(num_epochs):
             self.model.train()
             self.model.encoder.eval()  # 冻结编码器
@@ -674,6 +700,7 @@ class DinomalyV3Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
                     )
                     self.model.train()
                     self.model.encoder.eval()
+                    last_eval_iteration = iteration + 1
 
                 iteration += 1
                 # 每 20 迭代打印进度(含 lr),最后一迭代补打 100% 行,供后端解析绘图
@@ -685,6 +712,13 @@ class DinomalyV3Trainer(BaseTrainer, EvaluationMixin, DataPreparationMixin):
                     loss_list = []
                 if iteration >= self.config.total_iters:
                     break
+
+        # 训练结束后执行最终评估（如果训练过程中最后一次评估不是最终迭代）
+        if last_eval_iteration < self.config.total_iters:
+            self.logger.info("Begin final model eval!!!")
+            self.evaluate_model(
+                data_config.item_list, test_data_list, self.config.batch_size
+            )
 
         self.save_model(
             data_config.save_dir,
