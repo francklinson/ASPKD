@@ -166,6 +166,49 @@ PUBLIC_DATASETS = {
 }
 
 
+def _restore_custom_tasks():
+    """服务启动时从磁盘 result.json 恢复已完成/失败的任务记录"""
+    if not os.path.isdir(OUTPUT_DIR):
+        return
+    restored = 0
+    for task_id in os.listdir(OUTPUT_DIR):
+        task_dir = os.path.join(OUTPUT_DIR, task_id)
+        result_file = os.path.join(task_dir, "result.json")
+        if not os.path.isfile(result_file):
+            continue
+        try:
+            with open(result_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            status = data.get("status", "completed")
+            if status == "processing":
+                status = "failed"  # 进程已不存在，标为失败
+            results_list = data.get("results", [])
+            CUSTOM_TASKS[task_id] = {
+                "task_id": task_id,
+                "status": status,
+                "progress": data.get("progress", 100.0),
+                "algorithm": data.get("algorithm", "unknown"),
+                "algorithm_family": _infer_algorithm_family(data.get("algorithm", "")),
+                "created_at": os.path.getmtime(result_file),  # 用文件修改时间
+                "started_at": None,
+                "completed_at": os.path.getmtime(result_file),
+                "file_count": len(results_list),
+                "files": [r.get("filename", f"{i:04d}.png") for i, r in enumerate(results_list)],
+                "results": results_list,
+                "summary": data.get("summary", {}),
+                "error": None,
+            }
+            restored += 1
+        except (json.JSONDecodeError, OSError):
+            continue
+    if restored > 0:
+        print(f"从磁盘恢复了 {restored} 个自定义检测任务记录")
+
+
+# 模块加载时恢复任务
+_restore_custom_tasks()
+
+
 def _ensure_dirs():
     """确保目录存在"""
     os.makedirs(UPLOAD_DIR, exist_ok=True)

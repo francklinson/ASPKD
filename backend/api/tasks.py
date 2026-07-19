@@ -1,6 +1,7 @@
 """
 任务管理 API
 """
+import time
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 
@@ -134,6 +135,7 @@ async def list_all_tasks(
                     "error": t.get("error") or (t.get("progress") if isinstance(t.get("progress"), str) and "失败" in t.get("progress", "") else None),
                     "client_name": None,
                     "category": ", ".join(t.get("categories", [])),
+                    "data_source": t.get("data_source", ""),
                 })
         except Exception:
             pass
@@ -305,6 +307,28 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
     except Exception as e:
         file_stats["errors"].append(f"training_tasks: {str(e)}")
 
+    # 同时清理图片检测任务记录（其输出文件在下方已被删除）
+    try:
+        from backend.api.custom_detection import CUSTOM_TASKS
+        cd_removed = 0
+        cd_to_remove = []
+        for task_id, task in CUSTOM_TASKS.items():
+            if task.get("status") in ("completed", "failed"):
+                completed_at = task.get("completed_at")
+                if isinstance(completed_at, (int, float)):
+                    completed_ts = completed_at  # time.time() 时间戳
+                else:
+                    completed_ts = (datetime.fromisoformat(completed_at).timestamp()
+                                    if completed_at else 0)
+                if clear_all or completed_ts < cutoff_time:
+                    cd_to_remove.append(task_id)
+        for task_id in cd_to_remove:
+            del CUSTOM_TASKS[task_id]
+            cd_removed += 1
+        file_stats["custom_detection_tasks"] = cd_removed
+    except Exception as e:
+        file_stats["errors"].append(f"custom_detection_tasks: {str(e)}")
+
     # 清理物理文件
     if include_files:
         # 1. 清理 uploads/ 目录（上传的音频文件）
@@ -385,10 +409,38 @@ async def cleanup_old_tasks(keep_days: int = 7, clear_all: bool = False, include
 
 @router.delete("/{task_id}")
 async def delete_task(task_id: str):
-    """删除任务记录"""
+    """删除任务记录（支持所有任务类型）"""
+    import os
+    import shutil
+
+    # 1. 离线音频检测
     from backend.core.task_manager import task_manager
-    success = task_manager.delete_task(task_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    
-    return {"status": "deleted", "task_id": task_id}
+    if task_id in task_manager.tasks:
+        task_manager.delete_task(task_id)
+        return {"status": "deleted", "task_id": task_id, "type": "offline_audio"}
+
+    # 2. 图片检测
+    try:
+        from backend.api.custom_detection import CUSTOM_TASKS
+        if task_id in CUSTOM_TASKS:
+            del CUSTOM_TASKS[task_id]
+            return {"status": "deleted", "task_id": task_id, "type": "custom_detection"}
+    except Exception:
+        pass
+
+    # 3. 训练任务
+    try:
+        from backend.api.training import TRAINING_TASKS
+        if task_id in TRAINING_TASKS:
+            del TRAINING_TASKS[task_id]
+            # 持久化
+            try:
+                from backend.api.training import _save_training_tasks
+                _save_training_tasks()
+            except Exception:
+                pass
+            return {"status": "deleted", "task_id": task_id, "type": "training"}
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=404, detail="任务不存在")

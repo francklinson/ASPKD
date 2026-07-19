@@ -41,7 +41,7 @@ async function loadTaskList() {
         const statusFilter = document.getElementById('filterStatus')?.value || currentStatusFilter;
         if (statusFilter) params.set('status', statusFilter);
 
-        params.set('limit', '200');
+        params.set('limit', '500');
         params.set('offset', '0');
 
         const response = await fetch(`${API_BASE}/api/tasks/all?${params}`);
@@ -106,11 +106,14 @@ function renderTaskRow(t) {
     const progressColor = (t.progress || 0) >= 100 ? '#52c41a' : '#667eea';
 
     const algoDisplay = t.algorithm_family
-        ? `<span style="font-size:11px;color:#888;">[${_familyLabel(t.algorithm_family)}]</span> ${t.algorithm || '-'}`
-        : (t.algorithm || '-');
+        ? `<span style="font-size:11px;color:#888;">[${_familyLabel(t.algorithm_family)}]</span> ${_algoReadable(t.algorithm)}`
+        : (_algoReadable(t.algorithm) || '-');
 
+    // 训练任务显示数据来源和类别
+    const sourceLabelMap = { mvtec: 'MVTec AD', spk: 'SPK', visa: 'VisA' };
+    const dataSourceLabel = t.data_source ? (sourceLabelMap[t.data_source] || t.data_source) : '';
     const extraInfo = t.type === 'training'
-        ? `<span style="font-size:11px;color:#888;">${t.category || ''}</span>`
+        ? `<span style="font-size:11px;color:#888;">${dataSourceLabel ? dataSourceLabel + ' · ' : ''}${t.category || ''}</span>`
         : t.type === 'online'
         ? `<span style="font-size:11px;color:#888;">${t.client_name || ''}</span>`
         : '';
@@ -136,8 +139,7 @@ function renderTaskRow(t) {
             <td style="white-space:nowrap;">
                 <button class="btn btn-secondary" onclick="showUnifiedTaskDetail('${t.id}','${t.type}')" style="padding:3px 8px;font-size:11px;">详情</button>
                 ${t.status === 'running' && t.type === 'offline_audio' ? `<button class="btn btn-danger" onclick="cancelTask('${t.id}')" style="padding:3px 8px;font-size:11px;margin-left:3px;">取消</button>` : ''}
-                ${['completed', 'failed', 'cancelled'].includes(t.status) && t.type === 'offline_audio' ? `<button class="btn btn-danger" onclick="deleteSingleTask('${t.id}', 'offline')" style="padding:3px 8px;font-size:11px;margin-left:3px;background:#999;color:white;">删除</button>` : ''}
-                ${['completed', 'failed'].includes(t.status) && t.type === 'online' ? `<button class="btn btn-danger" onclick="deleteSingleTask('${t.id.replace('online_','')}', 'online')" style="padding:3px 8px;font-size:11px;margin-left:3px;background:#999;color:white;">删除</button>` : ''}
+                ${['completed', 'failed', 'cancelled'].includes(t.status) ? `<button class="btn btn-danger" onclick="deleteSingleTask('${t.id}', '${t.type}')" style="padding:3px 8px;font-size:11px;margin-left:3px;background:#999;color:white;">删除</button>` : ''}
             </td>
         </tr>
     `;
@@ -156,6 +158,40 @@ function getTypeBadge(type) {
 function _familyLabel(family) {
     const map = {'dinomaly':'Dinomaly','dinomaly2':'Dinomaly2','anomalib':'Anomalib','ader':'ADer'};
     return map[family] || family;
+}
+
+// 算法 ID → 可读名称映射（精简版，涵盖训练场景常用算法）
+const ALGO_READABLE_MAP = {
+    // Dinomaly 系列
+    'dinomaly_dinov2_small': 'Dinomaly DINOv2-S',
+    'dinomaly_dinov2_base': 'Dinomaly DINOv2-B',
+    'dinomaly_dinov2_large': 'Dinomaly DINOv2-L',
+    'dinomaly_dinov3_small': 'Dinomaly DINOv3-S',
+    'dinomaly_dinov3_base': 'Dinomaly DINOv3-B',
+    'dinomaly_dinov3_large': 'Dinomaly DINOv3-L',
+    // Dinomaly2 系列
+    'dinomaly2_dinov2_small': 'Dinomaly2 DINOv2-S',
+    'dinomaly2_dinov2_base': 'Dinomaly2 DINOv2-B',
+    'dinomaly2_dinov2_large': 'Dinomaly2 DINOv2-L',
+    // Anomalib 常见算法
+    'padim': 'PaDiM', 'patchcore': 'PatchCore', 'cflow': 'CFlow', 'csflow': 'CS-Flow',
+    'draem': 'DRAEM', 'reverse_distillation': 'Reverse Distill', 'stfpm': 'STFPM',
+    'ganomaly': 'GANomaly', 'dfkde': 'DFKDE', 'dfm': 'DFM',
+    'supersimplenet': 'SuperSimpleNet', 'uflow': 'U-Flow', 'winclip': 'WinCLIP',
+    'efficientad': 'EfficientAD', 'fastflow': 'FastFlow',
+    'anomalyvfm': 'AnomalyVFM', 'cfm': 'CFM', 'general_ad': 'GeneralAD',
+    'glass': 'GLASS', 'inp_former': 'INP-Former', 'l2bt': 'L2BT',
+    'patchflow': 'PatchFlow', 'anomaly_dino': 'AnomalyDINO',
+    // ADer 算法
+    'mambaad': 'MambaAD', 'invad': 'InvAD', 'vitad': 'ViTAD', 'unad': 'UniAD',
+    'mcal': 'MCAL', 'e3f': 'E3F', 'uninet': 'UniNet',
+    'simplenet': 'SimpleNet', 'pyramidflow': 'PyramidFlow',
+    // 其他
+    'rdpp': 'RD++', 'realnet': 'RealNet',
+};
+function _algoReadable(algo) {
+    if (!algo) return '-';
+    return ALGO_READABLE_MAP[algo] || algo;
 }
 
 // ==================== 统一任务详情 ====================
@@ -579,12 +615,15 @@ async function deleteSingleTask(taskIdOrResultId, type) {
             await showModal('删除在线结果失败: ' + error.message, '错误');
         }
     } else {
-        const confirmed = await showModal('确定要删除该任务记录吗？\n（不会删除关联的文件）', '确认删除', 'danger');
+        const confirmed = await showModal('确定要删除该任务记录吗？\n（关联的结果文件不会被删除）', '确认删除', 'danger');
         if (!confirmed) return;
 
         try {
             const response = await fetch(`${API_BASE}/api/tasks/${taskIdOrResultId}`, { method: 'DELETE' });
-            if (!response.ok) throw new Error('删除任务失败');
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || '删除任务失败');
+            }
             await showModal('任务已删除', '提示');
             loadTaskList();
         } catch (error) {
