@@ -1144,6 +1144,58 @@ if test_results and isinstance(test_results, list) and len(test_results) > 0:
             print(f'Test {k}: {v:.4f}')
         else:
             print(f'Test {k}: {v}')
+
+# 收集原始预测值计算最优决策阈值
+import numpy as np
+from sklearn.metrics import precision_recall_curve
+import torch
+
+model.eval()
+all_scores = []
+all_labels = []
+test_loader = datamodule.test_dataloader()
+device = next(model.parameters()).device
+
+for batch in test_loader:
+    images = batch['image'].to(device)
+    labels = batch['label']
+    with torch.no_grad():
+        output = model(images)
+    # 提取图像级异常分数（兼容多种 Anomalib 模型输出格式）
+    if isinstance(output, dict):
+        if 'pred_scores' in output:
+            scores = output['pred_scores']
+        elif 'pred_score' in output:
+            scores = output['pred_score']
+        elif 'anomaly_map' in output:
+            scores = output['anomaly_map'].reshape(images.shape[0], -1).max(dim=1)[0]
+        else:
+            # 兜底：找第一个 shape[0]==batch_size 的 tensor
+            scores = None
+            for v in output.values():
+                if isinstance(v, torch.Tensor) and v.shape[0] == images.shape[0]:
+                    scores = v.reshape(v.shape[0], -1).mean(dim=1)
+                    break
+            if scores is None:
+                scores = torch.zeros(images.shape[0])
+    elif isinstance(output, torch.Tensor):
+        scores = output.reshape(output.shape[0], -1).max(dim=1)[0]
+    else:
+        scores = torch.zeros(images.shape[0])
+    all_scores.append(scores.detach().cpu().numpy())
+    all_labels.append(labels.cpu().numpy())
+
+if all_scores:
+    scores_arr = np.concatenate(all_scores).flatten()
+    labels_arr = np.concatenate(all_labels).flatten()
+    # 确保数值合法
+    if len(np.unique(labels_arr)) >= 2 and np.isfinite(scores_arr).all():
+        precs, recs, thrs = precision_recall_curve(labels_arr, scores_arr)
+        f1s = 2 * precs * recs / (precs + recs + 1e-7)
+        f1s = f1s[:-1]
+        if len(f1s) > 0:
+            best_idx = int(np.argmax(f1s))
+            print(f'Optimal threshold: {{float(thrs[best_idx]):.4f}} (F1={{float(f1s[best_idx]):.4f}}, method=max_f1)')
 """
         script_path = os.path.join(SAVED_RESULTS_DIR, f"_anomalib_train_{task_id}.py")
         with open(script_path, 'w') as f:
@@ -1732,8 +1784,9 @@ def _parse_test_metrics(log_text: str, algorithm_family: str) -> dict:
             metrics["mean"][normalized] = float(value)
 
     # ── 最优决策阈值 ──
+    # 兼容多种结尾: method=max_f1) 或 method=max_f1, class=xxx)
     th_match = re.search(
-        r'^Optimal threshold:\s*([\d.]+)\s*\(F1=([\d.]+),\s*method=(\S+)\)',
+        r'^Optimal threshold:\s*([\d.]+)\s*\(F1=([\d.]+),\s*method=([^),]+)',
         eval_section, re.MULTILINE
     )
     if th_match:

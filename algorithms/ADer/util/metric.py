@@ -244,6 +244,20 @@ class Evaluator(object):
             t1 = get_timepc()
             metric_str += f'{t1 - t0:7.3f} ({metric})\t'
         log_msg(logger, metric_str)
+
+        # 计算最优决策阈值（max F1），供后端解析后自动填充自定义检测阈值
+        if len(gt_sp) > 0 and len(pr_sp_max) > 0 and len(np.unique(gt_sp)) >= 2:
+            try:
+                precs, recs, thrs = precision_recall_curve(gt_sp, pr_sp_max)
+                f1s = 2 * precs * recs / (precs + recs + 1e-7)
+                f1s = f1s[:-1]
+                best_idx = int(np.argmax(f1s))
+                optimal_th = float(thrs[best_idx])
+                best_f1 = float(f1s[best_idx])
+                print(f'Optimal threshold: {optimal_th:.4f} (F1={best_f1:.4f}, method=max_f1, class={cls_name})')
+            except Exception:
+                pass
+
         return metric_results
 
     @staticmethod
