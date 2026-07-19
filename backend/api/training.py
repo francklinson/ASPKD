@@ -5,6 +5,7 @@
 import os
 import sys
 import json
+import math
 import time
 import subprocess
 import threading
@@ -1044,8 +1045,25 @@ def _run_anomalib_training(task_id: str, config: TrainingConfig, save_name: str)
     try:
         data_root = _resolve_data_root(config.data_source)
         algorithm = config.algorithm_name or "patchcore"
-        max_epochs = max(1, config.total_iters // 100)
         batch_size = config.batch_size
+
+        # 统一训练量语义：total_iters 表示 optimizer step 次数（与 Dinomaly 一致）
+        # Anomalib 以 epoch 为单位，需根据数据集大小和 batch_size 换算
+        # formula: max_epochs = ceil(total_iters / batches_per_epoch)
+        #           batches_per_epoch = ceil(train_images / batch_size)
+        total_train = config.dataset_stats.get(
+            config.categories[0] if config.categories else "unknown", {}
+        ).get("train", 0)
+        if total_train > 0:
+            batches_per_epoch = max(1, math.ceil(total_train / batch_size))
+            max_epochs = max(1, math.ceil(config.total_iters / batches_per_epoch))
+            logger.info(
+                f"Anomalib 训练量换算: total_iters={config.total_iters} → "
+                f"{max_epochs} epochs (train_images={total_train}, batch_size={batch_size}, "
+                f"batches_per_epoch={batches_per_epoch})"
+            )
+        else:
+            max_epochs = max(1, config.total_iters // 100)
 
         # 映射训练 API 算法名到 Anomalib 注册名（snake_case 缩写转换差异）
         anomalib_algo = _ANOMALIB_NAME_MAP.get(algorithm, algorithm)
@@ -1209,8 +1227,23 @@ def _run_ader_training(task_id: str, config: TrainingConfig, save_name: str):
         except ValueError:
             checkpoint_rel = saved_results_abs
 
-        # 计算训练 epoch 数：total_iters 来自前端输入，按每个 epoch 100 iter 近似换算
-        epoch_full = max(1, config.total_iters // 100)
+        # 统一训练量语义：total_iters 表示 optimizer step 次数（与 Dinomaly 一致）
+        # ADer 以 epoch 为单位，需根据数据集大小和 batch_size 换算
+        # ADer 内部 scheduler.py: iter_full = train_size * epoch_full，其中 train_size = batches_per_epoch
+        # formula: epoch_full = ceil(total_iters / batches_per_epoch)
+        total_train = sum(s.get("train", 0) for s in config.dataset_stats.values())
+        if total_train > 0:
+            # ADer 使用自身配置文件的 batch_size（与 TrainingConfig.batch_size 可能不同）
+            # 用 config.batch_size 近似，典型 ADer 配置 batch_size=16
+            batches_per_epoch = max(1, math.ceil(total_train / config.batch_size))
+            epoch_full = max(1, math.ceil(config.total_iters / batches_per_epoch))
+            logger.info(
+                f"ADer 训练量换算: total_iters={config.total_iters} → "
+                f"{epoch_full} epochs (train_images={total_train}, batch_size≈{config.batch_size}, "
+                f"batches_per_epoch≈{batches_per_epoch})"
+            )
+        else:
+            epoch_full = max(1, config.total_iters // 100)
         test_start_epoch = epoch_full
         test_per_epoch = max(1, epoch_full // 10)
 
