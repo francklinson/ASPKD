@@ -306,7 +306,22 @@ class EvaluationMixin:
             f"Mean: I-Auroc:{np.mean(auroc_list):.4f}, "
             f"I-AP:{np.mean(ap_list):.4f}, I-F1:{np.mean(f1_list):.4f}"
         )
-        
+
+        # 计算最优决策阈值（max F1 方法）
+        if len(gt_list) > 0 and len(pr_list) > 0:
+            gt_arr = np.asarray(gt_list, dtype=np.float64)
+            pr_arr = np.asarray(pr_list, dtype=np.float64)
+            precs, recs, thrs = metrics.precision_recall_curve(gt_arr, pr_arr)
+            f1s = 2 * precs * recs / (precs + recs + 1e-7)
+            f1s = f1s[:-1]  # 去掉 thresholds 最后一个哨兵值对应的 F1
+            if len(f1s) > 0:
+                best_idx = int(np.argmax(f1s))
+                optimal_th = float(thrs[best_idx])
+                best_f1_at_th = float(f1s[best_idx])
+                self.logger.info(
+                    f"Optimal threshold: {optimal_th:.4f} (F1={best_f1_at_th:.4f}, method=max_f1)"
+                )
+
         self._plot_roc_curve(gt_list, pr_list)
         return auroc_list, ap_list, f1_list, gt_list, pr_list
 

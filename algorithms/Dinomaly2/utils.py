@@ -198,7 +198,7 @@ def evaluation_batch(model, dataloader, device, _class_=None, max_ratio=0, resiz
         f1_sp = f1_score_max(gt_list_sp, pr_list_sp)
         f1_px = f1_score_max(gt_list_px, pr_list_px)
 
-    return [auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px]
+    return [auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, gt_list_sp, pr_list_sp]
 
 
 def evaluation_batch_noseg(model, dataloader, device, _class_=None, max_ratio=0, resize_mask=None,

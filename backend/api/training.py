@@ -1596,6 +1596,21 @@ def _run_subprocess_with_logging(task_id: str, cmd: List[str], env: dict = None,
                         _save_training_metadata(save_dir, candidates[0], task)
                         break
 
+        # 保存阈值信息到模型目录（供自定义检测自动读取）
+        test_metrics = task.get("test_metrics", {})
+        if test_metrics and test_metrics.get("optimal_threshold") and task.get("model_path"):
+            th_info = test_metrics["optimal_threshold"]
+            model_dir = task["model_path"]
+            if not os.path.isdir(model_dir):
+                model_dir = os.path.dirname(model_dir)
+            th_file = os.path.join(model_dir, "threshold_info.json")
+            try:
+                with open(th_file, "w", encoding="utf-8") as f:
+                    json.dump(th_info, f, ensure_ascii=False, indent=2)
+                logger.info(f"[{task_id}] 阈值信息已保存: {th_file}")
+            except OSError as e:
+                logger.warning(f"[{task_id}] 保存阈值信息失败: {e}")
+
         # 注: 曾在此创建 {algo}_best.pth 链接/副本,但无任何消费方且会在
         # 离线检测列表中产生无法解析的 custom: 条目,已移除生成逻辑。
         # 列表过滤与删除清理仍保留,用于兼容历史遗留的 _best.pth 文件。
@@ -1689,6 +1704,18 @@ def _parse_test_metrics(log_text: str, algorithm_family: str) -> dict:
             # 将 Anomalib 的指标名标准化（例如 image_AUROC → I-AUROC）
             normalized = name.replace("image_", "I-").replace("pixel_", "P-")
             metrics["mean"][normalized] = float(value)
+
+    # ── 最优决策阈值 ──
+    th_match = re.search(
+        r'^Optimal threshold:\s*([\d.]+)\s*\(F1=([\d.]+),\s*method=(\S+)\)',
+        eval_section, re.MULTILINE
+    )
+    if th_match:
+        metrics["optimal_threshold"] = {
+            "value": float(th_match.group(1)),
+            "f1": float(th_match.group(2)),
+            "method": th_match.group(3),
+        }
 
     return metrics
 

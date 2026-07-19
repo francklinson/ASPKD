@@ -151,12 +151,16 @@ function renderTrainedModels(models) {
         const algoName = m.algorithm_name ? `<span style="color:#333;font-weight:500;">${_esc(m.algorithm_name)}</span>` : '';
         const category = m.category ? `<span style="color:#888;">· ${_esc(m.category)}</span>` : '';
         const selected = selectedModelPath === m.path ? 'selected' : '';
+        const thBadge = m.recommended_threshold != null
+            ? `<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#fff7e6;color:#fa8c16;" title="训练时计算的最优阈值">⚡ 阈值 ${Number(m.recommended_threshold).toFixed(3)}</span>`
+            : '';
         return `
-            <div class="custom-model-item ${selected}" data-idx="${idx}" style="padding:10px 12px; border:1px solid ${selected ? '#667eea' : '#e8e8e8'}; border-radius:6px; margin-bottom:6px; cursor:pointer; transition:all 0.2s; ${selected ? 'background:#f0f3ff;' : ''}">
+            <div class="custom-model-item ${selected}" data-idx="${idx}" data-threshold="${m.recommended_threshold != null ? m.recommended_threshold : ''}" style="padding:10px 12px; border:1px solid ${selected ? '#667eea' : '#e8e8e8'}; border-radius:6px; margin-bottom:6px; cursor:pointer; transition:all 0.2s; ${selected ? 'background:#f0f3ff;' : ''}">
                 <div style="font-size:13px; font-weight:500; color:#333; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${_esc(m.name)}</div>
                 <div style="font-size:12px; color:#666; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                     ${familyBadge} ${algoName} ${category}
                     <span style="color:#aaa;">${m.size_mb}MB</span>
+                    ${thBadge}
                 </div>
             </div>
         `;
@@ -167,7 +171,7 @@ function renderTrainedModels(models) {
         el.addEventListener('click', function() {
             const idx = parseInt(this.dataset.idx);
             const m = models[idx];
-            if (m) selectTrainedModel(m.path, m.name, m.matched_algorithm_id || '');
+            if (m) selectTrainedModel(m.path, m.name, m.matched_algorithm_id || '', m.recommended_threshold);
         });
     });
 }
@@ -210,10 +214,28 @@ function filterCustomModels(family) {
     renderTrainedModels(filtered);
 }
 
-function selectTrainedModel(path, name, matchedAlgoId) {
+function selectTrainedModel(path, name, matchedAlgoId, recommendedThreshold) {
     selectedModelPath = path;
     selectedModelName = name;
     selectedAlgorithmId = matchedAlgoId || '';
+
+    // 自动填充推荐阈值
+    if (recommendedThreshold != null && recommendedThreshold !== undefined) {
+        const thEl = document.getElementById('custom-threshold');
+        if (thEl) {
+            thEl.value = Number(recommendedThreshold).toFixed(4);
+            // 显示提示
+            const hintEl = document.getElementById('custom-threshold-hint');
+            if (hintEl) {
+                hintEl.textContent = `已自动填入训练最优阈值 ${Number(recommendedThreshold).toFixed(4)} (max F1)`;
+                hintEl.style.display = '';
+            }
+        }
+    } else {
+        // 无推荐阈值时清空提示
+        const hintEl = document.getElementById('custom-threshold-hint');
+        if (hintEl) hintEl.style.display = 'none';
+    }
 
     // 更新算法描述
     updateAlgorithmInfo(selectedAlgorithmId);

@@ -20,6 +20,7 @@ from models.vision_transformer import Block as VitBlock, bMlp, Attention, Linear
 from dataset import MVTecDataset
 import torch.backends.cudnn as cudnn
 from utils import evaluation_batch, global_cosine, global_cosine_hm_percent, WarmupCosineScheduler
+from sklearn.metrics import precision_recall_curve
 from functools import partial
 from optimizers import StableAdamW
 import warnings
@@ -221,7 +222,7 @@ def train(item_list, args):
                     test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False,
                                                                   num_workers=4)
                     results = evaluation_batch(model, test_dataloader, device, max_ratio=0.01, resize_mask=256)
-                    auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px = results
+                    auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, gt_sp, pr_sp = results
 
                     auroc_sp_list.append(auroc_sp)
                     ap_sp_list.append(ap_sp)
@@ -257,13 +258,14 @@ def train(item_list, args):
         model.eval()
         auroc_sp_list, ap_sp_list, f1_sp_list = [], [], []
         auroc_px_list, ap_px_list, f1_px_list, aupro_px_list = [], [], [], []
+        all_gt_sp, all_pr_sp = [], []
 
         with torch.no_grad():
             for item, test_data in zip(item_list, test_data_list):
                 test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False,
                                                               num_workers=4)
                 results = evaluation_batch(model, test_dataloader, device, max_ratio=0.01, resize_mask=256)
-                auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px = results
+                auroc_sp, ap_sp, f1_sp, auroc_px, ap_px, f1_px, aupro_px, gt_sp, pr_sp = results
 
                 auroc_sp_list.append(auroc_sp)
                 ap_sp_list.append(ap_sp)
@@ -272,6 +274,8 @@ def train(item_list, args):
                 ap_px_list.append(ap_px)
                 f1_px_list.append(f1_px)
                 aupro_px_list.append(aupro_px)
+                all_gt_sp.append(gt_sp)
+                all_pr_sp.append(pr_sp)
 
                 print_fn(
                     '{}: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
@@ -281,6 +285,18 @@ def train(item_list, args):
             'Mean: I-Auroc:{:.4f}, I-AP:{:.4f}, I-F1:{:.4f}, P-AUROC:{:.4f}, P-AP:{:.4f}, P-F1:{:.4f}, P-AUPRO:{:.4f}'.format(
                 np.mean(auroc_sp_list), np.mean(ap_sp_list), np.mean(f1_sp_list),
                 np.mean(auroc_px_list), np.mean(ap_px_list), np.mean(f1_px_list), np.mean(aupro_px_list)))
+
+        # 计算最优决策阈值
+        if all_gt_sp and all_pr_sp:
+            gt_concat = np.concatenate(all_gt_sp)
+            pr_concat = np.concatenate(all_pr_sp)
+            precs, recs, thrs = precision_recall_curve(gt_concat, pr_concat)
+            f1s = 2 * precs * recs / (precs + recs + 1e-7)
+            f1s = f1s[:-1]
+            best_idx = np.argmax(f1s)
+            optimal_th = float(thrs[best_idx])
+            best_f1_at_th = float(f1s[best_idx])
+            print_fn(f'Optimal threshold: {optimal_th:.4f} (F1={best_f1_at_th:.4f}, method=max_f1)')
 
     torch.save(model.state_dict(), os.path.join(args.save_dir, args.save_name, 'model.pth'))
 

@@ -289,6 +289,18 @@ async def list_trained_models():
                         matched_algorithm_id = alg_id
                         break
 
+        # 读取训练时保存的推荐阈值
+        recommended_threshold = None
+        th_dir = entry_path if is_dir else os.path.dirname(entry_path)
+        th_file = os.path.join(th_dir, "threshold_info.json")
+        if os.path.isfile(th_file):
+            try:
+                with open(th_file, "r", encoding="utf-8") as f:
+                    th_data = json.load(f)
+                recommended_threshold = th_data.get("value")
+            except (json.JSONDecodeError, OSError):
+                pass
+
         models.append({
             "name": entry,
             "path": entry_path,
@@ -299,6 +311,7 @@ async def list_trained_models():
             "category": category,
             "matched_algorithm_id": matched_algorithm_id,
             "is_dir": is_dir,
+            "recommended_threshold": recommended_threshold,
         })
 
     models.sort(key=lambda x: x.get("created_at", ""), reverse=True)

@@ -263,6 +263,24 @@ async function showTrainingDetailModal(taskId) {
                     <div class="task-detail-grid">${metricItems.join('')}</div>
                 </div>
             `;
+
+            // 推荐阈值
+            const optTh = tm.optimal_threshold;
+            if (optTh) {
+                html += `
+                <div class="task-detail-section">
+                    <h4>🎯 推荐异常阈值</h4>
+                    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;">
+                        <span style="font-size:20px;font-weight:700;color:#fa8c16;">${Number(optTh.value).toFixed(4)}</span>
+                        <div style="font-size:12px;color:#999;">
+                            <div>计算方法: <strong>${optTh.method || 'max_f1'}</strong></div>
+                            <div>对应 F1: <strong>${(optTh.f1 * 100).toFixed(2)}%</strong></div>
+                            <div style="margin-top:2px;">该阈值已保存至模型目录，自定义检测时将自动填充</div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
         }
 
         // 展示每类性能（如果有多个类别）
